@@ -177,26 +177,67 @@ private:
     using MetricsArray =
         std::array<Metrics, static_cast<size_t>(ServiceExecutorTaskName::kMaxTaskName)>;
 
-    enum class ThreadCreationReason { kStuckDetection, kStarvation, kReserveMinimum, kError, kMax };
+    struct TaskWrapper {
+        ServiceExecutorAdaptive::Task _task;
+
+        size_t _id;
+        ServiceExecutorTaskName _name;
+        ScheduleFlags _flags;
+
+        TickSource::Tick _scheduleTime;
+    };
+
+    enum class ThreadStatus {
+        kUnstarted = 0,
+        kRunning,
+        kFailed,
+        kStopped,
+    };
+
+    enum class ThreadCreationReason {
+        kUnset = 0,
+        kStuckDetection = 1,
+        kStarvation,
+        kReserveMinimum,
+        kError,
+        kMax
+    };
+
     enum class ThreadTimer { kRunning, kExecuting };
 
     struct ThreadState {
-        ThreadState(TickSource* ts) : running(ts), executing(ts) {}
+        ThreadState(TickSource* ts) : executing(ts), running(ts) {}
 
-        CumulativeTickTimer running;
-        TickSource::Tick executingCurRun;
+        // Task-specific state variables
         CumulativeTickTimer executing;
-        MetricsArray threadMetrics;
+
+        // Thread-specific state variables
+        size_t _id{};
+        AtomicWord<ThreadStatus> _status{};
+        ThreadCreationReason _creationReason{};
+
         std::int64_t markIdleCounter = 0;
         int recursionDepth = 0;
+
+        TickSource::Tick executingCurRun;
+        CumulativeTickTimer running;
+        MetricsArray threadMetrics;
     };
 
     using ThreadList = stdx::list<ThreadState>;
 
-    void _startWorkerThread(ThreadCreationReason reason);
     static StringData _threadStartedByToString(ThreadCreationReason reason);
-    void _workerThreadRoutine(int threadId, ThreadList::iterator it);
+
+    void _startWorkerThread(ThreadCreationReason reason);
+    void _auditThreads();
+
+    AtomicWord<int>& _getQueuedCounter(const TaskWrapper& task) {
+        return (task._flags & kDeferredTask) ? _deferredTasksQueued : _tasksQueued;
+    }
+
+    void _workerThreadRoutine(ThreadState&);
     void _controllerThreadRoutine();
+
     bool _isStarved() const;
     Milliseconds _getThreadJitter() const;
 
@@ -229,6 +270,8 @@ private:
     AtomicWord<TickSource::Tick> _pastThreadsSpentExecuting{0};
     AtomicWord<TickSource::Tick> _pastThreadsSpentRunning{0};
     static thread_local ThreadState* _localThreadState;
+
+    static AtomicWord<size_t> _nextTaskId;
 
     // These counters are only used for reporting in serverStatus.
     AtomicWord<int64_t> _totalQueued{0};

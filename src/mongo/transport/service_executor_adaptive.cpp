@@ -89,6 +89,7 @@ constexpr auto kThreadsRunning = "threadsRunning"_sd;
 constexpr auto kThreadsPending = "threadsPending"_sd;
 constexpr auto kExecutorLabel = "executor"_sd;
 constexpr auto kExecutorName = "adaptive"_sd;
+constexpr auto kUnset = "UNSET"_sd;
 constexpr auto kStuckDetection = "stuckThreadsDetected"_sd;
 constexpr auto kStarvation = "starvation"_sd;
 constexpr auto kReserveMinimum = "belowReserveMinimum"_sd;
@@ -153,6 +154,8 @@ struct ServerParameterOptions : public ServiceExecutorAdaptive::Options {
 thread_local ServiceExecutorAdaptive::ThreadState* ServiceExecutorAdaptive::_localThreadState =
     nullptr;
 
+AtomicWord<size_t> ServiceExecutorAdaptive::_nextTaskId{0};
+
 ServiceExecutorAdaptive::ServiceExecutorAdaptive(ServiceContext* ctx,
                                                  std::shared_ptr<asio::io_context> ioCtx)
     : ServiceExecutorAdaptive(ctx, std::move(ioCtx), stdx::make_unique<ServerParameterOptions>()) {}
@@ -203,43 +206,45 @@ Status ServiceExecutorAdaptive::shutdown(Milliseconds timeout) {
 Status ServiceExecutorAdaptive::schedule(ServiceExecutorAdaptive::Task task,
                                          ScheduleFlags flags,
                                          ServiceExecutorTaskName taskName) {
-    auto scheduleTime = _tickSource->getTicks();
-    auto pendingCounterPtr = (flags & kDeferredTask) ? &_deferredTasksQueued : &_tasksQueued;
-    pendingCounterPtr->addAndFetch(1);
-
     if (!_isRunning.load()) {
         return {ErrorCodes::ShutdownInProgress, "Executor is not running"};
     }
 
-    auto wrappedTask =
-        [ this, task = std::move(task), scheduleTime, pendingCounterPtr, taskName, flags ] {
-        pendingCounterPtr->subtractAndFetch(1);
-        auto start = _tickSource->getTicks();
-        _totalSpentQueued.addAndFetch(start - scheduleTime);
+    auto id = _nextTaskId.fetchAndAdd(1);
+    auto scheduleTime = _tickSource->getTicks();
+    TaskWrapper taskWrapper{std::move(task), id, taskName, flags, scheduleTime};
 
-        _localThreadState->threadMetrics[static_cast<size_t>(taskName)]
-            ._totalSpentQueued.addAndFetch(start - scheduleTime);
+    _getQueuedCounter(taskWrapper).addAndFetch(1);
+
+    auto wrappedTask = [ this, task = std::move(taskWrapper) ] {
+        // TODO Move this into its own function
+        _getQueuedCounter(task).subtractAndFetch(1);
+        auto start = _tickSource->getTicks();
+        _totalSpentQueued.addAndFetch(start - task._scheduleTime);
+
+        _localThreadState->threadMetrics[static_cast<size_t>(task._name)]
+            ._totalSpentQueued.addAndFetch(start - task._scheduleTime);
 
         if (_localThreadState->recursionDepth++ == 0) {
             _localThreadState->executing.markRunning();
             _threadsInUse.addAndFetch(1);
         }
-        const auto guard = MakeGuard([this, taskName] {
+        const auto guard = MakeGuard([this, &task] {
             if (--_localThreadState->recursionDepth == 0) {
                 _localThreadState->executingCurRun += _localThreadState->executing.markStopped();
                 _threadsInUse.subtractAndFetch(1);
             }
             _totalExecuted.addAndFetch(1);
-            _localThreadState->threadMetrics[static_cast<size_t>(taskName)]
+            _localThreadState->threadMetrics[static_cast<size_t>(task._name)]
                 ._totalExecuted.addAndFetch(1);
         });
 
         TickTimer _localTimer(_tickSource);
-        task();
-        _localThreadState->threadMetrics[static_cast<size_t>(taskName)]
+        task._task();
+        _localThreadState->threadMetrics[static_cast<size_t>(task._name)]
             ._totalSpentExecuting.addAndFetch(_localTimer.sinceStartTicks());
 
-        if ((flags & ServiceExecutor::kMayYieldBeforeSchedule) &&
+        if ((task._flags & ServiceExecutor::kMayYieldBeforeSchedule) &&
             (_localThreadState->markIdleCounter++ & 0xf)) {
             markThreadIdle();
         }
@@ -290,6 +295,46 @@ bool ServiceExecutorAdaptive::_isStarved() const {
     auto available = _threadsRunning.load() - _threadsInUse.load();
 
     return (tasksQueued > available);
+}
+
+// This function goes through all of our ThreadStates, removes the states for dead threads, and
+// handles any management we care about
+void ServiceExecutorAdaptive::_auditThreads() {
+    stdx::unique_lock<stdx::mutex> lk(_threadsMutex);
+
+    // Find all of our dead threads
+    std::vector<const ThreadState*> deadThreads;
+    size_t failedThreadCount = 0;
+    for (auto& state : _threads) {
+        switch (state._status.load()) {
+            case ThreadStatus::kFailed: {
+                warning() << "Database worker thread " << state._id << " has failed. ";
+                ++failedThreadCount;
+                deadThreads.push_back(&state);
+            } break;
+            case ThreadStatus::kStopped: {
+                log() << "Database worker thread " << state._id << " has stopped. ";
+                deadThreads.push_back(&state);
+            } break;
+            default: {
+                // Nothing to do for Running or Unstarted threads
+            }
+        }
+    }
+
+    // Clean out the threads list
+    for (auto* state : deadThreads) {
+        auto predFun = [id = state->_id](auto& state)->bool {
+            return state._id == id;
+        };
+        auto it = std::find_if(_threads.begin(), _threads.end(), predFun);
+        _threads.erase(it);
+    }
+
+    // Restart all failed threads
+    for (size_t i = 0; i < failedThreadCount; i++) {
+        _startWorkerThread(ThreadCreationReason::kError);
+    }
 }
 
 /*
@@ -361,6 +406,9 @@ void ServiceExecutorAdaptive::_controllerThreadRoutine() {
         // If the executor has stopped, then stop the controller altogether
         if (!_isRunning.load())
             break;
+
+        // Check if any thread has died or other concerns
+        _auditThreads();
 
         if (sinceLastStuckThreadCheck.sinceStart() >= stuckThreadTimeout) {
             // Reset our timer so we know how long to sleep for the next time around;
@@ -462,7 +510,9 @@ void ServiceExecutorAdaptive::_controllerThreadRoutine() {
 void ServiceExecutorAdaptive::_startWorkerThread(ThreadCreationReason reason) {
     stdx::unique_lock<stdx::mutex> lk(_threadsMutex);
     auto it = _threads.emplace(_threads.begin(), _tickSource);
-    auto num = _threads.size();
+
+    it->_id = _threads.size();
+    it->_creationReason = reason;
 
     _threadsPending.addAndFetch(1);
     _threadsRunning.addAndFetch(1);
@@ -470,8 +520,8 @@ void ServiceExecutorAdaptive::_startWorkerThread(ThreadCreationReason reason) {
 
     lk.unlock();
 
-    const auto launchResult =
-        launchServiceWorkerThread([this, num, it] { _workerThreadRoutine(num, it); });
+    log() << "Starting a new database worker thread " << it->_id;
+    const auto launchResult = launchServiceWorkerThread([this, it] { _workerThreadRoutine(*it); });
 
     if (!launchResult.isOK()) {
         warning() << "Failed to launch new worker thread: " << launchResult;
@@ -551,28 +601,25 @@ TickSource::Tick ServiceExecutorAdaptive::_getThreadTimerTotal(
     return accumulator;
 }
 
-void ServiceExecutorAdaptive::_workerThreadRoutine(
-    int threadId, ServiceExecutorAdaptive::ThreadList::iterator state) {
+void ServiceExecutorAdaptive::_workerThreadRoutine(ThreadState& state) {
     _threadsPending.subtractAndFetch(1);
-    _localThreadState = &(*state);
+    _localThreadState = &state;
     {
-        std::string threadName = str::stream() << "worker-" << threadId;
+        std::string threadName = str::stream() << "worker-" << state._id;
         setThreadName(threadName);
     }
 
-    log() << "Started new database worker thread " << threadId;
-
     bool guardThreadsRunning = true;
-    const auto guard = MakeGuard([this, &guardThreadsRunning, state] {
+    const auto guard = MakeGuard([this, &guardThreadsRunning, &state] {
         if (guardThreadsRunning)
             _threadsRunning.subtractAndFetch(1);
-        _pastThreadsSpentRunning.addAndFetch(state->running.totalTime());
-        _pastThreadsSpentExecuting.addAndFetch(state->executing.totalTime());
+        _pastThreadsSpentRunning.addAndFetch(state.running.totalTime());
+        _pastThreadsSpentExecuting.addAndFetch(state.executing.totalTime());
 
-        _accumulateTaskMetrics(&_accumulatedMetrics, state->threadMetrics);
-        {
-            stdx::lock_guard<stdx::mutex> lk(_threadsMutex);
-            _threads.erase(state);
+        _accumulateTaskMetrics(&_accumulatedMetrics, state.threadMetrics);
+
+        if (state._status.loadRelaxed() != ThreadStatus::kFailed) {
+            state._status.store(ThreadStatus::kStopped);
         }
         _deathCondition.notify_one();
     });
@@ -586,13 +633,13 @@ void ServiceExecutorAdaptive::_workerThreadRoutine(
         dassert(runTime.count() > 0);
 
         // Reset ticksSpentExecuting timer
-        state->executingCurRun = 0;
+        state.executingCurRun = 0;
 
         try {
             asio::io_context::work work(*_ioContext);
             // If we're still "pending" only try to run one task, that way the controller will
             // know that it's okay to start adding threads to avoid starvation again.
-            state->running.markRunning();
+            state.running.markRunning();
             _ioContext->run_for(runTime.toSystemDuration());
 
             // _ioContext->run_one() will return when all the scheduled handlers are completed, and
@@ -604,16 +651,15 @@ void ServiceExecutorAdaptive::_workerThreadRoutine(
                 _ioContext->restart();
             // If an exception escaped from ASIO, then break from this thread and start a new one.
         } catch (std::exception& e) {
-            log() << "Exception escaped worker thread: " << e.what()
-                  << " Starting new worker thread.";
-            _startWorkerThread(ThreadCreationReason::kError);
-            break;
+            log() << "Exception escaped worker thread: " << e.what() << ". ";
+            state._status.store(ThreadStatus::kFailed);
+            return;
         } catch (...) {
-            log() << "Unknown exception escaped worker thread. Starting new worker thread.";
-            _startWorkerThread(ThreadCreationReason::kError);
-            break;
+            log() << "Unknown exception escaped worker thread. ";
+            state._status.store(ThreadStatus::kFailed);
+            return;
         }
-        auto spentRunning = state->running.markStopped();
+        auto spentRunning = state.running.markStopped();
 
         // If we spent less than our idle threshold actually running tasks then exit the thread.
         // This is a helper lambda to perform that calculation.
@@ -624,7 +670,7 @@ void ServiceExecutorAdaptive::_workerThreadRoutine(
 
             // First get the ratio of ticks spent executing to ticks spent running. We
             // expect this to be <= 1.0
-            double executingToRunning = state->executingCurRun / static_cast<double>(spentRunning);
+            double executingToRunning = state.executingCurRun / static_cast<double>(spentRunning);
 
             // Multiply that by 100 to get the percentage of time spent executing tasks. We
             // expect this to be <= 100.
@@ -672,6 +718,8 @@ void ServiceExecutorAdaptive::_workerThreadRoutine(
 StringData ServiceExecutorAdaptive::_threadStartedByToString(
     ServiceExecutorAdaptive::ThreadCreationReason reason) {
     switch (reason) {
+        case ThreadCreationReason::kUnset:
+            return kUnset;
         case ThreadCreationReason::kStuckDetection:
             return kStuckDetection;
         case ThreadCreationReason::kStarvation:
