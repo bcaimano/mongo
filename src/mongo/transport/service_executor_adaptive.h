@@ -207,6 +207,7 @@ private:
 
     struct ThreadState {
         ThreadState(TickSource* ts) : executing(ts), running(ts) {}
+        ~ThreadState();
 
         // Task-specific state variables
         CumulativeTickTimer executing;
@@ -242,16 +243,14 @@ private:
     Milliseconds _getThreadJitter() const;
 
     void _accumulateTaskMetrics(MetricsArray* outArray, const MetricsArray& inputArray) const;
-    void _accumulateAllTaskMetrics(MetricsArray* outputMetricsArray,
-                                   const stdx::unique_lock<stdx::mutex>& lk) const;
-    TickSource::Tick _getThreadTimerTotal(ThreadTimer which,
-                                          const stdx::unique_lock<stdx::mutex>& lk) const;
+    void _accumulateAllTaskMetrics(MetricsArray* outputMetricsArray) const;
+    TickSource::Tick _getThreadTimerTotal(ThreadTimer which) const;
+    void _updateThreadTimerTotals();
 
     std::shared_ptr<asio::io_context> _ioContext;
 
     std::unique_ptr<Options> _config;
 
-    mutable stdx::mutex _threadsMutex;
     ThreadList _threads;
     std::array<int64_t, static_cast<size_t>(ThreadCreationReason::kMax)> _threadStartCounters;
 
@@ -269,6 +268,8 @@ private:
     TickTimer _lastScheduleTimer;
     AtomicWord<TickSource::Tick> _pastThreadsSpentExecuting{0};
     AtomicWord<TickSource::Tick> _pastThreadsSpentRunning{0};
+    AtomicWord<TickSource::Tick> _spentExecuting{0};
+    AtomicWord<TickSource::Tick> _spentRunning{0};
     static thread_local ThreadState* _localThreadState;
 
     static AtomicWord<size_t> _nextTaskId;
@@ -277,6 +278,9 @@ private:
     AtomicWord<int64_t> _totalQueued{0};
     AtomicWord<int64_t> _totalExecuted{0};
     AtomicWord<TickSource::Tick> _totalSpentQueued{0};
+
+    stdx::mutex _statsMutex;
+    std::unique_ptr<MetricsArray> _statsMetrics;
 
     // Threads signal this condition variable when they exit so we can gracefully shutdown
     // the executor.
