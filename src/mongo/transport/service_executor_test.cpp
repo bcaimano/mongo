@@ -87,6 +87,9 @@ protected:
         executorConfig = configOwned.get();
         executor = stdx::make_unique<ServiceExecutorAdaptive>(
             getGlobalServiceContext(), asioIOCtx, std::move(configOwned));
+
+        // Might as well talk someone's ear off
+        logger::globalLogDomain()->setMinimumLoggedSeverity(logger::LogSeverity::Debug(1));
     }
 
     ServiceExecutorAdaptive::Options* executorConfig;

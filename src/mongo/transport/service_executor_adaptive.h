@@ -239,6 +239,9 @@ private:
     void _workerThreadRoutine(ThreadState&);
     void _controllerThreadRoutine();
 
+    bool _waitForSignal(Milliseconds timeout);
+    bool _launchThreadIfStuck();
+    bool _isUnderUtilized();
     bool _isStarved() const;
     Milliseconds _getThreadJitter() const;
 
@@ -254,10 +257,12 @@ private:
     ThreadList _threads;
     std::array<int64_t, static_cast<size_t>(ThreadCreationReason::kMax)> _threadStartCounters;
 
-    stdx::thread _controllerThread;
-
     TickSource* const _tickSource;
     AtomicWord<bool> _isRunning{false};
+
+    stdx::thread _controllerThread;
+    TickTimer _stuckThreadCheckTimer;
+    Milliseconds _stuckThreadTimeout{};
 
     // These counters are used to detect stuck threads and high task queuing.
     AtomicWord<int> _threadsRunning{0};
@@ -265,6 +270,7 @@ private:
     AtomicWord<int> _threadsInUse{0};
     AtomicWord<int> _tasksQueued{0};
     AtomicWord<int> _deferredTasksQueued{0};
+
     TickTimer _lastScheduleTimer;
     AtomicWord<TickSource::Tick> _pastThreadsSpentExecuting{0};
     AtomicWord<TickSource::Tick> _pastThreadsSpentRunning{0};
@@ -288,7 +294,7 @@ private:
 
     // Tasks should signal this condition variable if they want the thread controller to
     // track their progress and do fast stuck detection
-    AtomicWord<int> _starvationCheckRequests{0};
+    AtomicWord<bool> _wasStarved{};
     stdx::condition_variable _scheduleCondition;
 
     MetricsArray _accumulatedMetrics;
