@@ -105,6 +105,10 @@ public:
         return _threadsRunning.load();
     }
 
+    const Options& config() {
+        return *_config;
+    }
+
 private:
     class TickTimer {
     public:

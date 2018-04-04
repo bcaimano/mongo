@@ -46,7 +46,7 @@ using namespace transport;
 
 struct TestOptions : public ServiceExecutorAdaptive::Options {
     int reservedThreads() const final {
-        return 1;
+        return 2;
     }
 
     Milliseconds workerThreadRunTime() const final {
@@ -76,7 +76,7 @@ struct TestOptions : public ServiceExecutorAdaptive::Options {
 
 struct RecursionOptions : public ServiceExecutorAdaptive::Options {
     int reservedThreads() const final {
-        return 1;
+        return 2;
     }
 
     Milliseconds workerThreadRunTime() const final {
@@ -106,56 +106,76 @@ struct RecursionOptions : public ServiceExecutorAdaptive::Options {
 
 class ServiceExecutorAdaptiveFixture : public unittest::Test {
 protected:
+    using CallbackFun = stdx::function<void()>;
+
     void setUp() override {
         auto scOwned = stdx::make_unique<ServiceContextNoop>();
         setGlobalServiceContext(std::move(scOwned));
         asioIoCtx = std::make_shared<asio::io_context>();
+
+        // Might as well talk someone's ear off
+        logger::globalLogDomain()->setMinimumLoggedSeverity(logger::LogSeverity::Debug(1));
+    }
+
+    template <typename T>
+    void expect(const AtomicWord<T> & checkVar,
+                const T & expected,
+                boost::optional<Milliseconds> timeout = boost::none) {
+        std::unique_lock<std::mutex> lk(mutex);
+
+        bool hitExpected{false};
+        auto predFun = [&checkVar, expected]() -> bool { return checkVar.load() == expected; };
+        if (timeout) {
+            hitExpected = cond.wait_for(lk, timeout->toSystemDuration(), predFun);
+        } else {
+            hitExpected = cond.wait(lk, predFun);
+        }
+
+        ASSERT_TRUE(hitExpected);
+    }
+
+    template <typename F>
+    void schedule(F&& fun) {
+        auto wrappedFun = [&mutex, &cond, fun = std::move(fun) ]() {
+            {
+                std::unique_lock<std::mutex> lk(mutex);
+                fun();
+            }
+            cond.notify_one();
+        };
+
+        auto ret = exec->schedule(
+            wrappedFun, ServiceExecutor::kEmptyFlags, ServiceExecutorTaskName::kSSMProcessMessage);
+        ASSERT_OK(ret);
+    }
+
+    template <class Options>
+    void initExecutor() {
+        auto config = stdx::make_unique<Options>();
+        exec = stdx::make_unique<ServiceExecutorAdaptive>(
+            getGlobalServiceContext(), asioIoCtx, std::move(config));
+
+        {
+            auto ret = exec->start();
+            ASSERT_OK(ret);
+        }
+
+        std::AtomicWord<bool> hasStarted{false};
+        auto fun = [&hasStarted]() { hasStarted.store(true); };
+        schedule(fun);
+
+        log() << "Waiting for the executor to start running tasks. ";
+        expect(hasStarted, true)
+        log() << "Executor has run initial task. ";
+
+        ASSERT_GTE(exec->threadsRunning(), exec->config()->reservedThreads());
     }
 
     std::shared_ptr<asio::io_context> asioIoCtx;
+    std::unique_ptr<ServiceExecutorAdaptive> exec;
 
     stdx::mutex mutex;
-    AtomicWord<int> waitFor{-1};
     stdx::condition_variable cond;
-    stdx::function<void()> notifyCallback = [this] {
-        stdx::unique_lock<stdx::mutex> lk(mutex);
-        invariant(waitFor.load() != -1);
-        waitFor.fetchAndSubtract(1);
-        cond.notify_one();
-        log() << "Ran callback";
-    };
-
-    void waitForCallback(int expected, boost::optional<Milliseconds> timeout = boost::none) {
-        stdx::unique_lock<stdx::mutex> lk(mutex);
-        invariant(waitFor.load() != -1);
-        if (timeout) {
-            ASSERT_TRUE(cond.wait_for(
-                lk, timeout->toSystemDuration(), [&] { return waitFor.load() == expected; }));
-        } else {
-            cond.wait(lk, [&] { return waitFor.load() == expected; });
-        }
-    }
-
-    ServiceExecutorAdaptive::Options* config;
-
-    template <class Options>
-    std::unique_ptr<ServiceExecutorAdaptive> makeAndStartExecutor() {
-        auto configOwned = stdx::make_unique<Options>();
-        config = configOwned.get();
-        auto exec = stdx::make_unique<ServiceExecutorAdaptive>(
-            getGlobalServiceContext(), asioIoCtx, std::move(configOwned));
-
-        ASSERT_OK(exec->start());
-        log() << "wait for executor to finish starting";
-        waitFor.store(1);
-        ASSERT_OK(exec->schedule(notifyCallback,
-                                 ServiceExecutor::kEmptyFlags,
-                                 ServiceExecutorTaskName::kSSMProcessMessage));
-        waitForCallback(0);
-        ASSERT_EQ(exec->threadsRunning(), config->reservedThreads());
-
-        return exec;
-    }
 };
 
 /*
@@ -170,11 +190,15 @@ TEST_F(ServiceExecutorAdaptiveFixture, TestStuckTask) {
     auto guard = MakeGuard([&] {
         if (blockedLock)
             blockedLock.unlock();
-        ASSERT_OK(exec->shutdown(config->workerThreadRunTime() * 2));
+
+        {
+            auto ret = exec->shutdown(config->workerThreadRunTime() * 2);
+            ASSERT_OK(ret);
+        }
     });
 
     log() << "Scheduling blocked task";
-    waitFor.store(3);
+    storeState(3);
     ASSERT_OK(exec->schedule(
         [this, &blockedMutex] {
             notifyCallback();
@@ -189,17 +213,17 @@ TEST_F(ServiceExecutorAdaptiveFixture, TestStuckTask) {
         notifyCallback, ServiceExecutor::kEmptyFlags, ServiceExecutorTaskName::kSSMProcessMessage));
 
     log() << "Waiting for second thread to start";
-    waitForCallback(1);
+    expectState(1);
     ASSERT_EQ(exec->threadsRunning(), 2);
 
     log() << "Waiting for unstuck task to run";
     blockedLock.unlock();
-    waitForCallback(0);
+    expectState(0);
     ASSERT_EQ(exec->threadsRunning(), 2);
 
     log() << "Waiting for second thread to idle out";
     stdx::this_thread::sleep_for(config->workerThreadRunTime().toSystemDuration() * 1.5);
-    ASSERT_EQ(exec->threadsRunning(), config->reservedThreads());
+    ASSERT_GTE(exec->threadsRunning(), config->reservedThreads());
 }
 
 /*
@@ -225,7 +249,7 @@ TEST_F(ServiceExecutorAdaptiveFixture, TestStuckThreads) {
         notifyCallback();
     };
 
-    waitFor.store(6);
+    storeState(6);
     auto tasks = waitFor.load() / 2;
     log() << "Scheduling " << tasks << " blocked tasks";
     for (auto i = 0; i < tasks; i++) {
@@ -235,7 +259,7 @@ TEST_F(ServiceExecutorAdaptiveFixture, TestStuckThreads) {
     }
 
     log() << "Waiting for executor to start new threads";
-    waitForCallback(3);
+    expectState(3);
 
     log() << "All threads blocked, wait for executor to detect block and start a new thread.";
 
@@ -245,11 +269,11 @@ TEST_F(ServiceExecutorAdaptiveFixture, TestStuckThreads) {
     // for other waits in the controller and boot up a new thread which should be enough.
     stdx::this_thread::sleep_for(config->stuckThreadTimeout().toSystemDuration() * 3);
 
-    ASSERT_EQ(exec->threadsRunning(), waitFor.load() + config->reservedThreads());
+    ASSERT_GTE(exec->threadsRunning(), waitFor.load() + config->reservedThreads());
 
     log() << "Waiting for unstuck task to run";
     blockedLock.unlock();
-    waitForCallback(0);
+    expectState(0);
 }
 
 /*
@@ -344,7 +368,7 @@ TEST_F(ServiceExecutorAdaptiveFixture, TestRecursion) {
         return remainingTasks.load() == 0;
     });
 
-    ASSERT_EQ(exec->threadsRunning(), config->reservedThreads());
+    ASSERT_GTE(exec->threadsRunning(), config->reservedThreads());
 }
 
 /*
@@ -363,7 +387,7 @@ TEST_F(ServiceExecutorAdaptiveFixture, TestDeferredTasks) {
         ASSERT_OK(exec->shutdown(config->workerThreadRunTime() * 2));
     });
 
-    waitFor.store(3);
+    storeState(3);
     log() << "Scheduling a blocking task";
     ASSERT_OK(exec->schedule(
         [this, &blockedMutex] {
@@ -378,17 +402,17 @@ TEST_F(ServiceExecutorAdaptiveFixture, TestDeferredTasks) {
                              ServiceExecutor::kDeferredTask,
                              ServiceExecutorTaskName::kSSMProcessMessage));
 
-    ASSERT_THROWS(waitForCallback(1, config->stuckThreadTimeout()),
+    ASSERT_THROWS(expectState(1, config->stuckThreadTimeout()),
                   unittest::TestAssertionFailureException);
 
     log() << "Scheduling non-deferred task";
     ASSERT_OK(exec->schedule(
         notifyCallback, ServiceExecutor::kEmptyFlags, ServiceExecutorTaskName::kSSMProcessMessage));
-    waitForCallback(1, config->stuckThreadTimeout());
+    expectState(1, config->stuckThreadTimeout());
     ASSERT_GT(exec->threadsRunning(), config->reservedThreads());
 
     blockedLock.unlock();
-    waitForCallback(0);
+    expectState(0);
 }
 
 }  // namespace
