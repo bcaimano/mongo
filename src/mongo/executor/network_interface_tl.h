@@ -107,6 +107,7 @@ private:
         Future<RemoteCommandResponse> mergedFuture = promise.getFuture();
     };
 
+    void _run();
     void _eraseInUseConn(const TaskExecutor::CallbackHandle& handle);
     Future<RemoteCommandResponse> _onAcquireConn(std::shared_ptr<CommandState> state,
                                                  CommandState::ConnHandle conn,
