@@ -1,0 +1,10 @@
+#Intentionally omitted: -r components/platform.req
+-r components/core.req
+
+-r components/compile.req
+-r components/lint.req
+-r components/mypy.req
+-r components/resmoke.req
+
+-r components/aws.req
+-r components/jiraclient.req
