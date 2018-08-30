@@ -192,6 +192,7 @@ private:
 #endif
 
     std::vector<std::pair<SockAddr, GenericAcceptor>> _acceptors;
+    std::vector<SockAddr> _outgoingBindIps;
 
     // Only used if _listenerOptions.async is false.
     stdx::thread _listenerThread;
