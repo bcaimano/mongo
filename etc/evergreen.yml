@@ -391,9 +391,6 @@ variables:
   setup_group:
   - func: "kill processes"
   - func: "cleanup environment"
-  # The python virtual environment is installed in ${workdir}, which is created in
-  # "set up virtualenv".
-  - func: "set up virtualenv"
   - func: "set task expansion macros"
   - func: "clear OOM messages"
   - command: manifest.load
@@ -441,7 +438,6 @@ variables:
     # We invoke SCons using --jobs = (# of CPUs / 4) to avoid causing out of memory errors due to
     # spawning a large number of linker processes.
     num_scons_link_jobs_available: $(( $(grep -c ^processor /proc/cpuinfo) / 4 ))
-    python: python
     num_jobs_available: $(grep -c ^processor /proc/cpuinfo)
     ext: zip
     use_scons_cache: true
@@ -1272,27 +1268,6 @@ functions:
   - *set_up_credentials
   - *fetch_benchrun_embedded_files
 
-  "set up virtualenv" :
-    command: shell.exec
-    type: test
-    params:
-        script: |
-          # exit immediately if virtualenv is not found
-          set -o errexit
-          set -o verbose
-
-          python_loc=$(which ${python|/opt/mongodbtoolchain/v2/bin/python2})
-          python3_loc=$(which ${python|/opt/mongodbtoolchain/v2/bin/python3})
-          virtualenv_loc=$(which ${virtualenv|virtualenv})
-          if [ "Windows_NT" = "$OS" ]; then
-            python_loc=$(cygpath -w $python_loc)
-            python3_loc=$(cygpath -w c:/python/Python36/python.exe)
-          fi
-          # Set up virtualenv in ${workdir}
-          "$virtualenv_loc" --python "$python_loc" --system-site-packages "${workdir}/venv"
-          # Add virtualenv for python3 in ${workdir}
-          "$virtualenv_loc" --python "$python3_loc" --system-site-packages "${workdir}/venv_3"
-
   "run tests" :
     - *determine_task_timeout
     - *update_task_timeout_expansions
@@ -1506,8 +1481,8 @@ functions:
         ${compile_env|} $python ./buildscripts/scons.py ${compile_flags|} ${task_compile_flags|} ${scons_cache_args|} $extra_args ${targets} ${additional_targets|} MONGO_VERSION=${version}
         exit_status=$?
         # If compile fails we do not run any tests
-        if [ $exit_status -ne 0 ]; then
-          if [ ${dump_scons_config_on_failure} = 'true' ]; then
+        if [[ $exit_status -ne 0 ]]; then
+          if [[ "${dump_scons_config_on_failure}" == true ]]; then
             echo "Dumping build/scons/config.log"
             cat build/scons/config.log
           fi
@@ -2653,44 +2628,29 @@ functions:
       updates:
       - key: activate_virtualenv
         value: |
-          # check if virtualenv is set up
-          if [ -d "${workdir}/venv" ]; then
-            if [ "Windows_NT" = "$OS" ]; then
-              # Need to quote the path on Windows to preserve the separator.
-              . "${workdir}/venv/Scripts/activate" 2> /tmp/activate_error.log
-            else
-              . ${workdir}/venv/bin/activate 2> /tmp/activate_error.log
-            fi
-            if [ $? -ne 0 ]; then
-              echo "Failed to activate virtualenv: $(cat /tmp/activate_error.log)"
-            fi
-            python=python
-          else
-            python=${python|/opt/mongodbtoolchain/v2/bin/python2}
-          fi
-          echo "python set to $(which $python)"
-      - key: activate_virtualenv_3
-        value: |
-          # check if virtualenv for python3 is set up
-          if [ -d "${workdir}/venv_3" ]; then
-            if [ "Windows_NT" = "$OS" ]; then
-              # Need to quote the path on Windows to preserve the separator.
-              . "${workdir}/venv_3/Scripts/activate" 2> /tmp/activate_error.log
-            else
-              . ${workdir}/venv_3/bin/activate 2> /tmp/activate_error.log
-            fi
-            if [ $? -ne 0 ]; then
-              echo "Failed to activate virtualenv: $(cat /tmp/activate_error.log)"
-            fi
-            python=python
-          else
-            if [ "Windows_NT" = "$OS" ]; then
-              python=/cygdrive/c/python/Python36/python
-            else
-              python=${python3|/opt/mongodbtoolchain/v2/bin/python3}
+          # Make virtualenv if it isn't already set up
+          export VENV2_DIR=${workdir}/venv
+          export VENV3_DIR=${workdir}/venv_3
+          export VIRTUALENV=${virtualenv|virtualenv}
+          if [[ ! -d $VENV2_DIR ]]; then
+            if ! bash ${workdir}/src/buildscripts/make-paired-virtualenvs.sh 1>/tmp/virtualenv.log 2>&1; then
+                echo "Unable to set up virtualenv: $(cat /tmp/virtualenv.log)"
+                2>&1 echo "No python2 virtualenv available. Failing..."
+                exit 1
             fi
           fi
-          echo "python set to $(which $python)"
+
+          if ! . "$VENV2_DIR/bin/activate" 2>/tmp/activate_error.log; then
+            echo "Failed to activate virtualenv: $(cat /tmp/activate_error.log)"
+            exit 1
+          fi
+
+          # This variable is unnecessary but scattered about this file.
+          # If you make changes nearby to an instance, please change it to 'python2'
+          python="$(which python2)"
+
+          echo "python[2] set to $python"
+          echo "python3 set to $(which python3)"
       - key: posix_workdir
         value: eval 'if [ "Windows_NT" = "$OS" ]; then echo $(cygpath -u "${workdir}"); else echo ${workdir}; fi'
       # For ssh disable the options GSSAPIAuthentication, CheckHostIP, StrictHostKeyChecking
@@ -3215,9 +3175,6 @@ functions:
 pre:
   - func: "kill processes"
   - func: "cleanup environment"
-  # The python virtual environment is installed in ${workdir}, which is created in
-  # "set up virtualenv".
-  - func: "set up virtualenv"
   - func: "set task expansion macros"
   - func: "clear OOM messages"
 
@@ -3972,17 +3929,13 @@ tasks:
 
           ### TODO: Remove python3 when mypy 0.580 is installed in the toolchain.
           # Since mypy requires python3, we need to activate the venv_3
-          ${activate_virtualenv_3}
-          pip install -r buildscripts/requirements.txt
-          updated_mypy=$(PATH=$PATH:/opt/mongodbtoolchain/v2/bin which mypy)
-          deactivate
-          ###
           ${activate_virtualenv}
+          pip3 install -r buildscripts/requirements.txt
           # TODO: Remove once the linters have been updated on the variants.
           pip install -r buildscripts/requirements.txt
           # The linters require the modules be installed.
           pip install -r pytests/requirements.txt
-          MYPY=$updated_mypy ${compile_env|} $python ./buildscripts/scons.py ${compile_flags|} --stack-size=1024 lint
+          MYPY="$VENV3_DIR/bin/mypy" ${compile_env|} $python ./buildscripts/scons.py ${compile_flags|} --stack-size=1024 lint
 
 - <<: *task_template
   name: burn_in_tests
@@ -6822,9 +6775,7 @@ tasks:
         set -o verbose
 
         ${activate_virtualenv}
-        if [ "Windows_NT" = "$OS" ]; then
-          /cygdrive/c/python/python36/python.exe -m pip install -r buildscripts/requirements.txt
-        fi
+        pip3 install -r buildscripts/requirements.txt
   - func: "run tests"
     vars:
       resmoke_args: --suites=free_monitoring --storageEngine=wiredTiger
@@ -7598,7 +7549,6 @@ task_groups:
     - func: "scons cache pruning"
     - func: "umount shared scons directory"
   setup_task:
-    - func: "set up virtualenv"
     - func: "set task expansion macros"
     - func: "apply compile expansions"
   teardown_task:
@@ -9159,7 +9109,6 @@ buildvariants:
     # We invoke SCons using --jobs = (# of CPUs / 4) to avoid causing out of memory errors due to
     # spawning a large number of linker processes.
     num_scons_link_jobs_available: $(( $(grep -c ^processor /proc/cpuinfo) / 4 ))
-    python: python
     ext: zip
     use_scons_cache: true
     multiversion_platform: windows
@@ -9320,7 +9269,6 @@ buildvariants:
     # We invoke SCons using --jobs = (# of CPUs / 4) to avoid causing out of memory errors due to
     # spawning a large number of linker processes.
     num_scons_link_jobs_available: $(( $(grep -c ^processor /proc/cpuinfo) / 4 ))
-    python: python
     num_jobs_available: $(grep -c ^processor /proc/cpuinfo)
     ext: zip
     use_scons_cache: true
@@ -9635,7 +9583,6 @@ buildvariants:
     # We invoke SCons using --jobs = (# of CPUs / 4) to avoid causing out of memory errors due to
     # spawning a large number of linker processes.
     num_scons_link_jobs_available: $(( $(grep -c ^processor /proc/cpuinfo) / 4 ))
-    python: python
     num_jobs_available: $(grep -c ^processor /proc/cpuinfo)
     ext: zip
     use_scons_cache: true
@@ -9667,7 +9614,6 @@ buildvariants:
     # We invoke SCons using --jobs = (# of CPUs / 4) to avoid causing out of memory errors due to
     # spawning a large number of linker processes.
     num_scons_link_jobs_available: $(( $(grep -c ^processor /proc/cpuinfo) / 4 ))
-    python: python
     num_jobs_available: $(grep -c ^processor /proc/cpuinfo)
     test_flags: --storageEngine=inMemory --excludeWithAnyTags=requires_persistence,requires_journaling,uses_transactions
     ext: zip
@@ -9741,7 +9687,6 @@ buildvariants:
     # We invoke SCons using --jobs = (# of CPUs / 4) to avoid causing out of memory errors due to
     # spawning a large number of linker processes.
     num_scons_link_jobs_available: $(( $(grep -c ^processor /proc/cpuinfo) / 4 ))
-    python: python
     num_jobs_available: $(grep -c ^processor /proc/cpuinfo)
     ext: zip
     use_scons_cache: true
@@ -9857,7 +9802,6 @@ buildvariants:
     # We invoke SCons using --jobs = (# of CPUs / 4) to avoid causing out of memory errors due to
     # spawning a large number of linker processes.
     num_scons_link_jobs_available: $(( $(grep -c ^processor /proc/cpuinfo) / 4 ))
-    python: python
     num_jobs_available: $(grep -c ^processor /proc/cpuinfo)
     ext: zip
     use_scons_cache: true
