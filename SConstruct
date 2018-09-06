@@ -3562,21 +3562,42 @@ env.AddMethod(env_windows_resource_file, 'WindowsResourceFile')
 
 # --- lint ----
 
-def doLint( env , target , source ):
+def doESLint( env , target , source ):
     import buildscripts.eslint
     if not buildscripts.eslint.lint(None, dirmode=True, glob=["jstests/", "src/mongo/"]):
         raise Exception("ESLint errors")
 
+env.Alias( "es-lint" , [] , [ doESLint ] )
+env.AlwaysBuild( "es-lint" )
+
+def doClangLint( env , target , source ):
     import buildscripts.clang_format
     if not buildscripts.clang_format.lint_all(None):
         raise Exception("clang-format lint errors")
 
+env.Alias( "clang-lint" , [] , [ doClangLint ] )
+env.AlwaysBuild( "clang-lint" )
+
+def doPyLint( env , target , source ):
     import buildscripts.pylinters
     buildscripts.pylinters.lint_all(None, {}, [])
 
+env.Alias( "py-lint" , [] , [ doPyLint ] )
+env.AlwaysBuild( "py-lint" )
+
+def doMongoLint( env , target , source ):
     import buildscripts.lint
     if not buildscripts.lint.run_lint( [ "src/mongo/" ] ):
         raise Exception( "lint errors" )
+
+env.Alias( "mongo-lint" , [] , [ doMongoLint ] )
+env.AlwaysBuild( "mongo-lint" )
+
+def doLint( env , target , source ):
+    doESLint( env, target, source)
+    doClangLint( env, target, source)
+    doPyLint( env, target, source)
+    doMongoLint( env, target, source)
 
 env.Alias( "lint" , [] , [ doLint ] )
 env.AlwaysBuild( "lint" )
