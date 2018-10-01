@@ -165,7 +165,7 @@ void TLConnection::setup(Milliseconds timeout, SetupCallback cb) {
     std::move(pf.future).getAsync(
         [ this, cb = std::move(cb), anchor ](Status status) { cb(this, std::move(status)); });
 
-    log() << "Connecting to " << _peer;
+    // log() << "Connecting to " << _peer;
     setTimeout(timeout, [this, handler, timeout] {
         if (handler->done.swap(true)) {
             return;

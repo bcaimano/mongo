@@ -1,5 +1,8 @@
+/bin
 /build
+/lib
 /src/mongo/db/modules
+/workload_gen
 /.jsdbshell
 /.dbshell
 /*.ninja

@@ -23,9 +23,11 @@ def integration_test_list_builder_action(env, target, source):
 def build_cpp_integration_test(env, target, source, **kwargs):
     libdeps = kwargs.get('LIBDEPS', [])
     libdeps.append( '$BUILD_DIR/mongo/unittest/integration_test_main' )
-
     kwargs['LIBDEPS'] = libdeps
-    kwargs['INSTALL_ALIAS'] = ['tests']
+
+    install_alias = kwargs.get('INSTALL_ALIAS', [])
+    install_alias.extend(('tests', 'integration_tests'))
+    kwargs['INSTALL_ALIAS'] = install_alias
 
     result = env.Program(target, source, **kwargs)
     env.RegisterIntegrationTest(result[0])

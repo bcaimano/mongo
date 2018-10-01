@@ -32,6 +32,7 @@
 
 #include "mongo/client/connection_string.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/commands/test_commands_enabled.h"
 #include "mongo/executor/network_interface_tl.h"
 #include "mongo/transport/transport_layer_asio.h"
 #include "mongo/unittest/integration_test.h"
@@ -39,8 +40,61 @@
 #include "mongo/util/future.h"
 #include "mongo/util/log.h"
 #include "mongo/util/net/hostandport.h"
+#include "mongo/util/options_parser/startup_option_init.h"
+#include "mongo/util/options_parser/startup_options.h"
+
 
 namespace mongo {
+namespace {
+namespace moe = mongo::optionenvironment;
+
+constexpr char kTotalOperations[] = "totalOperations";
+constexpr char kAddEgressInterface[] = "addEgressInterface";
+constexpr char kEgressInterfaces[] = "egressInterfaces";
+
+Status addWorkloadGenerationOptions(moe::OptionSection* options) {
+    moe::OptionSection workGenOptions("Workload Generation options");
+
+    workGenOptions.addOptionChaining(
+        kTotalOperations, kTotalOperations, moe::UnsignedLongLong, "Total operations to queue");
+    workGenOptions.addOptionChaining(
+        kEgressInterfaces,
+        kAddEgressInterface,
+        moe::StringVector,
+        "Add network interface to use for egress connections");
+
+    Status ret = options->addSection(workGenOptions);
+    if (!ret.isOK()) {
+        error() << "Failed to add workload generation option section: " << ret.toString();
+        return ret;
+    }
+
+    return Status::OK();
+}
+
+unsigned long long totalOperations = 32768ull;
+std::vector<std::string> egressInterfaces = {"127.0.0.2"};
+Status storeWorkloadGenerationOptions(const moe::Environment& params) {
+
+    if (params.count(kTotalOperations))
+        totalOperations = params[kTotalOperations].as<unsigned long long>();
+
+    if (params.count(kEgressInterfaces))
+        egressInterfaces = params[kEgressInterfaces].as<std::vector<std::string>>();
+
+    return Status::OK();
+}
+
+MONGO_MODULE_STARTUP_OPTIONS_REGISTER(WorkloadGenerationOptions)(InitializerContext* /*unused*/) {
+    return addWorkloadGenerationOptions(&moe::startupOptions);
+}
+
+MONGO_STARTUP_OPTIONS_STORE(WorkloadGenerationOptions)(InitializerContext* /*unused*/) {
+    return storeWorkloadGenerationOptions(moe::startupOptionsParsed);
+}
+
+}  // namespace
+
 namespace executor {
 
 /**
@@ -64,12 +118,14 @@ TEST(NetworkInterfaceTest, main) {
     setGlobalServiceContext(ServiceContext::make());
     auto svc = getGlobalServiceContext();
 
+    setTestCommandsEnabled(true);
+
     transport::TransportLayerASIO::Options tlOpts;
-    tlOpts.mode = transport::TransportLayerASIO::Options::kEgress;
-    // tlOpts.ipList = { "127.0.0.1", "127.0.0.2"};
-    tlOpts.ipList = {"127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5"};
+    tlOpts.mode = transport::TransportLayerASIO::Options::kEgress | transport::TransportLayerASIO::Options::kIngress;
+    tlOpts.ipList = egressInterfaces;
 
     auto tl = std::make_unique<transport::TransportLayerASIO>(tlOpts, nullptr);
+    uassertStatusOK(tl->setup());
     uassertStatusOK(tl->start());
     svc->setTransportLayer(std::move(tl));
 
@@ -83,49 +139,74 @@ TEST(NetworkInterfaceTest, main) {
         Promise<void> promise;
     };
 
+    struct Thread {
+        stdx::thread thread;
+        std::shared_ptr<Latch> latch;
+        AtomicWord<long> maxCount;
+        size_t nConns;
+        size_t id{0};
+    };
+
     constexpr size_t nThreads = 8;
-    std::array<stdx::thread, 8> threads;
+    std::array<Thread, nThreads> threads;
 
     size_t n = 0;
     for (auto& thread : threads) {
-        thread = stdx::thread([&svc, id = n++]{
+        thread.id = n++;
+        thread.nConns = totalOperations / nThreads;
+        thread.thread = stdx::thread([&svc, &thread] {
             auto pf = makePromiseFuture<void>();
-            auto latch = std::make_shared<Latch>(std::move(pf.promise));
+            thread.latch = std::make_shared<Latch>(std::move(pf.promise));
             auto future = std::move(pf.future);
 
             ConnectionPool::Options cpOpts;
             cpOpts.refreshRequirement = Minutes(5);
             cpOpts.refreshTimeout = Minutes(5);
-            NetworkInterfaceTL ni("foo", cpOpts, svc, nullptr, nullptr);
+            cpOpts.maxConnecting = 1024ul;
+
+            auto niName = std::string(str::stream() << "interface" << thread.id);
+            NetworkInterfaceTL ni(niName, cpOpts, svc, nullptr, nullptr);
             ni.startup();
 
             auto cs = unittest::getFixtureConnectionString();
 
-            RemoteCommandRequest rcr(cs.getServers().front(), "admin", BSON("sleep" << 1 << "lock" << "none" << "secs" <<  10), nullptr);
-        //    RemoteCommandRequest rcr(cs.getServers().front(), "admin", BSON("ping" << 1), nullptr);
+            RemoteCommandRequest rcr(cs.getServers().front(),
+                                     "admin",
+                                     BSON("sleep" << 1 << "lock"
+                                                  << "none"
+                                                  << "secs"
+                                                  << 6000),
+                                     nullptr);
+            //    RemoteCommandRequest rcr(cs.getServers().front(), "admin", BSON("ping" << 1),
+            //    nullptr);
 
-            for (size_t i = 0; i < 100000 / nThreads; i++) {
+            for (size_t i = 0; i < thread.nConns; i++) {
                 ni.NetworkInterface::startCommand(makeCallbackHandle(), rcr)
-                    .getAsync([latch, id](StatusWith<TaskExecutor::ResponseStatus> rs) mutable {
-                        if (!rs.isOK()) {
-                            log() << id << " Error: " << rs.getStatus();
-                        } else {
-                            log() << id << " use count at: " << latch.use_count();
-                        }
-                        latch.reset();
+                    .getAsync([localLatch = thread.latch, &niName, &thread](StatusWith<TaskExecutor::ResponseStatus> rs) mutable {
+                        uassertStatusOK(rs);
+
+                        thread.maxCount.store(std::max(localLatch.use_count(), thread.maxCount.load()));
+                        //log() << niName << " use count at: " << latch.use_count();
+                        localLatch.reset();
                     });
             }
 
-            latch.reset();
+            thread.latch.reset();
+            log() << "All commands started. Waiting for latch.";
 
             future.get();
+
+            ASSERT_EQ(ni.getCounters().failed, 0ul);
+            ASSERT_EQ(ni.getCounters().timedOut, 0ul);
 
             ni.shutdown();
         });
     }
 
     for (auto& thread : threads) {
-        thread.join();
+        thread.thread.join();
+        ASSERT_EQ(thread.latch.use_count(), 0l);
+        log() << "Thread " << thread.id << " max use: " << thread.maxCount.load();
     }
 
     svc->getTransportLayer()->shutdown();

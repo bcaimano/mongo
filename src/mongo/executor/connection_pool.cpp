@@ -544,6 +544,15 @@ void ConnectionPool::SpecificPool::returnConnection(ConnectionInterface* connPtr
                                  return;
                              }
 
+                             if(status.code() == ErrorCodes::HostUnreachable){
+                                 log() << "Pending connection to host " << _hostAndPort
+                                       << " suffered a disconnection,"
+                                       << " retrying with a new connection;" << openConnections(lk)
+                                       << " connections to that host remain open";
+                                 spawnConnections(lk);
+                                 return;
+                             }
+
                              // Otherwise pass the failure on through
                              processFailure(status, std::move(lk));
                          }));
@@ -605,15 +614,16 @@ void ConnectionPool::SpecificPool::processFailure(const Status& status,
     // connections
     _generation++;
 
+    // Log something helpful
+    log() << "Dropping all pooled connections (" << openConnections(lk) << ") to " << _hostAndPort
+          << " due to " << status;
+
     // When a connection enters the ready pool, its timer is set to eventually refresh the
     // connection. This requires a lifetime extension of the specific pool because the connection
     // timer is tied to the lifetime of the connection, not the pool. That said, we can destruct
     // all of the connections and thus timers of which we have ownership.
     // In short, clearing the ready pool helps the SpecificPool drain.
     _readyPool.clear();
-
-    // Log something helpful
-    log() << "Dropping all pooled connections to " << _hostAndPort << " due to " << status;
 
     // Migrate processing connections to the dropped pool
     for (auto&& x : _processingPool) {
@@ -760,7 +770,8 @@ void ConnectionPool::SpecificPool::spawnConnections(stdx::unique_lock<stdx::mute
                         addToReady(lk, std::move(conn));
                     }
                     spawnConnections(lk);
-                } else if (status.code() == ErrorCodes::NetworkInterfaceExceededTimeLimit) {
+                } else if (status.code() == ErrorCodes::NetworkInterfaceExceededTimeLimit ||
+                           status.code() == ErrorCodes::HostUnreachable) {
                     // If we've exceeded the time limit, restart the connect, rather than
                     // failing all operations.  We do this because the various callers
                     // have their own time limit which is unrelated to our internal one.

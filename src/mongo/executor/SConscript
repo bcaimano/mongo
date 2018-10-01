@@ -1,6 +1,7 @@
 # -*- mode: python -*-
 
 Import("env")
+Import("has_option")
 
 env = env.Clone()
 
@@ -154,12 +155,23 @@ env.CppIntegrationTest(
     LIBDEPS=[
         '$BUILD_DIR/mongo/unittest/integration_test_main',
         '$BUILD_DIR/mongo/executor/thread_pool_task_executor',
+        '$BUILD_DIR/mongo/executor/network_interface',
         '$BUILD_DIR/mongo/executor/network_interface_thread_pool',
+        '$BUILD_DIR/mongo/executor/network_interface_factory',
+        '$BUILD_DIR/mongo/executor/network_interface_tl',
         '$BUILD_DIR/mongo/rpc/command_status',
         '$BUILD_DIR/mongo/util/concurrency/thread_pool',
         '$BUILD_DIR/mongo/util/version_impl',
-        'network_interface_tl',
-    ]
+        '$BUILD_DIR/mongo/util/options_parser/options_parser',
+        '$BUILD_DIR/mongo/util/net/ssl_manager',
+        '$BUILD_DIR/mongo/util/net/ssl_options_client' if has_option('ssl') else '',
+        '$BUILD_DIR/mongo/transport/transport_layer_egress_init',
+    ],
+    INSTALL_ALIAS=[
+        'integration_tests',
+        'intests',
+        'tests',
+    ],
 )
 
 env.Library(

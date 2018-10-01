@@ -97,7 +97,8 @@ Status launchServiceWorkerThread(stdx::function<void()> task) {
         pthread_attr_destroy(&attrs);
 
         if (failed) {
-            log() << "pthread_create failed: " << errnoWithDescription(failed);
+            log() << "pthread_create failed: " << errnoWithDescription(failed) << " (" << failed
+                  << ")";
             throw std::system_error(
                 std::make_error_code(std::errc::resource_unavailable_try_again));
         }
