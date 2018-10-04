@@ -166,6 +166,8 @@ env.CppIntegrationTest(
         '$BUILD_DIR/mongo/util/net/ssl_manager',
         '$BUILD_DIR/mongo/util/net/ssl_options_client' if has_option('ssl') else '',
         '$BUILD_DIR/mongo/transport/transport_layer_egress_init',
+        '$BUILD_DIR/mongo/db/auth/internal_user_auth',
+        '$BUILD_DIR/mongo/db/auth/sasl_options',
     ],
     INSTALL_ALIAS=[
         'integration_tests',

@@ -31,6 +31,9 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/client/connection_string.h"
+#include "mongo/db/auth/internal_user_auth.h"
+#include "mongo/db/auth/sasl_command_constants.h"
+#include "mongo/db/auth/sasl_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/commands/test_commands_enabled.h"
 #include "mongo/executor/network_interface_tl.h"
@@ -51,6 +54,7 @@ namespace moe = mongo::optionenvironment;
 constexpr char kTotalOperations[] = "totalOperations";
 constexpr char kAddEgressInterface[] = "addEgressInterface";
 constexpr char kEgressInterfaces[] = "egressInterfaces";
+constexpr char kUseAuth[] = "auth";
 
 Status addWorkloadGenerationOptions(moe::OptionSection* options) {
     moe::OptionSection workGenOptions("Workload Generation options");
@@ -62,6 +66,8 @@ Status addWorkloadGenerationOptions(moe::OptionSection* options) {
         kAddEgressInterface,
         moe::StringVector,
         "Add network interface to use for egress connections");
+    workGenOptions.addOptionChaining(
+        kUseAuth, kUseAuth, moe::Switch, "Attempt to auth with default user");
 
     Status ret = options->addSection(workGenOptions);
     if (!ret.isOK()) {
@@ -74,6 +80,7 @@ Status addWorkloadGenerationOptions(moe::OptionSection* options) {
 
 unsigned long long totalOperations = 32768ull;
 std::vector<std::string> egressInterfaces = {"127.0.0.2"};
+bool useAuth = false;
 Status storeWorkloadGenerationOptions(const moe::Environment& params) {
 
     if (params.count(kTotalOperations))
@@ -81,6 +88,9 @@ Status storeWorkloadGenerationOptions(const moe::Environment& params) {
 
     if (params.count(kEgressInterfaces))
         egressInterfaces = params[kEgressInterfaces].as<std::vector<std::string>>();
+
+    if (params.count(kUseAuth))
+        useAuth = true;
 
     return Status::OK();
 }
@@ -119,6 +129,17 @@ TEST(NetworkInterfaceTest, main) {
     auto svc = getGlobalServiceContext();
 
     setTestCommandsEnabled(true);
+    if(useAuth){
+        log() << "Using default user to authenticate";
+        setInternalUserAuthParams(BSON(
+            saslCommandMechanismFieldName << "SCRAM-SHA-1" << saslCommandUserDBFieldName << "admin"
+                                          << saslCommandUserFieldName
+                                          << "boss"
+                                          << saslCommandPasswordFieldName
+                                          << "password"
+                                          << saslCommandDigestPasswordFieldName
+                                          << true));
+    }
 
     transport::TransportLayerASIO::Options tlOpts;
     tlOpts.mode = transport::TransportLayerASIO::Options::kEgress | transport::TransportLayerASIO::Options::kIngress;
@@ -175,7 +196,7 @@ TEST(NetworkInterfaceTest, main) {
                                      BSON("sleep" << 1 << "lock"
                                                   << "none"
                                                   << "secs"
-                                                  << 6000),
+                                                  << 60 * 1),
                                      nullptr);
             //    RemoteCommandRequest rcr(cs.getServers().front(), "admin", BSON("ping" << 1),
             //    nullptr);
