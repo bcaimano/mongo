@@ -119,6 +119,8 @@ void setThreadName(StringData name) {
     threadNameStorage = name.toString();
     threadName = threadNameStorage;
 
+    dassert(threadNameStorage.find(' ') == std::string::npos);
+
 #if defined(_WIN32)
     // Naming should not be expensive compared to thread creation and connection set up, but if
     // testing shows otherwise we should make this depend on DEBUG again.

@@ -244,7 +244,7 @@ public:
             insertRequest.serialize({}, &insertBuilder);
             sessionInfo.serialize(&insertBuilder);
 
-            Client::initThread("test insert thread");
+            Client::initThread("TestInsertThread");
             auto innerOpCtx = Client::getCurrent()->makeOperationContext();
 
             // The ephemeral for test storage engine doesn't support document-level locking, so

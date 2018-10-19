@@ -111,7 +111,7 @@ IndexBuilder::IndexBuilder(const BSONObj& index, bool relaxConstraints, Timestam
       _index(index.getOwned()),
       _relaxConstraints(relaxConstraints),
       _initIndexTs(initIndexTs),
-      _name(str::stream() << "repl index builder " << _indexBuildCount.addAndFetch(1)) {}
+      _name(str::stream() << "ReplIndexBuilder-" << _indexBuildCount.addAndFetch(1)) {}
 
 IndexBuilder::~IndexBuilder() {}
 

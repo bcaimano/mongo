@@ -119,6 +119,7 @@ public:
                 }
             }
 
+            LOG(0) << "ECHO: " << request().request.body;
             result->getBodyBuilder().append("echo", request().request.body);
         }
     };
