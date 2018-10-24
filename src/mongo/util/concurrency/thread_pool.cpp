@@ -242,6 +242,14 @@ ThreadPool::Stats ThreadPool::getStats() const {
 
 void ThreadPool::_workerThreadBody(ThreadPool* pool, const std::string& threadName) {
     setThreadName(threadName);
+    {
+        auto tid = __gthread_self();
+        ::sched_param sch;
+        int policy;
+        ::pthread_getschedparam(tid, &policy, &sch);
+        sch.sched_priority = 0;
+        ::pthread_setschedparam(tid, SCHED_FIFO, &sch);
+    }
     pool->_options.onCreateThread(threadName);
     const auto poolName = pool->_options.poolName;
     LOG(1) << "starting thread in pool " << poolName;

@@ -1537,7 +1537,7 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManagerOpenSSL::parseAndValidatePeer
                    << remoteHost << " does not match " << certificateNames.str();
         std::string msg = msgBuilder.str();
         if (_allowInvalidCertificates || _allowInvalidHostnames || isUnixDomainSocket(remoteHost)) {
-            warning() << msg;
+            //warning() << msg;
         } else {
             error() << msg;
             return Status(ErrorCodes::SSLHandshakeFailed, msg);

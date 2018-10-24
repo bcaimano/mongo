@@ -127,6 +127,14 @@ Status ServiceExecutorSynchronous::schedule(Task task,
 
     Status status = launchServiceWorkerThread([ this, task = std::move(task) ] {
         _numRunningWorkerThreads.addAndFetch(1);
+        {
+            auto tid = __gthread_self();
+            ::sched_param sch;
+            int policy;
+            ::pthread_getschedparam(tid, &policy, &sch);
+            sch.sched_priority = 0;
+            ::pthread_setschedparam(tid, SCHED_FIFO, &sch);
+        }
 
         _localWorkQueue.emplace_back(std::move(task));
         while (!_localWorkQueue.empty() && _stillRunning.loadRelaxed()) {

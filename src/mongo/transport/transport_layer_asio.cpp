@@ -58,6 +58,8 @@
 // session_asio.h has some header dependencies that require it to be the last header.
 #ifdef __linux__
 #include "mongo/transport/baton_asio_linux.h"
+
+#include <sys/resource.h>
 #endif
 #include "mongo/transport/session_asio.h"
 
@@ -243,6 +245,10 @@ TransportLayerASIO::TransportLayerASIO(const TransportLayerASIO::Options& opts,
 #endif
       _sep(sep),
       _listenerOptions(opts) {
+    auto usage = stdx::make_unique<ResourceUsage>();
+    memset(usage.get(), 0, sizeof(*usage));
+    _usage = std::move(usage);
+
     for (const auto& ip : opts.ipList) {
         for (auto addr : SockAddr::createAll(ip, 0, AF_INET)) {
             _outgoingBindIps.push_back(addr);
@@ -799,6 +805,14 @@ Status TransportLayerASIO::start() {
 
         _listenerThread = stdx::thread([this] {
             setThreadName("listener");
+            {
+                auto tid = __gthread_self();
+                ::sched_param sch;
+                int policy;
+                ::pthread_getschedparam(tid, &policy, &sch);
+                sch.sched_priority = 50;
+                ::pthread_setschedparam(tid, SCHED_FIFO, &sch);
+            }
             while (_running.load()) {
                 _acceptorReactor->run();
             }
@@ -862,6 +876,27 @@ ReactorHandle TransportLayerASIO::getReactor(WhichReactor which) {
     MONGO_UNREACHABLE;
 }
 
+void TransportLayerASIO::appendStats(BSONObjBuilder* bob) const {
+    if(_usage == nullptr)
+        return;
+
+    BSONObjBuilder info(bob->subobjStart(str::stream() << "resource_usage-" << _listenerPort));
+    auto makeTime = [](struct timeval tv) -> long long {
+        return (((unsigned long long)tv.tv_sec) * 1000 * 1000) + tv.tv_usec;
+    };
+    info.appendNumber("user_time", makeTime(_usage->ru_utime));
+    info.appendNumber("system_time", makeTime(_usage->ru_stime));
+
+    info.appendNumber("input_blocks", static_cast<long long>(_usage->ru_inblock));
+    info.appendNumber("output_blocks", static_cast<long long>(_usage->ru_oublock));
+
+    info.appendNumber("page_reclaims", static_cast<long long>(_usage->ru_minflt));
+    info.appendNumber("page_faults", static_cast<long long>(_usage->ru_majflt));
+
+    info.appendNumber("voluntary_context_switches", static_cast<long long>(_usage->ru_nvcsw));
+    info.appendNumber("involuntary_context_switches", static_cast<long long>(_usage->ru_nivcsw));
+}
+
 void TransportLayerASIO::_acceptConnection(GenericAcceptor& acceptor) {
     auto acceptCb = [this, &acceptor](const std::error_code& ec, GenericSocket peerSocket) mutable {
         if (!_running.load())
@@ -885,6 +920,12 @@ void TransportLayerASIO::_acceptConnection(GenericAcceptor& acceptor) {
         _acceptConnection(acceptor);
     };
 
+    if (_usage) {
+        std::mutex noop;
+        stdx::unique_lock<stdx::mutex> lk(noop);
+
+        getrusage(RUSAGE_THREAD, _usage.get());
+    }
     acceptor.async_accept(*_ingressReactor, std::move(acceptCb));
 }
 
