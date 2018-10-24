@@ -226,7 +226,9 @@ void TLConnection::setup(Milliseconds timeout, SetupCallback cb) {
             if (status.isOK()) {
                 handler->promise.emplaceValue();
             } else {
-                log() << "Failed to connect to " << _peer << " - " << redact(status);
+                if (!(status == ErrorCodes::CallbackCanceled && inShutdown())) {
+                    log() << "Failed to connect to " << _peer << " - " << redact(status);
+                }
                 handler->promise.setError(status);
             }
         });
