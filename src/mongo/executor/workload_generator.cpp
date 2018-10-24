@@ -52,9 +52,11 @@ namespace {
 namespace moe = mongo::optionenvironment;
 
 constexpr char kTotalOperations[] = "totalOperations";
+constexpr char kWaitSeconds[] = "waitSeconds";
 constexpr char kAddEgressInterface[] = "addEgressInterface";
 constexpr char kEgressInterfaces[] = "egressInterfaces";
 constexpr char kUseAuth[] = "auth";
+constexpr char kMaxConnecting[] = "maxConnecting";
 
 Status addWorkloadGenerationOptions(moe::OptionSection* options) {
     moe::OptionSection workGenOptions("Workload Generation options");
@@ -62,12 +64,18 @@ Status addWorkloadGenerationOptions(moe::OptionSection* options) {
     workGenOptions.addOptionChaining(
         kTotalOperations, kTotalOperations, moe::UnsignedLongLong, "Total operations to queue");
     workGenOptions.addOptionChaining(
+        kWaitSeconds, kWaitSeconds, moe::UnsignedLongLong, "Seconds to wait before returning");
+    workGenOptions.addOptionChaining(
         kEgressInterfaces,
         kAddEgressInterface,
         moe::StringVector,
         "Add network interface to use for egress connections");
     workGenOptions.addOptionChaining(
         kUseAuth, kUseAuth, moe::Switch, "Attempt to auth with default user");
+    workGenOptions.addOptionChaining(kMaxConnecting,
+                                     kMaxConnecting,
+                                     moe::UnsignedLongLong,
+                                     "Limit on unestablished connections");
 
     Status ret = options->addSection(workGenOptions);
     if (!ret.isOK()) {
@@ -79,18 +87,27 @@ Status addWorkloadGenerationOptions(moe::OptionSection* options) {
 }
 
 unsigned long long totalOperations = 32768ull;
+long long waitSeconds = 60ll;
 std::vector<std::string> egressInterfaces = {"127.0.0.2"};
 bool useAuth = false;
+unsigned long long maxConnecting = 0ull;
+
 Status storeWorkloadGenerationOptions(const moe::Environment& params) {
 
     if (params.count(kTotalOperations))
         totalOperations = params[kTotalOperations].as<unsigned long long>();
+
+    if (params.count(kWaitSeconds))
+        waitSeconds = params[kWaitSeconds].as<unsigned long long>();
 
     if (params.count(kEgressInterfaces))
         egressInterfaces = params[kEgressInterfaces].as<std::vector<std::string>>();
 
     if (params.count(kUseAuth))
         useAuth = true;
+
+    if (params.count(kMaxConnecting))
+        maxConnecting = params[kMaxConnecting].as<unsigned long long>();
 
     return Status::OK();
 }
@@ -123,6 +140,10 @@ public:
 inline TaskExecutor::CallbackHandle makeCallbackHandle() {
     return TaskExecutor::CallbackHandle(std::make_shared<MockCallbackState>());
 }
+
+inline uint64_t getNow() {
+    return getGlobalServiceContext()->getTickSource()->getTicks();
+};
 
 TEST(NetworkInterfaceTest, main) {
     setGlobalServiceContext(ServiceContext::make());
@@ -166,6 +187,12 @@ TEST(NetworkInterfaceTest, main) {
         AtomicWord<long> maxCount;
         size_t nConns;
         size_t id{0};
+
+        struct Metric{
+            uint64_t start;
+            uint64_t end;
+        };
+        std::vector<Metric> metrics;
     };
 
     constexpr size_t nThreads = 8;
@@ -176,6 +203,8 @@ TEST(NetworkInterfaceTest, main) {
         thread.id = n++;
         thread.nConns = totalOperations / nThreads;
         thread.thread = stdx::thread([&svc, &thread] {
+            thread.metrics.reserve(thread.nConns);
+
             auto pf = makePromiseFuture<void>();
             thread.latch = std::make_shared<Latch>(std::move(pf.promise));
             auto future = std::move(pf.future);
@@ -183,7 +212,10 @@ TEST(NetworkInterfaceTest, main) {
             ConnectionPool::Options cpOpts;
             cpOpts.refreshRequirement = Minutes(5);
             cpOpts.refreshTimeout = Minutes(5);
-            cpOpts.maxConnecting = 1024ul;
+            if (maxConnecting != 0) {
+                log() << "Maximum unestablished connections: " << maxConnecting;
+                cpOpts.maxConnecting = maxConnecting;
+            }
 
             auto niName = std::string(str::stream() << "interface" << thread.id);
             NetworkInterfaceTL ni(niName, cpOpts, svc, nullptr, nullptr);
@@ -196,14 +228,19 @@ TEST(NetworkInterfaceTest, main) {
                                      BSON("sleep" << 1 << "lock"
                                                   << "none"
                                                   << "secs"
-                                                  << 60 * 1),
+                                                  << waitSeconds),
                                      nullptr);
             //    RemoteCommandRequest rcr(cs.getServers().front(), "admin", BSON("ping" << 1),
             //    nullptr);
 
             for (size_t i = 0; i < thread.nConns; i++) {
+                thread.metrics.emplace_back();
+                auto &metric = thread.metrics.back();
+
+                metric.start = getNow();
                 ni.NetworkInterface::startCommand(makeCallbackHandle(), rcr)
-                    .getAsync([localLatch = thread.latch, &niName, &thread](StatusWith<TaskExecutor::ResponseStatus> rs) mutable {
+                    .getAsync([localLatch = thread.latch, &niName, &thread, &metric](StatusWith<TaskExecutor::ResponseStatus> rs) mutable {
+                        metric.end = getNow();
                         uassertStatusOK(rs);
 
                         thread.maxCount.store(std::max(localLatch.use_count(), thread.maxCount.load()));
@@ -226,11 +263,52 @@ TEST(NetworkInterfaceTest, main) {
 
     for (auto& thread : threads) {
         thread.thread.join();
-        ASSERT_EQ(thread.latch.use_count(), 0l);
-        log() << "Thread " << thread.id << " max use: " << thread.maxCount.load();
     }
 
+    log() << "All commands finished.";
+
     svc->getTransportLayer()->shutdown();
+
+    for (auto& thread : threads) {
+        ASSERT_EQ(thread.latch.use_count(), 0l);
+        ASSERT_EQ(thread.maxCount.load(), thread.nConns);
+    }
+
+    struct Latency{
+        uint64_t totalMicros = 0;
+        uint64_t count = 0;
+        uint64_t maxMicros = 0;
+        uint64_t minMicros = -1;
+    };
+
+    std::map<uint64_t, Latency> mess;
+    for (auto& thread : threads) {
+        for (auto& m : thread.metrics) {
+            constexpr uint64_t interval = 1000 * 1000; //1ms
+            auto i = m.start - (m.start % interval);
+            auto & bucket = mess[i];
+            ++bucket.count;
+
+            auto micros = (m.end - m.start)/1000 - waitSeconds*1000*1000;
+            if (bucket.minMicros > micros)
+                bucket.minMicros = micros;
+            if (bucket.maxMicros < micros)
+                bucket.maxMicros = micros;
+            bucket.totalMicros += micros;
+        }
+    }
+
+    log() << "Latency Buckets: ";
+    log() << "stamp,totalConns,count,mean,min,max";
+    uint64_t total = 0;
+    for( auto & pair : mess){
+        auto i = pair.first;
+        auto & bucket = pair.second;
+        auto latency = bucket.totalMicros / bucket.count;
+        total += bucket.count;
+        log() << i << ',' << total << ',' << bucket.count << ',' << latency << ','
+              << bucket.minMicros << ',' << bucket.maxMicros;
+    }
 }
 
 }  // namespace executor
