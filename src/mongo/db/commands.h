@@ -428,6 +428,13 @@ public:
     }
 
     /**
+     * Increment count for how many times this command has succeeded.
+     */
+    void incrementCommandsOk() const {
+        _commandsOk.increment();
+    }
+
+    /**
      * Generates a reply from the 'help' information associated with a command. The state of
      * the passed ReplyBuilder will be in kOutputDocs after calling this method.
      */
@@ -442,9 +449,11 @@ private:
     // Counters for how many times this command has been executed and failed
     mutable Counter64 _commandsExecuted;
     mutable Counter64 _commandsFailed;
+    mutable Counter64 _commandsOk;
     // Pointers to hold the metrics tree references
     ServerStatusMetricField<Counter64> _commandsExecutedMetric;
     ServerStatusMetricField<Counter64> _commandsFailedMetric;
+    ServerStatusMetricField<Counter64> _commandsOkMetric;
 };
 
 /**

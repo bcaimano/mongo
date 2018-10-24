@@ -618,7 +618,8 @@ std::unique_ptr<CommandInvocation> BasicCommand::parse(OperationContext* opCtx,
 Command::Command(StringData name, StringData oldName)
     : _name(name.toString()),
       _commandsExecutedMetric("commands." + _name + ".total", &_commandsExecuted),
-      _commandsFailedMetric("commands." + _name + ".failed", &_commandsFailed) {
+      _commandsFailedMetric("commands." + _name + ".failed", &_commandsFailed),
+      _commandsOkMetric("commands." + _name + ".ok", &_commandsOk) {
     globalCommandRegistry()->registerCommand(this, name, oldName);
 }
 

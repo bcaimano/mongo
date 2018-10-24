@@ -752,6 +752,8 @@ void execCommandDatabase(OperationContext* opCtx,
                                 &extraFieldsBuilder,
                                 sessionOptions)) {
                 command->incrementCommandsFailed();
+            } else {
+                command->incrementCommandsOk();
             }
         } catch (const DBException& e) {
             command->incrementCommandsFailed();
