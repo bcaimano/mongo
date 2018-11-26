@@ -28,6 +28,8 @@
  *    it in the license file.
  */
 
+#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kASIO
+
 #include "mongo/platform/basic.h"
 
 #include "mongo/db/ftdc/ftdc_server.h"
@@ -47,6 +49,7 @@
 #include "mongo/db/server_parameters.h"
 #include "mongo/db/service_context.h"
 #include "mongo/stdx/memory.h"
+#include "mongo/util/log.h"
 
 namespace mongo {
 
@@ -272,6 +275,7 @@ void startFTDC(boost::filesystem::path& path,
                RegisterCollectorsFunction registerCollectors) {
     FTDCConfig config;
     config.period = Milliseconds(localPeriodMillis.load());
+    LOG(0) << "FTDC period is " << config.period;
     // Only enable FTDC if our caller says to enable FTDC, MongoS may not have a valid path to write
     // files to so update the diagnosticDataCollectionEnabled set parameter to reflect that.
     localEnabledFlag.store(startupMode == FTDCStartMode::kStart && localEnabledFlag.load());
