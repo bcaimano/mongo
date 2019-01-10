@@ -790,10 +790,27 @@ void ConnectionPool::SpecificPool::spawnConnections(stdx::unique_lock<stdx::mute
             std::min(_requests.size() + _checkedOutPool.size(), _parent->_options.maxConnections));
     };
 
-    // While all of our inflight connections are less than our target
-    while ((_state != State::kInShutdown) &&
-           (_readyPool.size() + _processingPool.size() + _checkedOutPool.size() < target()) &&
-           (_processingPool.size() < _parent->_options.maxConnecting)) {
+    auto currentGeneration = _generation;
+    auto shouldSpawnMore = [&]() {
+        // We're not in shutdown
+        if (_state == State::kInShutdown)
+            return false;
+
+        // All of our inflight connections are less than our target
+        if (_readyPool.size() + _processingPool.size() + _checkedOutPool.size() >= target())
+            return false;
+
+        // We haven't exceeded the maximum connections in establishment
+        if (_processingPool.size() >= _parent->_options.maxConnecting)
+            return false;
+
+        // We haven't processed a failure and resurrected our pool
+        if (currentGeneration != _generation)
+            return false;
+
+        return true;
+    };
+    while (shouldSpawnMore()) {
 
         OwnedConnection handle;
         try {
