@@ -71,6 +71,16 @@ env.Library('network_interface_mock',
             ])
 
 env.Library(
+    target='connection_pool_parameters',
+    source=[
+       'connection_pool_parameters.cpp',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/idl/server_parameter',
+    ],
+)
+
+env.Library(
     target='connection_pool_executor',
     source=[
        'connection_pool.cpp',
@@ -78,6 +88,7 @@ env.Library(
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/util/net/network',
+        'connection_pool_parameters',
         'connection_pool_stats',
         'remote_command',
     ],

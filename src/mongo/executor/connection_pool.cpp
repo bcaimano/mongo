@@ -181,6 +181,10 @@ public:
         _tags = mutateFunc(_tags);
     }
 
+    const ConnectionPoolParameters & parameters() const {
+        return _parent->_options.parameters();
+    }
+
     void fassertSSLModeIs(transport::ConnectSSLMode desired) const {
         if (desired != _sslMode) {
             severe() << "Mixing ssl modes for a single host is not supported";
@@ -267,13 +271,6 @@ private:
     State _state;
 };
 
-constexpr Milliseconds ConnectionPool::kDefaultHostTimeout;
-size_t const ConnectionPool::kDefaultMaxConns = std::numeric_limits<size_t>::max();
-size_t const ConnectionPool::kDefaultMinConns = 1;
-size_t const ConnectionPool::kDefaultMaxConnecting = std::numeric_limits<size_t>::max();
-constexpr Milliseconds ConnectionPool::kDefaultRefreshRequirement;
-constexpr Milliseconds ConnectionPool::kDefaultRefreshTimeout;
-
 const Status ConnectionPool::kConnectionStateUnknown =
     Status(ErrorCodes::InternalError, "Connection is in an unknown state");
 
@@ -283,7 +280,7 @@ ConnectionPool::ConnectionPool(std::shared_ptr<DependentTypeFactoryInterface> im
     : _name(std::move(name)),
       _options(std::move(options)),
       _factory(std::move(impl)),
-      _manager(options.egressTagCloserManager) {
+      _manager(options.tagManager()) {
     if (_manager) {
         _manager->add(this);
     }
@@ -494,8 +491,9 @@ Future<ConnectionPool::ConnectionHandle> ConnectionPool::SpecificPool::getConnec
     Milliseconds timeout, stdx::unique_lock<stdx::mutex> lk) {
     invariant(_state != State::kInShutdown);
 
-    if (timeout < Milliseconds(0) || timeout > _parent->_options.refreshTimeout) {
-        timeout = _parent->_options.refreshTimeout;
+    auto maxRefreshTimeout = Milliseconds{parameters().refreshTimeoutMS()};
+    if (timeout < Milliseconds(0) || timeout > maxRefreshTimeout) {
+        timeout = maxRefreshTimeout;
     }
 
     const auto expiration = _parent->_factory->now() + timeout;
@@ -565,7 +563,8 @@ boost::optional<ConnectionPool::ConnectionHandle> ConnectionPool::SpecificPool::
 
 void ConnectionPool::SpecificPool::returnConnection(ConnectionInterface* connPtr,
                                                     stdx::unique_lock<stdx::mutex> lk) {
-    auto needsRefreshTP = connPtr->getLastUsed() + _parent->_options.refreshRequirement;
+    auto needsRefreshTP =
+        connPtr->getLastUsed() + Milliseconds{parameters().refreshRequirementMS()};
 
     auto conn = takeFromPool(_checkedOutPool, connPtr);
     invariant(conn);
@@ -588,8 +587,8 @@ void ConnectionPool::SpecificPool::returnConnection(ConnectionInterface* connPtr
     if (needsRefreshTP <= now) {
         // If we need to refresh this connection
 
-        if (_readyPool.size() + _processingPool.size() + _checkedOutPool.size() >=
-            _parent->_options.minConnections) {
+        size_t minConns = parameters().minConnections();
+        if (_readyPool.size() + _processingPool.size() + _checkedOutPool.size() >= minConns) {
             // If we already have minConnections, just let the connection lapse
             log() << "Ending idle connection to host " << _hostAndPort
                   << " because the pool meets constraints; " << openConnections(lk)
@@ -601,7 +600,7 @@ void ConnectionPool::SpecificPool::returnConnection(ConnectionInterface* connPtr
 
         // Unlock in case refresh can occur immediately
         lk.unlock();
-        connPtr->refresh(_parent->_options.refreshTimeout,
+        connPtr->refresh(Milliseconds{parameters().refreshTimeoutMS()},
                          guardCallback([this](stdx::unique_lock<stdx::mutex> lk,
                                               ConnectionInterface* connPtr,
                                               Status status) {
@@ -658,7 +657,7 @@ void ConnectionPool::SpecificPool::addToReady(stdx::unique_lock<stdx::mutex>& lk
     // Our strategy for refreshing connections is to check them out and
     // immediately check them back in (which kicks off the refresh logic in
     // returnConnection
-    connPtr->setTimeout(_parent->_options.refreshRequirement,
+    connPtr->setTimeout(Milliseconds{parameters().refreshRequirementMS()},
                         guardCallback([this, connPtr](stdx::unique_lock<stdx::mutex> lk) {
                             auto conn = takeFromPool(_readyPool, connPtr);
 
@@ -783,17 +782,20 @@ void ConnectionPool::SpecificPool::spawnConnections(stdx::unique_lock<stdx::mute
     _inSpawnConnections = true;
     auto guard = makeGuard([&] { _inSpawnConnections = false; });
 
+    // Grabbing the connection bounds that are current for this spawn loop
+    size_t minConns = parameters().minConnections();
+    size_t maxConns = parameters().maxConnections();
+    size_t maxConnecting = parameters().maxConnecting();
+
     // We want minConnections <= outstanding requests <= maxConnections
     auto target = [&] {
-        return std::max(
-            _parent->_options.minConnections,
-            std::min(_requests.size() + _checkedOutPool.size(), _parent->_options.maxConnections));
+        return std::max(minConns, std::min(_requests.size() + _checkedOutPool.size(), maxConns));
     };
 
     // While all of our inflight connections are less than our target
     while ((_state != State::kInShutdown) &&
            (_readyPool.size() + _processingPool.size() + _checkedOutPool.size() < target()) &&
-           (_processingPool.size() < _parent->_options.maxConnecting)) {
+           (_processingPool.size() < maxConnecting)) {
 
         OwnedConnection handle;
         try {
@@ -811,7 +813,7 @@ void ConnectionPool::SpecificPool::spawnConnections(stdx::unique_lock<stdx::mute
         // Run the setup callback
         lk.unlock();
         handle->setup(
-            _parent->_options.refreshTimeout,
+            Milliseconds{parameters().refreshTimeoutMS()},
             guardCallback([this](
                 stdx::unique_lock<stdx::mutex> lk, ConnectionInterface* connPtr, Status status) {
                 auto conn = takeFromProcessingPool(connPtr);
@@ -938,9 +940,8 @@ void ConnectionPool::SpecificPool::updateStateInLock() {
 
         _requestTimer->cancelTimeout();
 
-        _requestTimerExpiration = _parent->_factory->now() + _parent->_options.hostTimeout;
-
-        auto timeout = _parent->_options.hostTimeout;
+        auto timeout = Milliseconds{parameters().hostTimeoutMS()};
+        _requestTimerExpiration = _parent->_factory->now() + timeout;
 
         // Set the shutdown timer, this gets reset on any request
         _requestTimer->setTimeout(timeout, [ this, anchor = shared_from_this() ]() {

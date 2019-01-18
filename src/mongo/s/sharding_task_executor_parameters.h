@@ -1,6 +1,6 @@
 
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2019-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -28,42 +28,53 @@
  *    it in the license file.
  */
 
-#include "mongo/platform/basic.h"
+#pragma once
 
-#include "mongo/executor/network_interface_factory.h"
-
-#include "mongo/base/init.h"
-#include "mongo/base/status.h"
-#include "mongo/config.h"
-#include "mongo/db/server_parameters.h"
-#include "mongo/executor/connection_pool.h"
-#include "mongo/executor/network_connection_hook.h"
-#include "mongo/executor/network_interface_tl.h"
-#include "mongo/rpc/metadata/metadata_hook.h"
-#include "mongo/stdx/memory.h"
+#include "mongo/executor/connection_pool_parameters.h"
 
 namespace mongo {
 namespace executor {
 
-std::unique_ptr<NetworkInterface> makeNetworkInterface(std::string instanceName) {
-    return makeNetworkInterface(std::move(instanceName), nullptr, nullptr);
-}
-
-std::unique_ptr<NetworkInterface> makeNetworkInterface(
-    std::string instanceName,
-    std::unique_ptr<NetworkConnectionHook> hook,
-    std::unique_ptr<rpc::EgressMetadataHook> metadataHook,
-    ConnectionPool::Options connPoolOptions) {
-
-    if (!connPoolOptions.tagManager() && hasGlobalServiceContext()) {
-        auto manager = &EgressTagCloserManager::get(getGlobalServiceContext());
-        connPoolOptions.setTagManager(manager);
+struct ShardingTaskExecutorDetails {
+    static constexpr int32_t hostTimeoutMS() {
+        // 5min
+        return 300000;
+    }
+    static constexpr int32_t refreshRequirementMS() {
+        // 1min
+        return 60000;
+    }
+    static constexpr int32_t refreshTimeoutMS() {
+        // 20secs
+        return 20000;
     }
 
-    auto svcCtx = hasGlobalServiceContext() ? getGlobalServiceContext() : nullptr;
-    return std::make_unique<NetworkInterfaceTL>(
-        instanceName, connPoolOptions, svcCtx, std::move(hook), std::move(metadataHook));
-}
+    static constexpr int32_t minConnections() {
+        return 1;
+    }
+    static constexpr int32_t maxConnections() {
+        return std::numeric_limits<int32_t>::max();
+    }
+    static constexpr int32_t maxConnecting() {
+        // By default, limit us to two concurrent pending connection attempts
+        // in any one pool. Since pools are currently per-cpu, we still may
+        // have something like 64 concurrent total connection attempts on a
+        // modestly sized system. We could set it to one, but that seems too
+        // restrictive.
+        return 2ll;
+    }
+};
+
+class ShardingTaskExecutorParameters
+    : public ConnectionPoolParametersAtomic<ShardingTaskExecutorDetails> {
+public:
+    static std::shared_ptr<ShardingTaskExecutorParameters> global() {
+        static auto params = std::make_shared<ShardingTaskExecutorParameters>();
+        return params;
+    }
+
+    void load();
+};
 
 }  // namespace executor
 }  // namespace mongo

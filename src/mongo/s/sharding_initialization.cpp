@@ -43,7 +43,6 @@
 #include "mongo/db/logical_clock.h"
 #include "mongo/db/logical_time_validator.h"
 #include "mongo/db/server_options.h"
-#include "mongo/db/server_parameters.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/time_proof_service.h"
 #include "mongo/executor/connection_pool.h"
@@ -66,6 +65,7 @@
 #include "mongo/s/grid.h"
 #include "mongo/s/query/cluster_cursor_manager.h"
 #include "mongo/s/sharding_task_executor.h"
+#include "mongo/s/sharding_task_executor_parameters.h"
 #include "mongo/stdx/memory.h"
 #include "mongo/util/concurrency/thread_pool.h"
 #include "mongo/util/exit.h"
@@ -76,28 +76,6 @@
 namespace mongo {
 
 using executor::ConnectionPool;
-
-MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolHostTimeoutMS,
-                                      int,
-                                      ConnectionPool::kDefaultHostTimeout.count());
-MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolMaxSize, int, -1);
-
-// By default, limit us to two concurrent pending connection attempts
-// in any one pool. Since pools are currently per-cpu, we still may
-// have something like 64 concurrent total connection attempts on a
-// modestly sized system. We could set it to one, but that seems too
-// restrictive.
-MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolMaxConnecting, int, 2);
-
-MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolMinSize,
-                                      int,
-                                      static_cast<int>(ConnectionPool::kDefaultMinConns));
-MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolRefreshRequirementMS,
-                                      int,
-                                      ConnectionPool::kDefaultRefreshRequirement.count());
-MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolRefreshTimeoutMS,
-                                      int,
-                                      ConnectionPool::kDefaultRefreshTimeout.count());
 
 namespace {
 
@@ -195,44 +173,10 @@ Status initializeGlobalShardingState(OperationContext* opCtx,
         return {ErrorCodes::BadValue, "Unrecognized connection string."};
     }
 
-    // We don't set the ConnectionPool's static const variables to be the default value in
-    // MONGO_EXPORT_STARTUP_SERVER_PARAMETER because it's not guaranteed to be initialized.
-    // The following code is a workaround.
-    ConnectionPool::Options connPoolOptions;
-    connPoolOptions.hostTimeout = Milliseconds(ShardingTaskExecutorPoolHostTimeoutMS);
-    connPoolOptions.maxConnections = (ShardingTaskExecutorPoolMaxSize != -1)
-        ? ShardingTaskExecutorPoolMaxSize
-        : ConnectionPool::kDefaultMaxConns;
-    connPoolOptions.maxConnecting = (ShardingTaskExecutorPoolMaxConnecting != -1)
-        ? ShardingTaskExecutorPoolMaxConnecting
-        : ConnectionPool::kDefaultMaxConnecting;
-    connPoolOptions.minConnections = ShardingTaskExecutorPoolMinSize;
-    connPoolOptions.refreshRequirement = Milliseconds(ShardingTaskExecutorPoolRefreshRequirementMS);
-    connPoolOptions.refreshTimeout = Milliseconds(ShardingTaskExecutorPoolRefreshTimeoutMS);
+    auto params = executor::ShardingTaskExecutorParameters::global();
+    params->load();
 
-    if (connPoolOptions.refreshRequirement <= connPoolOptions.refreshTimeout) {
-        auto newRefreshTimeout = connPoolOptions.refreshRequirement - Milliseconds(1);
-        warning() << "ShardingTaskExecutorPoolRefreshRequirementMS ("
-                  << connPoolOptions.refreshRequirement
-                  << ") set below ShardingTaskExecutorPoolRefreshTimeoutMS ("
-                  << connPoolOptions.refreshTimeout
-                  << "). Adjusting ShardingTaskExecutorPoolRefreshTimeoutMS to "
-                  << newRefreshTimeout;
-        connPoolOptions.refreshTimeout = newRefreshTimeout;
-    }
-
-    if (connPoolOptions.hostTimeout <=
-        connPoolOptions.refreshRequirement + connPoolOptions.refreshTimeout) {
-        auto newHostTimeout =
-            connPoolOptions.refreshRequirement + connPoolOptions.refreshTimeout + Milliseconds(1);
-        warning() << "ShardingTaskExecutorPoolHostTimeoutMS (" << connPoolOptions.hostTimeout
-                  << ") set below ShardingTaskExecutorPoolRefreshRequirementMS ("
-                  << connPoolOptions.refreshRequirement
-                  << ") + ShardingTaskExecutorPoolRefreshTimeoutMS ("
-                  << connPoolOptions.refreshTimeout
-                  << "). Adjusting ShardingTaskExecutorPoolHostTimeoutMS to " << newHostTimeout;
-        connPoolOptions.hostTimeout = newHostTimeout;
-    }
+    auto connPoolOptions = executor::ConnectionPool::Options(std::move(params));
 
     auto network =
         executor::makeNetworkInterface("ShardRegistry",

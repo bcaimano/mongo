@@ -34,6 +34,7 @@
 #include <queue>
 
 #include "mongo/base/disallow_copying.h"
+#include "mongo/executor/connection_pool_parameters.h"
 #include "mongo/executor/egress_tag_closer.h"
 #include "mongo/executor/egress_tag_closer_manager.h"
 #include "mongo/stdx/chrono.h"
@@ -76,55 +77,29 @@ public:
 
     using GetConnectionCallback = stdx::function<void(StatusWith<ConnectionHandle>)>;
 
-    static constexpr Milliseconds kDefaultHostTimeout = Milliseconds(300000);  // 5mins
-    static const size_t kDefaultMaxConns;
-    static const size_t kDefaultMinConns;
-    static const size_t kDefaultMaxConnecting;
-    static constexpr Milliseconds kDefaultRefreshRequirement = Milliseconds(60000);  // 1min
-    static constexpr Milliseconds kDefaultRefreshTimeout = Milliseconds(20000);      // 20secs
-
     static const Status kConnectionStateUnknown;
 
-    struct Options {
-        Options() {}
+    class Options {
+    public:
+        Options(){};
+        Options(std::shared_ptr<const ConnectionPoolParameters> parameters)
+            : _parameters{parameters} {}
 
-        /**
-         * The minimum number of connections to keep alive while the pool is in
-         * operation
-         */
-        size_t minConnections = kDefaultMinConns;
+        const ConnectionPoolParameters& parameters() const {
+            return *_parameters;
+        }
+        EgressTagCloserManager* tagManager() const {
+            return _manager;
+        }
 
-        /**
-         * The maximum number of connections to spawn for a host. This includes
-         * pending connections in setup and connections checked out of the pool
-         * as well as the obvious live connections in the pool.
-         */
-        size_t maxConnections = kDefaultMaxConns;
+        Options & setTagManager(EgressTagCloserManager* manager) {
+            _manager = manager;
+            return *this;
+        }
 
-        /**
-         * The maximum number of processing connections for a host.  This includes pending
-         * connections in setup/refresh. It's designed to rate limit connection storms rather than
-         * steady state processing (as maxConnections does).
-         */
-        size_t maxConnecting = kDefaultMaxConnecting;
-
-        /**
-         * Amount of time to wait before timing out a refresh attempt
-         */
-        Milliseconds refreshTimeout = kDefaultRefreshTimeout;
-
-        /**
-         * Amount of time a connection may be idle before it cannot be returned
-         * for a user request and must instead be checked out and refreshed
-         * before handing to a user.
-         */
-        Milliseconds refreshRequirement = kDefaultRefreshRequirement;
-
-        /**
-         * Amount of time to keep a specific pool around without any checked
-         * out connections or new requests
-         */
-        Milliseconds hostTimeout = kDefaultHostTimeout;
+    private:
+        std::shared_ptr<const ConnectionPoolParameters> _parameters =
+            ConnectionPoolParametersDefault::global();
 
         /**
          * An egress tag closer manager which will provide global access to this connection pool.
@@ -132,12 +107,13 @@ public:
          *
          * The manager will hold this pool for the lifetime of the pool.
          */
-        EgressTagCloserManager* egressTagCloserManager = nullptr;
+        EgressTagCloserManager* _manager = nullptr;
     };
 
+public:
     explicit ConnectionPool(std::shared_ptr<DependentTypeFactoryInterface> impl,
                             std::string name,
-                            Options options = Options{});
+                            Options options = Options());
 
     ~ConnectionPool();
 
@@ -170,9 +146,7 @@ private:
 
     std::string _name;
 
-    // Options are set at startup and never changed at run time, so these are
-    // accessed outside the lock
-    const Options _options;
+    Options _options;
 
     const std::shared_ptr<DependentTypeFactoryInterface> _factory;
 

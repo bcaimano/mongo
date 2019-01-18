@@ -49,13 +49,14 @@ namespace executor {
 
 void NetworkInterfaceIntegrationFixture::startNet(
     std::unique_ptr<NetworkConnectionHook> connectHook) {
-    ConnectionPool::Options options;
+    auto options = ConnectionPool::Options();
+
 #ifdef _WIN32
     // Connections won't queue on widnows, so attempting to open too many connections
     // concurrently will result in refused connections and test failure.
-    options.maxConnections = 16u;
+    options.parameters().maxConnections = 16u;
 #else
-    options.maxConnections = 256u;
+    options.parameters().maxConnections = 256u;
 #endif
     _net = makeNetworkInterface(
         "NetworkInterfaceIntegrationFixture", std::move(connectHook), nullptr, std::move(options));
