@@ -82,8 +82,7 @@ public:
     class Options {
     public:
         Options(){};
-        Options(std::shared_ptr<const ConnectionPoolParameters> parameters)
-            : _parameters{parameters} {}
+        Options(std::shared_ptr<ConnectionPoolParameters> parameters) : _parameters{parameters} {}
 
         const ConnectionPoolParameters& parameters() const {
             return *_parameters;
@@ -92,13 +91,13 @@ public:
             return _manager;
         }
 
-        Options & setTagManager(EgressTagCloserManager* manager) {
+        Options& setTagManager(EgressTagCloserManager* manager) {
             _manager = manager;
             return *this;
         }
 
     private:
-        std::shared_ptr<const ConnectionPoolParameters> _parameters =
+        std::shared_ptr<ConnectionPoolParameters> _parameters =
             ConnectionPoolParametersDefault::global();
 
         /**
@@ -113,7 +112,7 @@ public:
 public:
     explicit ConnectionPool(std::shared_ptr<DependentTypeFactoryInterface> impl,
                             std::string name,
-                            Options options = Options());
+                            Options options = Options{});
 
     ~ConnectionPool();
 

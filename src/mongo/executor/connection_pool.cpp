@@ -181,7 +181,7 @@ public:
         _tags = mutateFunc(_tags);
     }
 
-    const ConnectionPoolParameters & parameters() const {
+    const ConnectionPoolParameters& parameters() const {
         return _parent->_options.parameters();
     }
 

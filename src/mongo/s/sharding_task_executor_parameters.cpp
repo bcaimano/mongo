@@ -61,7 +61,7 @@ MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolRefreshTimeoutMS,
                                       int,
                                       Defaults::refreshTimeoutMS());
 
-} // anonymous
+}  // anonymous
 
 namespace executor {
 

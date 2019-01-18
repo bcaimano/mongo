@@ -96,9 +96,10 @@ protected:
     }
 
     ConnectionPool::Options makeOptions() {
-        return {std::dynamic_pointer_cast<const ConnectionPoolParameters>(params)};
+        return {std::dynamic_pointer_cast<ConnectionPoolParameters>(params)};
     }
     std::shared_ptr<Parameters> params = std::make_shared<Parameters>();
+
 private:
 };
 
@@ -452,7 +453,7 @@ TEST_F(ConnectionPoolTest, refreshHappens) {
         return Status::OK();
     });
 
-    params->_refreshRequirementMS = 1000; // 1 sec
+    params->_refreshRequirementMS = 1000;  // 1 sec
     ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", makeOptions());
 
     auto now = Date_t::now();
@@ -1256,7 +1257,7 @@ TEST_F(ConnectionPoolTest, dropConnections) {
 TEST_F(ConnectionPoolTest, SetupTimeoutsDontTimeoutUnrelatedRequests) {
 
     params->_maxConnections = 1;
-    params->_refreshTimeoutMS = 2000; // 2 sec 
+    params->_refreshTimeoutMS = 2000;  // 2 sec
     ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", makeOptions());
 
     auto now = Date_t::now();

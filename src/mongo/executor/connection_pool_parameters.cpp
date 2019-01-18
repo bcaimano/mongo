@@ -31,7 +31,5 @@
 #include "mongo/executor/connection_pool_parameters.h"
 
 namespace mongo {
-namespace executor {
-
-}  // namespace executor
-} // namespace mongo
+namespace executor {}  // namespace executor
+}  // namespace mongo
