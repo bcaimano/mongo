@@ -55,6 +55,13 @@ protected:
         TimerImpl::clear();
     }
 
+    ConnectionPool::Options makeOptions() const{
+        auto options = ConnectionPool::Options();
+
+        options.name = "TestPool";
+        options.factory = std::make_shared<PoolImpl>();
+        return options;
+    }
 private:
 };
 
@@ -73,7 +80,7 @@ void doneWith(const ConnectionPool::ConnectionHandle& swConn) {
  * another.
  */
 TEST_F(ConnectionPoolTest, SameConn) {
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool");
+    auto pool = ConnectionPool(makeOptions());
 
     // Grab and stash an id for the first request
     size_t conn1Id = 0;
@@ -105,7 +112,7 @@ TEST_F(ConnectionPoolTest, SameConn) {
  * Verify that connections are obtained in MRU order.
  */
 TEST_F(ConnectionPoolTest, ConnectionsAreAcquiredInMRUOrder) {
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool");
+    auto pool = ConnectionPool(makeOptions());
 
     // Obtain a set of connections
     constexpr size_t kSize = 100;
@@ -171,12 +178,12 @@ TEST_F(ConnectionPoolTest, ConnectionsAreAcquiredInMRUOrder) {
  * Verify that recently used connections are not purged.
  */
 TEST_F(ConnectionPoolTest, ConnectionsNotUsedRecentlyArePurged) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.minConnections = 0;
     options.refreshRequirement = Milliseconds(1000);
     options.refreshTimeout = Milliseconds(5000);
     options.hostTimeout = Minutes(1);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     ASSERT_EQ(pool.getNumConnectionsPerHost(HostAndPort()), 0U);
 
@@ -274,7 +281,7 @@ TEST_F(ConnectionPoolTest, ConnectionsNotUsedRecentlyArePurged) {
  * Verify that a failed connection isn't returned to the pool
  */
 TEST_F(ConnectionPoolTest, FailedConnDifferentConn) {
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool");
+    auto pool = ConnectionPool(makeOptions());
 
     // Grab the first connection and indicate that it failed
     size_t conn1Id = 0;
@@ -307,7 +314,7 @@ TEST_F(ConnectionPoolTest, FailedConnDifferentConn) {
  * connections.
  */
 TEST_F(ConnectionPoolTest, DifferentHostDifferentConn) {
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool");
+    auto pool = ConnectionPool(makeOptions());
 
     // Conn 1 from port 30000
     size_t conn1Id = 0;
@@ -339,7 +346,7 @@ TEST_F(ConnectionPoolTest, DifferentHostDifferentConn) {
  * Verify that not returning handle's to the pool spins up new connections.
  */
 TEST_F(ConnectionPoolTest, DifferentConnWithoutReturn) {
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool");
+    auto pool = ConnectionPool(makeOptions());
 
     // Get the first connection, move it out rather than letting it return
     ConnectionPool::ConnectionHandle conn1;
@@ -375,7 +382,7 @@ TEST_F(ConnectionPoolTest, DifferentConnWithoutReturn) {
  * Note that the lack of pushSetup() calls delays the get.
  */
 TEST_F(ConnectionPoolTest, TimeoutOnSetup) {
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool");
+    auto pool = ConnectionPool(makeOptions());
 
     bool notOk = false;
 
@@ -409,9 +416,9 @@ TEST_F(ConnectionPoolTest, refreshHappens) {
         return Status::OK();
     });
 
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.refreshRequirement = Milliseconds(1000);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
 
@@ -444,10 +451,10 @@ TEST_F(ConnectionPoolTest, refreshHappens) {
  * Verify that refresh can timeout.
  */
 TEST_F(ConnectionPoolTest, refreshTimeoutHappens) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.refreshRequirement = Milliseconds(1000);
     options.refreshTimeout = Milliseconds(2000);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
 
@@ -516,7 +523,7 @@ TEST_F(ConnectionPoolTest, refreshTimeoutHappens) {
  * Verify that requests are served in expiration order, not insertion order
  */
 TEST_F(ConnectionPoolTest, requestsServedByUrgency) {
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool");
+    auto pool = ConnectionPool(makeOptions());
 
     bool reachedA = false;
     bool reachedB = false;
@@ -560,10 +567,10 @@ TEST_F(ConnectionPoolTest, requestsServedByUrgency) {
  * Verify that we respect maxConnections
  */
 TEST_F(ConnectionPoolTest, maxPoolRespected) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.minConnections = 1;
     options.maxConnections = 2;
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     ConnectionPool::ConnectionHandle conn1;
     ConnectionPool::ConnectionHandle conn2;
@@ -618,10 +625,10 @@ TEST_F(ConnectionPoolTest, maxPoolRespected) {
  * Verify that we respect maxConnecting
  */
 TEST_F(ConnectionPoolTest, maxConnectingRespected) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.minConnections = 1;
     options.maxConnecting = 2;
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     ConnectionPool::ConnectionHandle conn1;
     ConnectionPool::ConnectionHandle conn2;
@@ -677,10 +684,10 @@ TEST_F(ConnectionPoolTest, maxConnectingRespected) {
  * they return
  */
 TEST_F(ConnectionPoolTest, maxConnectingWithRefresh) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.maxConnecting = 1;
     options.refreshRequirement = Milliseconds(1000);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
 
@@ -723,11 +730,11 @@ TEST_F(ConnectionPoolTest, maxConnectingWithRefresh) {
  * Verify that refreshes block new connects, but don't themselves respect maxConnecting
  */
 TEST_F(ConnectionPoolTest, maxConnectingWithMultipleRefresh) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.maxConnecting = 2;
     options.minConnections = 3;
     options.refreshRequirement = Milliseconds(1000);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
 
@@ -814,12 +821,12 @@ TEST_F(ConnectionPoolTest, maxConnectingWithMultipleRefresh) {
  * Verify that minConnections is respected
  */
 TEST_F(ConnectionPoolTest, minPoolRespected) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.minConnections = 2;
     options.maxConnections = 3;
     options.refreshRequirement = Milliseconds(1000);
     options.refreshTimeout = Milliseconds(2000);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
 
@@ -924,11 +931,11 @@ TEST_F(ConnectionPoolTest, minPoolRespected) {
  * hostAndPort drops it's connections.
  */
 TEST_F(ConnectionPoolTest, hostTimeoutHappens) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.refreshRequirement = Milliseconds(5000);
     options.refreshTimeout = Milliseconds(5000);
     options.hostTimeout = Milliseconds(1000);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
 
@@ -973,11 +980,11 @@ TEST_F(ConnectionPoolTest, hostTimeoutHappens) {
  * activation.
  */
 TEST_F(ConnectionPoolTest, hostTimeoutHappensMoreGetsDelay) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.refreshRequirement = Milliseconds(5000);
     options.refreshTimeout = Milliseconds(5000);
     options.hostTimeout = Milliseconds(1000);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
 
@@ -1048,11 +1055,11 @@ TEST_F(ConnectionPoolTest, hostTimeoutHappensMoreGetsDelay) {
  * delays things
  */
 TEST_F(ConnectionPoolTest, hostTimeoutHappensCheckoutDelays) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.refreshRequirement = Milliseconds(5000);
     options.refreshTimeout = Milliseconds(5000);
     options.hostTimeout = Milliseconds(1000);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
 
@@ -1126,13 +1133,13 @@ TEST_F(ConnectionPoolTest, hostTimeoutHappensCheckoutDelays) {
  * Verify that drop connections works
  */
 TEST_F(ConnectionPoolTest, dropConnections) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
 
     // ensure that only 1 connection is floating around
     options.maxConnections = 1;
     options.refreshRequirement = Seconds(1);
     options.refreshTimeout = Seconds(2);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
     PoolImpl::setNow(now);
@@ -1221,11 +1228,11 @@ TEST_F(ConnectionPoolTest, dropConnections) {
  * Verify that timeouts during setup don't prematurely time out unrelated requests
  */
 TEST_F(ConnectionPoolTest, SetupTimeoutsDontTimeoutUnrelatedRequests) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
 
     options.maxConnections = 1;
     options.refreshTimeout = Seconds(2);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
     PoolImpl::setNow(now);
@@ -1261,12 +1268,12 @@ TEST_F(ConnectionPoolTest, SetupTimeoutsDontTimeoutUnrelatedRequests) {
  * Verify that timeouts during refresh don't prematurely time out unrelated requests
  */
 TEST_F(ConnectionPoolTest, RefreshTimeoutsDontTimeoutRequests) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
 
     options.maxConnections = 1;
     options.refreshTimeout = Seconds(2);
     options.refreshRequirement = Seconds(3);
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
     PoolImpl::setNow(now);
@@ -1383,25 +1390,24 @@ void dropConnectionsTest(ConnectionPool& pool, T& t) {
 }
 
 TEST_F(ConnectionPoolTest, DropConnections) {
-    ConnectionPool::Options options;
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(makeOptions());
 
     dropConnectionsTest(pool, pool);
 }
 
 TEST_F(ConnectionPoolTest, DropConnectionsInMultipleViaManager) {
     EgressTagCloserManager manager;
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.egressTagCloserManager = &manager;
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     dropConnectionsTest(pool, manager);
 }
 
 TEST_F(ConnectionPoolTest, TryGetWorks) {
-    ConnectionPool::Options options;
+    auto options = makeOptions();
     options.maxConnections = 1;
-    ConnectionPool pool(stdx::make_unique<PoolImpl>(), "test pool", options);
+    auto pool = ConnectionPool(options);
 
     auto now = Date_t::now();
     PoolImpl::setNow(now);

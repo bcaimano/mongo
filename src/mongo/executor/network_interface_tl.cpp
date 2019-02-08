@@ -57,7 +57,9 @@ NetworkInterfaceTL::NetworkInterfaceTL(std::string instanceName,
       _connPoolOpts(std::move(connPoolOpts)),
       _onConnectHook(std::move(onConnectHook)),
       _metadataHook(std::move(metadataHook)),
-      _inShutdown(false) {}
+      _inShutdown(false) {
+    _connPoolOpts.name = std::string("NetworkInterfaceTL-") + _instanceName;
+}
 
 std::string NetworkInterfaceTL::getDiagnosticString() {
     return "DEPRECATED: getDiagnosticString is deprecated in NetworkInterfaceTL";
@@ -96,10 +98,9 @@ void NetworkInterfaceTL::startup() {
     }
 
     _reactor = _tl->getReactor(transport::TransportLayer::kNewReactor);
-    auto typeFactory = std::make_unique<connection_pool_tl::TLTypeFactory>(
+    _connPoolOpts.factory = std::make_shared<connection_pool_tl::TLTypeFactory>(
         _reactor, _tl, std::move(_onConnectHook));
-    _pool = std::make_unique<ConnectionPool>(
-        std::move(typeFactory), std::string("NetworkInterfaceTL-") + _instanceName, _connPoolOpts);
+    _pool = std::make_unique<ConnectionPool>(_connPoolOpts);
     _ioThread = stdx::thread([this] {
         setThreadName(_instanceName);
         _run();

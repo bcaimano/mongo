@@ -306,13 +306,12 @@ constexpr Milliseconds ConnectionPool::kDefaultRefreshTimeout;
 const Status ConnectionPool::kConnectionStateUnknown =
     Status(ErrorCodes::InternalError, "Connection is in an unknown state");
 
-ConnectionPool::ConnectionPool(std::shared_ptr<DependentTypeFactoryInterface> impl,
-                               std::string name,
-                               Options options)
-    : _name(std::move(name)),
-      _options(std::move(options)),
-      _factory(std::move(impl)),
+ConnectionPool::ConnectionPool(Options options)
+    : _options(std::move(options)),
+      _factory(_options.factory),
       _manager(options.egressTagCloserManager) {
+    dassert(!_options.name.empty());
+
     if (_manager) {
         _manager->add(this);
     }
@@ -448,7 +447,7 @@ void ConnectionPool::appendConnectionStats(ConnectionPoolStats* stats) const {
                                      pool->availableConnections(lk),
                                      pool->createdConnections(lk),
                                      pool->refreshingConnections(lk)};
-        stats->updateStatsForHost(_name, host, hostStats);
+        stats->updateStatsForHost(_options.name, host, hostStats);
     }
 }
 

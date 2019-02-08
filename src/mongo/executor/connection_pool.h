@@ -132,11 +132,13 @@ public:
          * The manager will hold this pool for the lifetime of the pool.
          */
         EgressTagCloserManager* egressTagCloserManager = nullptr;
+
+        std::shared_ptr<DependentTypeFactoryInterface> factory = nullptr;
+
+        std::string name;
     };
 
-    explicit ConnectionPool(std::shared_ptr<DependentTypeFactoryInterface> impl,
-                            std::string name,
-                            Options options = Options{});
+    explicit ConnectionPool(Options options = Options{});
 
     ~ConnectionPool();
 
@@ -167,13 +169,11 @@ public:
 private:
     void returnConnection(ConnectionInterface* connection);
 
-    std::string _name;
-
     // Options are set at startup and never changed at run time, so these are
     // accessed outside the lock
     const Options _options;
 
-    const std::shared_ptr<DependentTypeFactoryInterface> _factory;
+    const std::shared_ptr<DependentTypeFactoryInterface> & _factory;
 
     // The global mutex for specific pool access and the generation counter
     mutable stdx::mutex _mutex;
