@@ -43,6 +43,7 @@
 #include "mongo/transport/transport_layer.h"
 #include "mongo/util/future.h"
 #include "mongo/util/net/hostandport.h"
+#include "mongo/util/out_of_line_executor.h"
 #include "mongo/util/time_support.h"
 
 namespace mongo {
@@ -134,6 +135,7 @@ public:
         EgressTagCloserManager* egressTagCloserManager = nullptr;
 
         std::shared_ptr<DependentTypeFactoryInterface> factory = nullptr;
+        std::shared_ptr<OutOfLineExecutor> executor = nullptr;
 
         std::string name;
     };
@@ -173,7 +175,8 @@ private:
     // accessed outside the lock
     const Options _options;
 
-    const std::shared_ptr<DependentTypeFactoryInterface> & _factory;
+    const std::shared_ptr<DependentTypeFactoryInterface>& _factory;
+    const std::shared_ptr<OutOfLineExecutor>& _executor;
 
     // The global mutex for specific pool access and the generation counter
     mutable stdx::mutex _mutex;

@@ -309,8 +309,10 @@ const Status ConnectionPool::kConnectionStateUnknown =
 ConnectionPool::ConnectionPool(Options options)
     : _options(std::move(options)),
       _factory(_options.factory),
+      _executor(_options.executor),
       _manager(options.egressTagCloserManager) {
-    dassert(!_options.name.empty());
+    invariant(!_options.name.empty());
+    invariant(_executor);
 
     if (_manager) {
         _manager->add(this);
@@ -532,10 +534,13 @@ Future<ConnectionPool::ConnectionHandle> ConnectionPool::SpecificPool::getConnec
     _requests.push_back(make_pair(expiration, std::move(pf.promise)));
     std::push_heap(begin(_requests), end(_requests), RequestComparator{});
 
-    updateStateInLock();
+    _parent->_executor->schedule([this]() {
+        std::unique_lock<stdx::mutex> lk(_parent->_mutex);
+        updateStateInLock();
 
-    spawnConnections(lk);
-    fulfillRequests(lk);
+        spawnConnections(lk);
+        fulfillRequests(lk);
+    });
 
     return std::move(pf.future);
 }
