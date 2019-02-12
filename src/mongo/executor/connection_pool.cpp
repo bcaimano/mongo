@@ -232,6 +232,10 @@ private:
 
     void fulfillRequests(stdx::unique_lock<stdx::mutex>& lk);
 
+    void finishRefresh(stdx::unique_lock<stdx::mutex> lk,
+                       ConnectionInterface* connPtr,
+                       Status status);
+
     void spawnConnections(stdx::unique_lock<stdx::mutex>& lk);
 
     // This internal helper is used both by tryGet and by fulfillRequests and differs in that it
@@ -638,38 +642,7 @@ void ConnectionPool::SpecificPool::returnConnection(ConnectionInterface* connPtr
                          guardCallback([this](stdx::unique_lock<stdx::mutex> lk,
                                               ConnectionInterface* connPtr,
                                               Status status) {
-                             auto conn = takeFromProcessingPool(connPtr);
-
-                             // If we're in shutdown, we don't need refreshed connections
-                             if (_state == State::kInShutdown)
-                                 return;
-
-                             // If the connection refreshed successfully, throw it back in
-                             // the ready pool
-                             if (status.isOK()) {
-                                 // If the host and port were dropped, let this lapse
-                                 if (conn->getGeneration() == _generation) {
-                                     addToReady(lk, std::move(conn));
-                                 }
-                                 spawnConnections(lk);
-                                 return;
-                             }
-
-                             // If we've exceeded the time limit, start a new connect,
-                             // rather than failing all operations.  We do this because the
-                             // various callers have their own time limit which is unrelated
-                             // to our internal one.
-                             if (status.code() == ErrorCodes::NetworkInterfaceExceededTimeLimit) {
-                                 log() << "Pending connection to host " << _hostAndPort
-                                       << " did not complete within the connection timeout,"
-                                       << " retrying with a new connection;" << openConnections(lk)
-                                       << " connections to that host remain open";
-                                 spawnConnections(lk);
-                                 return;
-                             }
-
-                             // Otherwise pass the failure on through
-                             processFailure(status, std::move(lk));
+                             return finishRefresh(std::move(lk), connPtr, status);
                          }));
         lk.lock();
     } else {
@@ -808,6 +781,48 @@ void ConnectionPool::SpecificPool::fulfillRequests(stdx::unique_lock<stdx::mutex
     spawnConnections(lk);
 }
 
+void ConnectionPool::SpecificPool::finishRefresh(stdx::unique_lock<stdx::mutex> lk,
+                                                 ConnectionInterface* connPtr,
+                                                 Status status) {
+    auto conn = takeFromProcessingPool(connPtr);
+
+    // If we're in shutdown, we don't need refreshed connections
+    if (_state == State::kInShutdown) {
+        return;
+    }
+
+    // Spawn connections for most cases
+    auto spawnGuard = makeGuard([this, &lk]() { spawnConnections(lk); });
+
+    // If the connection refreshed successfully, throw it back in
+    // the ready pool
+    if (status.isOK()) {
+        // If the host and port were dropped, let this lapse
+        if (conn->getGeneration() != _generation) {
+            return;
+        }
+
+        addToReady(lk, std::move(conn));
+        return;
+    }
+
+    // If we've exceeded the time limit, start a new connect,
+    // rather than failing all operations.  We do this because the
+    // various callers have their own time limit which is unrelated
+    // to our internal one.
+    if (status.code() == ErrorCodes::NetworkInterfaceExceededTimeLimit) {
+        log() << "Pending connection to host " << _hostAndPort
+              << " did not complete within the connection timeout,"
+              << " retrying with a new connection;" << openConnections(lk)
+              << " connections to that host remain open";
+        return;
+    }
+
+    // Otherwise pass the failure on through
+    spawnGuard.dismiss();
+    processFailure(status, std::move(lk));
+}
+
 // spawn enough connections to satisfy open requests and minpool, while
 // honoring maxpool
 void ConnectionPool::SpecificPool::spawnConnections(stdx::unique_lock<stdx::mutex>& lk) {
@@ -850,32 +865,12 @@ void ConnectionPool::SpecificPool::spawnConnections(stdx::unique_lock<stdx::mute
 
         // Run the setup callback
         lk.unlock();
-        handle->setup(
-            _parent->_options.refreshTimeout,
-            guardCallback([this](
-                stdx::unique_lock<stdx::mutex> lk, ConnectionInterface* connPtr, Status status) {
-                auto conn = takeFromProcessingPool(connPtr);
-
-                // If we're in shutdown, we don't need this conn
-                if (_state == State::kInShutdown)
-                    return;
-
-                if (status.isOK()) {
-                    // If the host and port was dropped, let the connection lapse
-                    if (conn->getGeneration() == _generation) {
-                        addToReady(lk, std::move(conn));
-                    }
-                    spawnConnections(lk);
-                } else if (status.code() == ErrorCodes::NetworkInterfaceExceededTimeLimit) {
-                    // If we've exceeded the time limit, restart the connect, rather than
-                    // failing all operations.  We do this because the various callers
-                    // have their own time limit which is unrelated to our internal one.
-                    spawnConnections(lk);
-                } else {
-                    // If the setup failed, cascade the failure edge
-                    processFailure(status, std::move(lk));
-                }
-            }));
+        handle->setup(_parent->_options.refreshTimeout,
+                      guardCallback([this](stdx::unique_lock<stdx::mutex> lk,
+                                           ConnectionInterface* connPtr,
+                                           Status status) {
+                          return finishRefresh(std::move(lk), connPtr, status);
+                      }));
         // Note that this assumes that the refreshTimeout is sound for the
         // setupTimeout
 

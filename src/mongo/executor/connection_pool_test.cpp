@@ -55,13 +55,14 @@ protected:
         TimerImpl::clear();
     }
 
-    ConnectionPool::Options makeOptions() const{
+    ConnectionPool::Options makeOptions() const {
         auto options = ConnectionPool::Options();
 
         options.name = "TestPool";
         options.factory = std::make_shared<PoolImpl>();
         return options;
     }
+
 private:
 };
 
