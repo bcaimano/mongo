@@ -47,6 +47,13 @@ namespace connection_pool_test_details {
 
 class ConnectionPoolTest : public unittest::Test {
 public:
+    class InlineOutOfLineExecutor : public OutOfLineExecutor {
+    public:
+        virtual void schedule(Task func) override {
+            func();
+        }
+    };
+
 protected:
     void setUp() override {}
 
@@ -60,6 +67,7 @@ protected:
 
         options.name = "TestPool";
         options.factory = std::make_shared<PoolImpl>();
+        options.executor = std::make_shared<InlineOutOfLineExecutor>();
         return options;
     }
 

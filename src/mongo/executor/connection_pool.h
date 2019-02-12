@@ -169,8 +169,6 @@ public:
     size_t getNumConnectionsPerHost(const HostAndPort& hostAndPort) const;
 
 private:
-    void returnConnection(ConnectionInterface* connection);
-
     // Options are set at startup and never changed at run time, so these are
     // accessed outside the lock
     const Options _options;

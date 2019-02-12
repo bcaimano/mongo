@@ -161,12 +161,6 @@ public:
     void processFailure(const Status& status, stdx::unique_lock<stdx::mutex> lk);
 
     /**
-     * Returns a connection to a specific pool. Sinks a unique_lock from the
-     * parent to preserve the lock on _mutex
-     */
-    void returnConnection(ConnectionInterface* connection, stdx::unique_lock<stdx::mutex> lk);
-
-    /**
      * Returns the number of connections currently checked out of the pool.
      */
     size_t inUseConnections(const stdx::unique_lock<stdx::mutex>& lk);
@@ -228,7 +222,11 @@ private:
         }
     };
 
+    ConnectionHandle makeHandle(ConnectionInterface* connPtr);
+
     void addToReady(stdx::unique_lock<stdx::mutex>& lk, OwnedConnection conn);
+
+    void returnConnection(stdx::unique_lock<stdx::mutex>& lk, ConnectionInterface* connection);
 
     void fulfillRequests(stdx::unique_lock<stdx::mutex>& lk);
 
@@ -267,8 +265,6 @@ private:
     Date_t _requestTimerExpiration;
     size_t _activeClients;
     size_t _generation;
-    bool _inFulfillRequests;
-    bool _inSpawnConnections;
 
     size_t _created;
 
@@ -467,19 +463,6 @@ size_t ConnectionPool::getNumConnectionsPerHost(const HostAndPort& hostAndPort) 
     return 0;
 }
 
-void ConnectionPool::returnConnection(ConnectionInterface* conn) {
-    stdx::unique_lock<stdx::mutex> lk(_mutex);
-
-    auto iter = _pools.find(conn->getHostAndPort());
-
-    invariant(iter != _pools.end(),
-              str::stream() << "Tried to return connection but no pool found for "
-                            << conn->getHostAndPort());
-
-    auto pool = iter->second;
-    pool->returnConnection(conn, std::move(lk));
-}
-
 ConnectionPool::SpecificPool::SpecificPool(ConnectionPool* parent,
                                            const HostAndPort& hostAndPort,
                                            transport::ConnectSSLMode sslMode)
@@ -490,8 +473,6 @@ ConnectionPool::SpecificPool::SpecificPool(ConnectionPool* parent,
       _requestTimer(parent->_factory->makeTimer()),
       _activeClients(0),
       _generation(0),
-      _inFulfillRequests(false),
-      _inSpawnConnections(false),
       _created(0),
       _state(State::kRunning) {}
 
@@ -528,23 +509,27 @@ Future<ConnectionPool::ConnectionHandle> ConnectionPool::SpecificPool::getConnec
     Milliseconds timeout, stdx::unique_lock<stdx::mutex> lk) {
     invariant(_state != State::kInShutdown);
 
+    // If we have a connection ready, just hand it out
+    auto conn = tryGetInternal(lk);
+    if (conn) {
+        return Future<ConnectionPool::ConnectionHandle>::makeReady(std::move(*conn));
+    }
+
+    // We don't have a connection ready, so we mark the request as a promise,
+    // send off some connection requests, and hand out a future
+    auto pf = makePromiseFuture<ConnectionHandle>();
+
     if (timeout < Milliseconds(0) || timeout > _parent->_options.refreshTimeout) {
         timeout = _parent->_options.refreshTimeout;
     }
 
     const auto expiration = _parent->_factory->now() + timeout;
-    auto pf = makePromiseFuture<ConnectionHandle>();
 
     _requests.push_back(make_pair(expiration, std::move(pf.promise)));
     std::push_heap(begin(_requests), end(_requests), RequestComparator{});
 
-    _parent->_executor->schedule([this]() {
-        std::unique_lock<stdx::mutex> lk(_parent->_mutex);
-        updateStateInLock();
-
-        spawnConnections(lk);
-        fulfillRequests(lk);
-    });
+    updateStateInLock();
+    _parent->_executor->schedule(guardCallback([this](auto lk) { spawnConnections(lk); }));
 
     return std::move(pf.future);
 }
@@ -590,18 +575,14 @@ boost::optional<ConnectionPool::ConnectionHandle> ConnectionPool::SpecificPool::
 
         // pass it to the user
         connPtr->resetToUnknown();
-        return ConnectionHandle(connPtr,
-                                guardCallback([this](stdx::unique_lock<stdx::mutex> localLk,
-                                                     ConnectionPool::ConnectionInterface* conn) {
-                                    returnConnection(conn, std::move(localLk));
-                                }));
+        return makeHandle(connPtr);
     }
 
     return boost::none;
 }
 
-void ConnectionPool::SpecificPool::returnConnection(ConnectionInterface* connPtr,
-                                                    stdx::unique_lock<stdx::mutex> lk) {
+void ConnectionPool::SpecificPool::returnConnection(stdx::unique_lock<stdx::mutex>& lk,
+                                                    ConnectionInterface* connPtr) {
     auto needsRefreshTP = connPtr->getLastUsed() + _parent->_options.refreshRequirement;
 
     auto conn = takeFromPool(_checkedOutPool, connPtr);
@@ -653,6 +634,15 @@ void ConnectionPool::SpecificPool::returnConnection(ConnectionInterface* connPtr
     updateStateInLock();
 }
 
+
+inline ConnectionPool::ConnectionHandle ConnectionPool::SpecificPool::makeHandle(
+    ConnectionInterface* connPtr) {
+    auto deleter = [this](ConnectionInterface* conn) {
+        _parent->_executor->schedule(guardCallback([&](auto lk) { returnConnection(lk, conn); }));
+    };
+    return ConnectionHandle(connPtr, std::move(deleter));
+}
+
 // Adds a live connection to the ready pool
 void ConnectionPool::SpecificPool::addToReady(stdx::unique_lock<stdx::mutex>& lk,
                                               OwnedConnection conn) {
@@ -681,9 +671,10 @@ void ConnectionPool::SpecificPool::addToReady(stdx::unique_lock<stdx::mutex>& lk
 
                             connPtr->indicateSuccess();
 
-                            returnConnection(connPtr, std::move(lk));
+                            returnConnection(lk, connPtr);
                         }));
 
+    // If we currently have outstanding requests and nothing scheduled, try to fill out
     fulfillRequests(lk);
 }
 
@@ -746,15 +737,7 @@ void ConnectionPool::SpecificPool::processFailure(const Status& status,
 
 // fulfills as many outstanding requests as possible
 void ConnectionPool::SpecificPool::fulfillRequests(stdx::unique_lock<stdx::mutex>& lk) {
-    // If some other thread (possibly this thread) is fulfilling requests,
-    // don't keep padding the callstack.
-    if (_inFulfillRequests)
-        return;
-
-    _inFulfillRequests = true;
-    auto guard = makeGuard([&] { _inFulfillRequests = false; });
-
-    while (_requests.size()) {
+    while (!_requests.empty()) {
         // Caution: If this returns with a value, it's important that we not throw until we've
         // emplaced the promise (as returning a connection would attempt to take the lock and would
         // deadlock).
@@ -762,9 +745,8 @@ void ConnectionPool::SpecificPool::fulfillRequests(stdx::unique_lock<stdx::mutex
         // None of the heap manipulation code throws, but it's something to keep in mind.
         auto conn = tryGetInternal(lk);
 
-        if (!conn) {
+        if (!conn)
             break;
-        }
 
         // Grab the request and callback
         auto promise = std::move(_requests.front().second);
@@ -826,14 +808,6 @@ void ConnectionPool::SpecificPool::finishRefresh(stdx::unique_lock<stdx::mutex> 
 // spawn enough connections to satisfy open requests and minpool, while
 // honoring maxpool
 void ConnectionPool::SpecificPool::spawnConnections(stdx::unique_lock<stdx::mutex>& lk) {
-    // If some other thread (possibly this thread) is spawning connections,
-    // don't keep padding the callstack.
-    if (_inSpawnConnections)
-        return;
-
-    _inSpawnConnections = true;
-    auto guard = makeGuard([&] { _inSpawnConnections = false; });
-
     // We want minConnections <= outstanding requests <= maxConnections
     auto target = [&] {
         return std::max(
