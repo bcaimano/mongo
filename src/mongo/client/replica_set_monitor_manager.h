@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "mongo/base/disallow_copying.h"
+#include "mongo/client/replica_set_change_notifier.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/util/string_map.h"
@@ -94,11 +95,15 @@ public:
      */
     executor::TaskExecutor* getExecutor();
 
+    ReplicaSetChangeNotifier& getNotifier();
+
 private:
     using ReplicaSetMonitorsMap = StringMap<std::weak_ptr<ReplicaSetMonitor>>;
 
     // Protects access to the replica set monitors
     stdx::mutex _mutex;
+
+    ReplicaSetChangeNotifier _notifier;
 
     // Executor for monitoring replica sets.
     std::unique_ptr<executor::TaskExecutor> _taskExecutor;

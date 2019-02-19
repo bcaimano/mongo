@@ -38,6 +38,7 @@
 #include "mongo/base/disallow_copying.h"
 #include "mongo/base/string_data.h"
 #include "mongo/client/mongo_uri.h"
+#include "mongo/client/replica_set_change_notifier.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/stdx/functional.h"
@@ -61,9 +62,7 @@ class ReplicaSetMonitor : public std::enable_shared_from_this<ReplicaSetMonitor>
 
 public:
     class Refresher;
-
-    typedef stdx::function<void(const std::string& setName, const std::string& newConnectionString)>
-        ConfigChangeHook;
+    using ConfigChangeHook = ReplicaSetChangeNotifier::Hook;
 
     /**
      * Initializes local state.
@@ -206,7 +205,7 @@ public:
      *
      * The hook must not be changed while the program has multiple threads.
      */
-    static void setAsynchronousConfigChangeHook(ConfigChangeHook hook);
+    static void setAsynchronousConfigChangeHook(ReplicaSetChangeNotifier::Hook hook);
 
     /**
      * Sets the hook to be called whenever the config of any replica set changes.
@@ -218,7 +217,7 @@ public:
      *
      * The hook must not be changed while the program has multiple threads.
      */
-    static void setSynchronousConfigChangeHook(ConfigChangeHook hook);
+    static void setSynchronousConfigChangeHook(ReplicaSetChangeNotifier::Hook hook);
 
     /**
      * Permanently stops all monitoring on replica sets and clears all cached information

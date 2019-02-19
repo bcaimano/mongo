@@ -46,7 +46,6 @@
 #include "mongo/db/server_options.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/mutex.h"
-#include "mongo/stdx/thread.h"
 #include "mongo/util/background.h"
 #include "mongo/util/debug_util.h"
 #include "mongo/util/exit.h"
@@ -62,9 +61,6 @@ using std::numeric_limits;
 using std::set;
 using std::string;
 using std::vector;
-
-// Failpoint for disabling AsyncConfigChangeHook calls on updated RS nodes.
-MONGO_FAIL_POINT_DEFINE(failAsyncConfigChangeHook);
 
 // Failpoint for changing the default refresh period
 MONGO_FAIL_POINT_DEFINE(modifyReplicaSetMonitorDefaultRefreshPeriod);
@@ -93,10 +89,6 @@ const int64_t unknownLatency = numeric_limits<int64_t>::max();
 const ReadPreferenceSetting kPrimaryOnlyReadPreference(ReadPreference::PrimaryOnly, TagSet());
 const Milliseconds kExpeditedRefreshPeriod(500);
 AtomicWord<bool> areRefreshRetriesDisabledForTest{false};  // Only true in tests.
-
-// TODO: Move to ReplicaSetMonitorManager
-ReplicaSetMonitor::ConfigChangeHook asyncConfigChangeHook;
-ReplicaSetMonitor::ConfigChangeHook syncConfigChangeHook;
 
 //
 // Helpers for stl algorithms
@@ -403,13 +395,11 @@ void ReplicaSetMonitor::remove(const string& name) {
 }
 
 void ReplicaSetMonitor::setAsynchronousConfigChangeHook(ConfigChangeHook hook) {
-    invariant(!asyncConfigChangeHook);
-    asyncConfigChangeHook = hook;
+    globalRSMonitorManager.getNotifier().registerAsync(hook);
 }
 
 void ReplicaSetMonitor::setSynchronousConfigChangeHook(ConfigChangeHook hook) {
-    invariant(!syncConfigChangeHook);
-    syncConfigChangeHook = hook;
+    globalRSMonitorManager.getNotifier().registerSync(hook);
 }
 
 // TODO move to correct order with non-statics before pushing
@@ -452,8 +442,7 @@ void ReplicaSetMonitor::shutdown() {
 
 void ReplicaSetMonitor::cleanup() {
     globalRSMonitorManager.removeAllMonitors();
-    asyncConfigChangeHook = ReplicaSetMonitor::ConfigChangeHook();
-    syncConfigChangeHook = ReplicaSetMonitor::ConfigChangeHook();
+    // TODO clean up the notifier
 }
 
 void ReplicaSetMonitor::disableRefreshRetries_forTest() {
@@ -611,12 +600,15 @@ Refresher::NextStep Refresher::getNextStep() {
                 _set->findOrCreateNode(it->host)->update(*it);
             }
 
+            // TODO switch the gUSA to be about connection strings
+            // ...can I store the ConnString in the Set?
             const string newAddr = _set->getUnconfirmedServerAddress();
-            if (oldAddr != newAddr && syncConfigChangeHook) {
+            if (oldAddr != newAddr) {
                 // Run the syncConfigChangeHook because the ShardRegistry needs to know about any
                 // node we might talk to.  Don't run the asyncConfigChangeHook because we don't
                 // want to update the seed list stored on the config servers with unconfirmed hosts.
-                syncConfigChangeHook(_set->name, _set->getUnconfirmedServerAddress());
+                auto newString = ConnectionString::parse(newAddr).getValue();
+                globalRSMonitorManager.getNotifier().updateUnconfirmedConfig(std::move(newString));
             }
         }
 
@@ -839,17 +831,12 @@ Status Refresher::receivedIsMasterFromMaster(const HostAndPort& from, const IsMa
         // and we want to record our changes
         log() << "changing hosts to " << _set->getConfirmedServerAddress() << " from " << oldAddr;
 
-        if (syncConfigChangeHook) {
-            syncConfigChangeHook(_set->name, _set->getConfirmedServerAddress());
-        }
-
-        if (asyncConfigChangeHook && !MONGO_FAIL_POINT(failAsyncConfigChangeHook)) {
-            // call from a separate thread to avoid blocking and holding lock while potentially
-            // going over the network
-            stdx::thread bg(asyncConfigChangeHook, _set->name, _set->getConfirmedServerAddress());
-            bg.detach();
-        }
+        auto newString = ConnectionString::forReplicaSet(
+            _set->name, std::vector<HostAndPort>(_set->seedNodes.begin(), _set->seedNodes.end()));
+        globalRSMonitorManager.getNotifier().updateConfig(std::move(newString));
     }
+
+    globalRSMonitorManager.getNotifier().updatePrimary(reply.setName, reply.primary);
 
     // Update other nodes's information based on replies we've already seen
     for (UnconfirmedReplies::iterator it = _scan->unconfirmedReplies.begin();

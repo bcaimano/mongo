@@ -89,11 +89,10 @@ auto makeEgressHooksList(ServiceContext* service) {
  * One example use case is for the ReplicaSetMonitor asynchronous callback when it detects changes
  * to replica set membership.
  */
-void updateShardIdentityConfigStringCB(const std::string& setName,
-                                       const std::string& newConnectionString) {
+void updateShardIdentityConfigStringCB(const ConnectionString& connStr) {
     auto configsvrConnStr =
         Grid::get(getGlobalServiceContext())->shardRegistry()->getConfigServerConnectionString();
-    if (configsvrConnStr.getSetName() != setName) {
+    if (configsvrConnStr.getSetName() != connStr.getSetName()) {
         // Ignore all change notification for other sets that are not the config server.
         return;
     }
@@ -101,11 +100,11 @@ void updateShardIdentityConfigStringCB(const std::string& setName,
     Client::initThread("updateShardIdentityConfigConnString");
     auto uniqOpCtx = Client::getCurrent()->makeOperationContext();
 
-    auto status = ShardingInitializationMongoD::updateShardIdentityConfigString(
-        uniqOpCtx.get(), uassertStatusOK(ConnectionString::parse(newConnectionString)));
+    auto status =
+        ShardingInitializationMongoD::updateShardIdentityConfigString(uniqOpCtx.get(), connStr);
     if (!status.isOK() && !ErrorCodes::isNotMasterError(status.code())) {
         warning() << "Error encountered while trying to update config connection string to "
-                  << newConnectionString << causedBy(redact(status));
+                  << connStr.toString() << causedBy(redact(status));
     }
 }
 

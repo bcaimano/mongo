@@ -341,21 +341,19 @@ bool ShardRegistry::reload(OperationContext* opCtx) {
     return true;
 }
 
-void ShardRegistry::replicaSetChangeShardRegistryUpdateHook(
-    const std::string& setName, const std::string& newConnectionString) {
+void ShardRegistry::replicaSetChangeShardRegistryUpdateHook(const ConnectionString& connString) {
     // Inform the ShardRegsitry of the new connection string for the shard.
-    auto connString = fassert(28805, ConnectionString::parse(newConnectionString));
-    invariant(setName == connString.getSetName());
     Grid::get(getGlobalServiceContext())->shardRegistry()->updateReplSetHosts(connString);
 }
 
-void ShardRegistry::replicaSetChangeConfigServerUpdateHook(const std::string& setName,
-                                                           const std::string& newConnectionString) {
+void ShardRegistry::replicaSetChangeConfigServerUpdateHook(const ConnectionString& connStr) {
     // This is run in it's own thread. Exceptions escaping would result in a call to terminate.
     Client::initThread("replSetChange");
     auto opCtx = cc().makeOperationContext();
     auto const grid = Grid::get(opCtx.get());
 
+    auto & setName = connStr.getSetName();
+    auto & newConnectionString = connStr.toString();
     try {
         std::shared_ptr<Shard> s = grid->shardRegistry()->lookupRSName(setName);
         if (!s) {
