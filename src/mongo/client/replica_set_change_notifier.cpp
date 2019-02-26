@@ -19,9 +19,17 @@ void ReplicaSetChangeNotifier::updateConfig(ConnectionString connectionString) {
         stdx::thread bg(_asyncHook, connectionString);
         bg.detach();
     }
+
+    for(auto listener : _listeners){
+        listener->handleConfig(connectionString);
+    }
 }
 
-void ReplicaSetChangeNotifier::updatePrimary(const std::string& replicaSet, HostAndPort primary) {}
+void ReplicaSetChangeNotifier::updatePrimary(const std::string& replicaSet, HostAndPort primary) {
+    for(auto listener : _listeners){
+        listener->handlePrimary(replicaSet, primary);
+    }
+}
 
 void ReplicaSetChangeNotifier::updateUnconfirmedConfig(ConnectionString connectionString) {
     if (_syncHook) {

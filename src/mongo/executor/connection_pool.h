@@ -33,6 +33,7 @@
 #include <queue>
 
 #include "mongo/base/disallow_copying.h"
+#include "mongo/client/replica_set_change_notifier.h"
 #include "mongo/executor/egress_tag_closer.h"
 #include "mongo/executor/egress_tag_closer_manager.h"
 #include "mongo/stdx/chrono.h"
@@ -63,8 +64,9 @@ struct ConnectionPoolStats;
  * The overall workflow here is to manage separate pools for each unique
  * HostAndPort. See comments on the various Options for how the pool operates.
  */
-class ConnectionPool : public EgressTagCloser {
+class ConnectionPool : public EgressTagCloser, public ReplicaSetChangeListener {
     class SpecificPool;
+    class PoolClub;
 
 public:
     class ConnectionInterface;
@@ -154,6 +156,11 @@ public:
                     const stdx::function<transport::Session::TagMask(transport::Session::TagMask)>&
                         mutateFunc) override;
 
+
+    void handleConfig(const ConnectionString& str) override;
+
+    void handlePrimary(const std::string& replicaSet, const HostAndPort& host) override;
+
     Future<ConnectionHandle> get(const HostAndPort& hostAndPort,
                                  transport::ConnectSSLMode sslMode,
                                  Milliseconds timeout);
@@ -169,6 +176,10 @@ public:
     size_t getNumConnectionsPerHost(const HostAndPort& hostAndPort) const;
 
 private:
+    std::shared_ptr<SpecificPool> _getPool(WithLock lk, const HostAndPort& hostAndPort);
+    std::shared_ptr<SpecificPool> _tryGetPool(WithLock, const HostAndPort& hostAndPort);
+    std::shared_ptr<PoolClub> _getPoolClub(WithLock, const std::string& replSet);
+
     // Options are set at startup and never changed at run time, so these are
     // accessed outside the lock
     const Options _options;
@@ -179,6 +190,7 @@ private:
     // The global mutex for specific pool access and the generation counter
     mutable stdx::mutex _mutex;
     stdx::unordered_map<HostAndPort, std::shared_ptr<SpecificPool>> _pools;
+    stdx::unordered_map<std::string, std::shared_ptr<PoolClub>> _poolClubs;
 
     EgressTagCloserManager* _manager;
 };
