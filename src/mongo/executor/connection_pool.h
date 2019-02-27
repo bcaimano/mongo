@@ -143,6 +143,14 @@ public:
     };
 
     explicit ConnectionPool(Options options = Options{});
+    ConnectionPool(std::shared_ptr<DependentTypeFactoryInterface> factory,
+                   const std::string& name,
+                   Options options = Options{})
+        : ConnectionPool([&] {
+              options.factory = std::move(factory);
+              options.name = name;
+              return std::move(options);
+          }()) {}
 
     ~ConnectionPool();
 
@@ -185,7 +193,7 @@ private:
     const Options _options;
 
     const std::shared_ptr<DependentTypeFactoryInterface>& _factory;
-    const std::shared_ptr<OutOfLineExecutor>& _executor;
+    const std::shared_ptr<OutOfLineExecutor> _executor;
 
     // The global mutex for specific pool access and the generation counter
     mutable stdx::mutex _mutex;

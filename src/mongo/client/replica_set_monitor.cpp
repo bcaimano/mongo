@@ -395,11 +395,11 @@ void ReplicaSetMonitor::remove(const string& name) {
 }
 
 void ReplicaSetMonitor::setAsynchronousConfigChangeHook(ConfigChangeHook hook) {
-    globalRSMonitorManager.getNotifier().registerAsync(hook);
+    globalRSMonitorManager.getNotifier().registerAsync(std::move(hook));
 }
 
 void ReplicaSetMonitor::setSynchronousConfigChangeHook(ConfigChangeHook hook) {
-    globalRSMonitorManager.getNotifier().registerSync(hook);
+    globalRSMonitorManager.getNotifier().registerSync(std::move(hook));
 }
 
 // TODO move to correct order with non-statics before pushing
@@ -836,7 +836,9 @@ Status Refresher::receivedIsMasterFromMaster(const HostAndPort& from, const IsMa
         globalRSMonitorManager.getNotifier().updateConfig(std::move(newString));
     }
 
-    globalRSMonitorManager.getNotifier().updatePrimary(reply.setName, reply.primary);
+    if (reply.primary != _set->lastSeenMaster) {
+        globalRSMonitorManager.getNotifier().updatePrimary(reply.setName, reply.primary);
+    }
 
     // Update other nodes's information based on replies we've already seen
     for (UnconfirmedReplies::iterator it = _scan->unconfirmedReplies.begin();

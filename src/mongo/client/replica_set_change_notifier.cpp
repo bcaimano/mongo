@@ -20,13 +20,13 @@ void ReplicaSetChangeNotifier::updateConfig(ConnectionString connectionString) {
         bg.detach();
     }
 
-    for(auto listener : _listeners){
+    for (auto listener : _listeners) {
         listener->handleConfig(connectionString);
     }
 }
 
 void ReplicaSetChangeNotifier::updatePrimary(const std::string& replicaSet, HostAndPort primary) {
-    for(auto listener : _listeners){
+    for (auto listener : _listeners) {
         listener->handlePrimary(replicaSet, primary);
     }
 }

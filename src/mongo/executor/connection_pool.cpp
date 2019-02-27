@@ -93,6 +93,7 @@ public:
     stdx::unordered_set<SpecificPool*> pools;
 };
 
+
 /**
  * A pool for a specific HostAndPort
  *
@@ -129,9 +130,6 @@ public:
     auto guardCallback(Callback&& cb) {
         return [ cb = std::forward<Callback>(cb), anchor = shared_from_this() ](auto&&... args) {
             stdx::unique_lock<stdx::mutex> lk(anchor->_parent->_mutex);
-            ++(anchor->_activeClients);
-
-            ON_BLOCK_EXIT([anchor]() { --(anchor->_activeClients); });
 
             return cb(lk, std::forward<decltype(args)>(args)...);
         };
@@ -308,7 +306,6 @@ private:
 
     std::shared_ptr<TimerInterface> _requestTimer;
     Date_t _requestTimerExpiration;
-    size_t _activeClients;
     size_t _generation;
 
     size_t _created;
@@ -354,10 +351,27 @@ constexpr Milliseconds ConnectionPool::kDefaultRefreshTimeout;
 const Status ConnectionPool::kConnectionStateUnknown =
     Status(ErrorCodes::InternalError, "Connection is in an unknown state");
 
+namespace {
+class InlineOutOfLineExecutor : public OutOfLineExecutor {
+public:
+    void schedule(Task func) override {
+        func();
+    }
+};
+}
+
 ConnectionPool::ConnectionPool(Options options)
     : _options(std::move(options)),
       _factory(_options.factory),
-      _executor(_options.executor),
+      _executor([&](void) -> decltype(_executor) {
+          if (_options.executor)
+              return _options.executor;
+
+
+          // Connection pools *really* should know who their executor are. This should be an
+          // invariant once enterprise gets in line.
+          return std::make_shared<InlineOutOfLineExecutor>();
+      }()),
       _manager(options.egressTagCloserManager) {
     invariant(!_options.name.empty());
     invariant(_executor);
@@ -577,7 +591,6 @@ ConnectionPool::SpecificPool::SpecificPool(ConnectionPool* parent, const HostAnd
       _hostAndPort(hostAndPort),
       _readyPool(std::numeric_limits<size_t>::max()),
       _requestTimer(parent->_factory->makeTimer()),
-      _activeClients(0),
       _generation(0),
       _created(0),
       _state(State::kRunning) {}
@@ -743,10 +756,8 @@ void ConnectionPool::SpecificPool::returnConnection(Lock& lk, ConnectionInterfac
 
 inline ConnectionPool::ConnectionHandle ConnectionPool::SpecificPool::makeHandle(
     ConnectionInterface* connPtr) {
-    auto deleter = [this](ConnectionInterface* conn) {
-        _parent->_executor->schedule(guardCallback([&](auto& lk) { returnConnection(lk, conn); }));
-    };
-    return ConnectionHandle(connPtr, std::move(deleter));
+    auto fun = guardCallback([this, connPtr](auto& lk, auto ptr) { returnConnection(lk, connPtr); });
+    return ConnectionHandle(connPtr, std::move(fun));
 }
 
 // Adds a live connection to the ready pool
@@ -779,14 +790,24 @@ void ConnectionPool::SpecificPool::addToReady(Lock& lk, OwnedConnection conn) {
                             returnConnection(lk, connPtr);
                         }));
 
-    // If we currently have outstanding requests and nothing scheduled, try to fill out
-    fulfillRequests(lk);
+    _parent->_executor->schedule(guardCallback([this](auto& lk) {
+        // If we currently have outstanding requests and nothing scheduled, try to fill out
+        fulfillRequests(lk);
+    }));
 }
 
 // Sets state to shutdown and kicks off the failure protocol to tank existing connections
 void ConnectionPool::SpecificPool::triggerShutdown(const Status& status, Lock& lk) {
+    log() << "Shutting down " << _hostAndPort;
+
     _state = State::kInShutdown;
     _droppedProcessingPool.clear();
+
+    // If we have no more clients that require access to us, delist from the parent pool
+    LOG(2) << "Delisting connection pool for " << _hostAndPort;
+    _controller->pools.erase(this);
+    _parent->_pools.erase(_hostAndPort);
+
     processFailure(status, lk);
 }
 
@@ -1007,12 +1028,6 @@ ConnectionPool::SpecificPool::OwnedConnection ConnectionPool::SpecificPool::take
 void ConnectionPool::SpecificPool::updateStateInLock() {
     if (_state == State::kInShutdown) {
         // If we're in shutdown, there is nothing to update. Our clients are all gone.
-        if (_processingPool.empty() && !_activeClients) {
-            // If we have no more clients that require access to us, delist from the parent pool
-            LOG(2) << "Delisting connection pool for " << _hostAndPort;
-            _controller->pools.erase(this);
-            _parent->_pools.erase(_hostAndPort);
-        }
         return;
     }
 

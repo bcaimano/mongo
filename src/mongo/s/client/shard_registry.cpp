@@ -352,8 +352,8 @@ void ShardRegistry::replicaSetChangeConfigServerUpdateHook(const ConnectionStrin
     auto opCtx = cc().makeOperationContext();
     auto const grid = Grid::get(opCtx.get());
 
-    auto & setName = connStr.getSetName();
-    auto & newConnectionString = connStr.toString();
+    auto& setName = connStr.getSetName();
+    auto& newConnectionString = connStr.toString();
     try {
         std::shared_ptr<Shard> s = grid->shardRegistry()->lookupRSName(setName);
         if (!s) {

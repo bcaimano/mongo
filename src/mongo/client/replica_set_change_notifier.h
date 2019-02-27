@@ -21,13 +21,13 @@ public:
 
 public:
     void registerAsync(Hook hook) {
-        invariant(!hook);
-        _asyncHook = hook;
+        invariant(!_asyncHook);
+        _asyncHook = std::move(hook);
     }
 
     void registerSync(Hook hook) {
-        invariant(!hook);
-        _syncHook = hook;
+        invariant(!_syncHook);
+        _syncHook = std::move(hook);
     }
 
     // By this point, the Listener should be fully constructed and initialized. I don't care how
@@ -50,5 +50,4 @@ private:
 
     stdx::unordered_set<Listener*> _listeners;
 };
-
 }
