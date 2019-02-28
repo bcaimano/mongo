@@ -823,7 +823,9 @@ Status Refresher::receivedIsMasterFromMaster(const HostAndPort& from, const IsMa
         }
     }
 
-    if (reply.normalHosts != _set->seedNodes) {
+    // This condition isn't exactly right but the hack will evolve
+    if (reply.normalHosts != _set->seedNodes || _set->gen == 0) {
+        ++_set->gen;
         const string oldAddr = _set->getConfirmedServerAddress();
         _set->seedNodes = reply.normalHosts;
 

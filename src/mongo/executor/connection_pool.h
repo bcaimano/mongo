@@ -136,6 +136,8 @@ public:
          */
         EgressTagCloserManager* egressTagCloserManager = nullptr;
 
+        ReplicaSetChangeNotifier* notifier = nullptr;
+
         std::shared_ptr<DependentTypeFactoryInterface> factory = nullptr;
         std::shared_ptr<OutOfLineExecutor> executor = nullptr;
 

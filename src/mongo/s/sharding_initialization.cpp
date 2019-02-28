@@ -36,6 +36,7 @@
 #include <string>
 
 #include "mongo/base/status.h"
+#include "mongo/client/global_conn_pool.h"
 #include "mongo/db/audit.h"
 #include "mongo/db/keys_collection_client_sharded.h"
 #include "mongo/db/keys_collection_manager.h"
@@ -176,6 +177,7 @@ Status initializeGlobalShardingState(OperationContext* opCtx,
     // MONGO_EXPORT_STARTUP_SERVER_PARAMETER because it's not guaranteed to be initialized.
     // The following code is a workaround.
     ConnectionPool::Options connPoolOptions;
+    connPoolOptions.notifier = &globalRSMonitorManager.getNotifier();
 
     connPoolOptions.minConnections = gShardingTaskExecutorPoolMinConnections;
     connPoolOptions.maxConnections = (gShardingTaskExecutorPoolMaxConnections >= 0)

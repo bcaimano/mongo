@@ -2,6 +2,8 @@
 
 #include "mongo/client/connection_string.h"
 #include "mongo/stdx/functional.h"
+#include "mongo/stdx/mutex.h"
+#include "mongo/stdx/unordered_map.h"
 #include "mongo/stdx/unordered_set.h"
 
 namespace mongo {
@@ -19,6 +21,8 @@ public:
     using Hook = stdx::function<void(const ConnectionString& str)>;
     using Listener = ReplicaSetChangeListener;
 
+    // Expose Update?
+
 public:
     void registerAsync(Hook hook) {
         invariant(!_asyncHook);
@@ -31,16 +35,18 @@ public:
     }
 
     // By this point, the Listener should be fully constructed and initialized. I don't care how
-    void addListener(Listener* listener) {
-        _listeners.insert(listener);
-    }
+    void addListener(Listener* listener);
 
     void removeListener(Listener* listener) {
+        stdx::unique_lock<stdx::mutex> lk(_mutex);
+
         _listeners.erase(listener);
     }
 
     void updateConfig(ConnectionString connectionString);
     void updatePrimary(const std::string& replicaSet, HostAndPort primary);
+    // void notify()
+
     void updateUnconfirmedConfig(ConnectionString connectionString);
 
 private:
@@ -48,6 +54,12 @@ private:
     // TODO Change the providers of this hook to have their own network interfaces
     Hook _asyncHook;
 
+    stdx::mutex _mutex;
     stdx::unordered_set<Listener*> _listeners;
+    struct Data {
+        HostAndPort primary;
+        ConnectionString connStr;
+    };
+    stdx::unordered_map<std::string, std::unique_ptr<Data>> _lastChange;
 };
 }

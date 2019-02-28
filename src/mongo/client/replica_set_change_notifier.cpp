@@ -8,6 +8,16 @@ namespace mongo {
 // Failpoint for disabling AsyncConfigChangeHook calls on updated RS nodes.
 MONGO_FAIL_POINT_DEFINE(failAsyncConfigChangeHook);
 
+void ReplicaSetChangeNotifier::addListener(Listener* listener) {
+    stdx::unique_lock<stdx::mutex> lk(_mutex);
+
+    _listeners.insert(listener);
+    for (auto && [ replSet, data ] : _lastChange) {
+        listener->handleConfig(data->connStr);
+        listener->handlePrimary(data->connStr.getSetName(), data->primary);
+    }
+}
+
 void ReplicaSetChangeNotifier::updateConfig(ConnectionString connectionString) {
     if (_syncHook) {
         _syncHook(connectionString);
@@ -20,14 +30,28 @@ void ReplicaSetChangeNotifier::updateConfig(ConnectionString connectionString) {
         bg.detach();
     }
 
+    stdx::unique_lock<stdx::mutex> lk(_mutex);
+    auto& data = _lastChange[connectionString.getSetName()];
+    if (!data) {
+        data = std::make_unique<Data>();
+    }
+    data->connStr = connectionString;
+
     for (auto listener : _listeners) {
-        listener->handleConfig(connectionString);
+        listener->handleConfig(data->connStr);
     }
 }
 
 void ReplicaSetChangeNotifier::updatePrimary(const std::string& replicaSet, HostAndPort primary) {
+    stdx::unique_lock<stdx::mutex> lk(_mutex);
+    auto& data = _lastChange[replicaSet];
+    if (!data) {
+        data = std::make_unique<Data>();
+    }
+    data->primary = primary;
+
     for (auto listener : _listeners) {
-        listener->handlePrimary(replicaSet, primary);
+        listener->handlePrimary(replicaSet, data->primary);
     }
 }
 

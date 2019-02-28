@@ -216,14 +216,15 @@ public:
     }
 
     void setOrCheckSSLMode(transport::ConnectSSLMode desired) {
-        if (_created == 0) {
+        if (!_sslIsSet) {
             _sslMode = desired;
+            _sslIsSet = true;
             return;
         }
         fassertSSLMode(desired);
     }
 
-    void setController(WithLock, std::shared_ptr<PoolClub> controller) {
+    void setController(WithLock, const std::shared_ptr<PoolClub>& controller) {
         _controller = controller;
         _controller->pools.insert(this);
     }
@@ -294,7 +295,9 @@ private:
 
     const HostAndPort _hostAndPort;
 
+    bool _sslIsSet = false;
     transport::ConnectSSLMode _sslMode;
+
     std::shared_ptr<PoolClub> _controller;
 
     LRUOwnershipPool _readyPool;
@@ -379,6 +382,10 @@ ConnectionPool::ConnectionPool(Options options)
     if (_manager) {
         _manager->add(this);
     }
+
+    if (_options.notifier) {
+        _options.notifier->addListener(this);
+    }
 }
 
 ConnectionPool::~ConnectionPool() {
@@ -386,6 +393,10 @@ ConnectionPool::~ConnectionPool() {
     // pointer dangles. No need for cleanup in that case.
     if (hasGlobalServiceContext() && _manager) {
         _manager->remove(this);
+    }
+
+    if (_options.notifier) {
+        _options.notifier->removeListener(this);
     }
 
     shutdown();
@@ -467,7 +478,9 @@ auto ConnectionPool::_getPoolClub(WithLock, const std::string& replSet)
 void ConnectionPool::handleConfig(const ConnectionString& str) {
     stdx::unique_lock<stdx::mutex> lk(_mutex);
 
+    log() << "Handling new replica set config for " << str.getSetName();
     auto poolClub = _getPoolClub(lk, str.getSetName());
+    invariant(poolClub);
 
     // Save what used to be the club for later
     auto oldPools = std::exchange(poolClub->pools, {});
@@ -495,7 +508,10 @@ void ConnectionPool::handleConfig(const ConnectionString& str) {
 void ConnectionPool::handlePrimary(const std::string& replSet, const HostAndPort& host) {
     stdx::unique_lock<stdx::mutex> lk(_mutex);
 
+    log() << "Handling new replica set primary for " << replSet;
     auto club = _getPoolClub(lk, replSet);
+    invariant(club);
+
     if (club->primary != host) {
         club->primary = host;
 
@@ -547,7 +563,7 @@ boost::optional<ConnectionPool::ConnectionHandle> ConnectionPool::tryGet(
     if (!pool)
         return boost::none;
 
-    pool->fassertSSLMode(sslMode);
+    pool->setOrCheckSSLMode(sslMode);
     return pool->tryGetConnection(lk);
 }
 
@@ -756,7 +772,8 @@ void ConnectionPool::SpecificPool::returnConnection(Lock& lk, ConnectionInterfac
 
 inline ConnectionPool::ConnectionHandle ConnectionPool::SpecificPool::makeHandle(
     ConnectionInterface* connPtr) {
-    auto fun = guardCallback([this, connPtr](auto& lk, auto ptr) { returnConnection(lk, connPtr); });
+    auto fun =
+        guardCallback([this, connPtr](auto& lk, auto ptr) { returnConnection(lk, connPtr); });
     return ConnectionHandle(connPtr, std::move(fun));
 }
 

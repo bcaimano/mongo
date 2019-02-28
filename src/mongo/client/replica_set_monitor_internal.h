@@ -225,6 +225,7 @@ public:
     stdx::list<Waiter> waiters;  // Everyone waiting for some ReadPreference to be satisfied
 
     executor::TaskExecutor* const executor;
+    int64_t gen = 0;
 };
 
 struct ReplicaSetMonitor::ScanState {
