@@ -173,6 +173,8 @@ Status initializeGlobalShardingState(OperationContext* opCtx,
         return {ErrorCodes::BadValue, "Unrecognized connection string."};
     }
 
+    LOG(0) << "Initializing global sharding state";
+
     // We don't set the ConnectionPool's static const variables to be the default value in
     // MONGO_EXPORT_STARTUP_SERVER_PARAMETER because it's not guaranteed to be initialized.
     // The following code is a workaround.
