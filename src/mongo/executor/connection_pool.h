@@ -43,6 +43,7 @@
 #include "mongo/transport/transport_layer.h"
 #include "mongo/util/future.h"
 #include "mongo/util/net/hostandport.h"
+#include "mongo/util/out_of_line_executor.h"
 #include "mongo/util/time_support.h"
 
 namespace mongo {
@@ -73,7 +74,7 @@ public:
     using ConnectionHandleDeleter = stdx::function<void(ConnectionInterface* connection)>;
     using ConnectionHandle = std::unique_ptr<ConnectionInterface, ConnectionHandleDeleter>;
 
-    using GetConnectionCallback = stdx::function<void(StatusWith<ConnectionHandle>)>;
+    using GetConnectionCallback = unique_function<void(StatusWith<ConnectionHandle>)>;
 
     static constexpr Milliseconds kDefaultHostTimeout = Milliseconds(300000);  // 5mins
     static const size_t kDefaultMaxConns;
@@ -156,9 +157,6 @@ public:
     void get_forTest(const HostAndPort& hostAndPort,
                      Milliseconds timeout,
                      GetConnectionCallback cb);
-
-    boost::optional<ConnectionHandle> tryGet(const HostAndPort& hostAndPort,
-                                             transport::ConnectSSLMode sslMode);
 
     void appendConnectionStats(ConnectionPoolStats* stats) const;
 
@@ -338,6 +336,11 @@ public:
     virtual std::shared_ptr<ConnectionInterface> makeConnection(const HostAndPort& hostAndPort,
                                                                 transport::ConnectSSLMode sslMode,
                                                                 size_t generation) = 0;
+
+    /**
+     *  Return the executor for use with this factory
+     */
+    virtual OutOfLineExecutor& getExecutor() = 0;
 
     /**
      * Makes a new timer
