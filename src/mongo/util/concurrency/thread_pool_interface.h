@@ -31,6 +31,7 @@
 
 #include "mongo/base/disallow_copying.h"
 #include "mongo/util/functional.h"
+#include "mongo/util/out_of_line_executor.h"
 
 namespace mongo {
 
@@ -39,12 +40,10 @@ class Status;
 /**
  * Interface for a thread pool.
  */
-class ThreadPoolInterface {
+class ThreadPoolInterface : public OutOfLineExecutor {
     MONGO_DISALLOW_COPYING(ThreadPoolInterface);
 
 public:
-    using Task = unique_function<void()>;
-
     /**
      * Destroys a thread pool.
      *
@@ -82,7 +81,7 @@ public:
      * It is safe to call this before startup(), but the scheduled task will not execute
      * until after startup() is called.
      */
-    virtual Status schedule(Task task) = 0;
+    virtual void schedule(Task task) = 0;
 
 protected:
     ThreadPoolInterface() = default;
