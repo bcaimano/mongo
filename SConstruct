@@ -3609,6 +3609,7 @@ def doConfigure(myenv):
 
 
 env = doConfigure( env )
+#env.Tool('digraph')
 
 env.Tool("header_graph")
 
