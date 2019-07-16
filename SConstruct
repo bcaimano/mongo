@@ -3610,6 +3610,8 @@ def doConfigure(myenv):
 
 env = doConfigure( env )
 
+env.Tool("header_graph")
+
 # TODO: Later, this should live somewhere more graceful.
 if get_option('install-mode') == 'hygienic':
 
