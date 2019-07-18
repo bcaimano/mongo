@@ -3611,7 +3611,7 @@ def doConfigure(myenv):
 env = doConfigure( env )
 #env.Tool('digraph')
 
-env.Tool("header_graph")
+env.Tool("dependency_grapher")
 
 # TODO: Later, this should live somewhere more graceful.
 if get_option('install-mode') == 'hygienic':

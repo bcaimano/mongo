@@ -151,7 +151,7 @@ def render_graph(graph_name, nodes, matrix):
             dep_name = hex(dep_nid)
             dot.edge(name, dep_name)
 
-    with open(make_filename(sys.argv[1], graph_name), 'w') as f:
+    with open(graph_name, 'w') as f:
         f.write(dot.source)
 
 def make_cluster(nodes, matrix):
@@ -189,28 +189,30 @@ def make_cluster(nodes, matrix):
 
     return (cluster_nodes, cluster_matrix)
 
-graph = {}
-with open(sys.argv[1]) as f:
-    graph = yaml.load(f)
+def parse_graph(path, graph):
+    nodes = graph["nodes"]
+    for nid, node in nodes.items():
+        node["isBridge"] = False
+        node["leaves"] = set()
+    #pp.pprint(nodes)
 
-nodes = graph["nodes"]
-for nid, node in nodes.items():
-    node["isBridge"] = False
-    node["leaves"] = set()
-#pp.pprint(nodes)
+    matrix = {}
+    for nid, row in graph["matrix"].items():
+        matrix[nid] = set(row)
 
-matrix = {}
-for nid, row in graph["matrix"].items():
-    matrix[nid] = set(row)
+    render_graph(make_filename(path, "original"), nodes, matrix)
 
-render_graph("original", nodes, matrix)
+    cluster_nodes, cluster_matrix = make_cluster(nodes, matrix)
+    abridge(cluster_nodes, cluster_matrix)
+    condense(cluster_nodes, cluster_matrix)
+    render_graph(make_filename(path, "cluster"), cluster_nodes, cluster_matrix)
 
-cluster_nodes, cluster_matrix = make_cluster(nodes, matrix)
-abridge(cluster_nodes, cluster_matrix)
-condense(cluster_nodes, cluster_matrix)
-render_graph("cluster", cluster_nodes, cluster_matrix)
+    abridge(nodes, matrix)
+    condense(nodes, matrix)
+    prune(nodes, matrix)
+    render_graph(make_filename(path, "abridged"), nodes, matrix)
 
-abridge(nodes, matrix)
-condense(nodes, matrix)
-prune(nodes, matrix)
-render_graph("abridged", nodes, matrix)
+for path in sys.argv[1:]:
+    with open(path) as f:
+        graph = yaml.load(f)
+    parse_graph(path, graph)

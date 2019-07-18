@@ -162,12 +162,14 @@ def header_graph(env, target, source):
     entry = env.Entry(target[0])
     _dump_graph_yaml(str(entry), nodes, matrix)
     return []
-    
 
-def header_graph_emitter(target, source, env):
+def graph_emitter(target, source, env):
     """For each appropriate source file emit a graph builder."""
 
     build_dir = env.Dir('$BUILD_ROOT/$VARIANT_DIR').get_abspath() + '/'
+    #print("BUILD_DIR={}".format(build_dir))
+    get_libdeps = env['_LIBDEPS_GET_LIBS']
+    libdeps = get_libdeps(source, target, env, False)
 
     source_files = []
     for s in source:
@@ -177,46 +179,6 @@ def header_graph_emitter(target, source, env):
             if suffix in [".h", ".cpp", ".c", ".hpp"]:
                 source_files.append(entry)
 
-    if not source_files:
-        return (target, source)
-
-    for t in target:
-        entry = env.Entry(t)
-        path = "{}graphs/include/{}.yml".format(build_dir, str(entry.name))
-
-        if path in SEEN_FILES:
-            continue
-        SEEN_FILES.add(path)
-
-        target_name = str(entry.name)
-        alias_name = "header-graph-{}".format(target_name)
-        infixes = {
-            '.so': 'shlib',
-            '.a': 'lib',
-        }
-        target_suffix = entry.get_suffix()
-        if target_suffix in infixes:
-            alias_name = "header-graph-{}-{}".format(infixes[target_suffix], target_name[3:-3])
-
-        env.Alias(
-            alias_name,
-            env.HeaderGraph(
-                target=path,
-                source=source_files,
-            )
-        )
-
-    return (target, source)
-
-link_targets = set()
-def link_graph_emitter(target, source, env):
-    """For each appropriate source file emit a graph builder."""
-
-    build_dir = env.Dir('$BUILD_ROOT/$VARIANT_DIR').get_abspath() + '/'
-    #print("BUILD_DIR={}".format(build_dir))
-    get_libdeps = env['_LIBDEPS_GET_LIBS']
-    libdeps = get_libdeps(source, target, env, False)
-
     for t in target:
         target_entry = env.Entry(t)
         target_name = str(target_entry.name)
@@ -225,7 +187,7 @@ def link_graph_emitter(target, source, env):
             entry = env.Entry(libdep)
             link_matrix[target_name].add(str(entry.name))
 
-        if target_name in link_targets:
+        if target_name in SEEN_FILES:
             continue
 
         target_dir  = os.path.dirname(target_entry.get_abspath().replace(build_dir,''))
@@ -239,7 +201,7 @@ def link_graph_emitter(target, source, env):
         target_suffix = target_entry.get_suffix()
         if target_suffix in infixes:
             alias_name = "link-graph-{}-{}".format(infixes[target_suffix], target_name[3:-3])
-        link_targets.add(target_name)
+        SEEN_FILES.add(target_name)
 
         graph_path = "{}graphs/link/{}.yml".format(build_dir, target_name)
         env.Alias(
@@ -247,6 +209,22 @@ def link_graph_emitter(target, source, env):
             env.LinkGraph(
                 target=graph_path,
                 source=[],
+            )
+        )
+
+        if not source_files:
+            continue
+
+        alias_name = "header-graph-{}".format(target_name)
+        if target_suffix in infixes:
+            alias_name = "header-graph-{}-{}".format(infixes[target_suffix], target_name[3:-3])
+
+        graph_path = "{}graphs/include/{}.yml".format(build_dir, target_name)
+        env.Alias(
+            alias_name,
+            env.HeaderGraph(
+                target=graph_path,
+                source=source_files,
             )
         )
 
@@ -266,7 +244,6 @@ def generate(env):
         base_emitter = builder.emitter
         new_emitter = SCons.Builder.ListEmitter([
             base_emitter,
-            header_graph_emitter,
-            link_graph_emitter,
+            graph_emitter,
         ])
         builder.emitter = new_emitter
