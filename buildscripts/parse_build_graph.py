@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import sys, yaml, pprint
+import sys, yaml, pprint, os.path
 import heapq
 
 from collections import defaultdict
@@ -93,6 +93,102 @@ def prune(nodes, matrix):
             row.remove(tail_nid)
             del nodes[tail_nid]
 
+def make_filename(path, suffix):
+    stem = os.path.splitext(path)[0]
+    return '{}-{}.gv'.format(stem, suffix)
+
+from graphviz import Digraph
+def render_graph(graph_name, nodes, matrix):
+    dot = Digraph("")
+
+    dot.graph_attr["overlap"] = "scale"
+    dot.graph_attr["splines"] = "ortho"
+    #dot.graph_attr["outputMode"] = "nodesfirst"
+
+    dot.edge_attr["arrowtype"] = "empty" 
+    dot.edge_attr["arrowsize"] = "0.5" 
+
+    dot.node_attr["shape"] = "box"
+    dot.node_attr["fixedsize"] = "false"
+    dot.node_attr["fontsize"] = "10.0"
+    dot.node_attr["fontname"] = "arial"
+    dot.node_attr["height"] = "0.5"
+    dot.node_attr["width"] = "0.5"
+    dot.node_attr["style"] = "filled,solid"
+
+    in_edges = defaultdict(int)
+    out_edges = defaultdict(int)
+    for head_nid, row in matrix.items():
+        for tail_nid in row:
+            out_edges[head_nid] += 1
+            in_edges[tail_nid] += 1
+    rendered_nids = set()
+    for nid, node in nodes.items():
+        name = hex(nid)
+        edge_diff = in_edges[nid] - out_edges[nid] - len(node.get('leaves', set()))
+        if node["isBridge"]:
+            dot.node(name, label='{:+d}'.format(edge_diff), shape="diamond", width="0.5", height="0.5") 
+            #dot.node(name, label=str(nid)) 
+        elif in_edges[nid] == 0:
+            dot.node(name, label=node["name"], fillcolor="red", rank="source", shape="invhouse") 
+        elif nid not in matrix:
+            dot.node(name, label=node["name"], fillcolor="green", rank="sink")
+        else:
+            dot.node(name, label='{}\n{:+d}'.format(node["name"], edge_diff), fillcolor="red")
+        rendered_nids.add(nid)
+
+    for nid, row in matrix.items():
+        node = nodes[nid]
+        name = hex(nid)
+
+        if node["leaves"]:
+            leaf_name = "{}-leaves".format(name)
+            label = str(len(node["leaves"]))
+            dot.node(leaf_name, label=label, fillcolor="green", rank="sink", shape="octagon") 
+            dot.edge(name, leaf_name)
+
+        for dep_nid in row:
+            dep_name = hex(dep_nid)
+            dot.edge(name, dep_name)
+
+    with open(make_filename(sys.argv[1], graph_name), 'w') as f:
+        f.write(dot.source)
+
+def make_cluster(nodes, matrix):
+    cluster_nodes = {}
+    name2nid = {}
+    nextnid = 0
+    for _, node in nodes.items():
+        if "cluster" in node:
+            cluster = node["cluster"]
+
+            if cluster not in name2nid:
+                nid = nextnid
+                nextnid += 1
+                name2nid[cluster] = nid
+                cluster_nodes[nid] = { "name": cluster, "count": 0, "isBridge": False, "leaves":
+                        set() }
+
+            cluster_nodes[nid]["count"] += 1
+
+    cluster_matrix = defaultdict(set)
+    for original_nid, row in matrix.items():
+        head_node = nodes[original_nid]
+        head_cluster = head_node["cluster"]
+        head_nid = name2nid[head_cluster]
+
+        for tail_nid in row:
+            tail_node = nodes[tail_nid]
+            tail_cluster = tail_node["cluster"]
+            tail_nid = name2nid[tail_cluster]
+
+            if head_nid == tail_nid:
+                continue
+
+            cluster_matrix[head_nid].add(tail_nid)
+
+    return (cluster_nodes, cluster_matrix)
+
 graph = {}
 with open(sys.argv[1]) as f:
     graph = yaml.load(f)
@@ -100,79 +196,21 @@ with open(sys.argv[1]) as f:
 nodes = graph["nodes"]
 for nid, node in nodes.items():
     node["isBridge"] = False
-    node["inEdges"] = 0
     node["leaves"] = set()
 #pp.pprint(nodes)
 
 matrix = {}
 for nid, row in graph["matrix"].items():
-    for row_nid in row:
-        nodes[row_nid]["inEdges"] += 1
     matrix[nid] = set(row)
+
+render_graph("original", nodes, matrix)
+
+cluster_nodes, cluster_matrix = make_cluster(nodes, matrix)
+abridge(cluster_nodes, cluster_matrix)
+condense(cluster_nodes, cluster_matrix)
+render_graph("cluster", cluster_nodes, cluster_matrix)
 
 abridge(nodes, matrix)
 condense(nodes, matrix)
 prune(nodes, matrix)
-
-from graphviz import Digraph
-dot = Digraph("")
-
-dot.graph_attr["overlap"] = "scale"
-dot.graph_attr["splines"] = "ortho"
-#dot.graph_attr["outputMode"] = "nodesfirst"
-
-dot.edge_attr["arrowtype"] = "empty" 
-dot.edge_attr["arrowsize"] = "0.5" 
-
-dot.node_attr["shape"] = "box"
-dot.node_attr["fixedsize"] = "false"
-dot.node_attr["fontsize"] = "10.0"
-dot.node_attr["fontname"] = "arial"
-dot.node_attr["height"] = "0.25"
-dot.node_attr["width"] = "0.5"
-dot.node_attr["style"] = "filled,solid"
-
-rendered_nids = set()
-for nid, node in nodes.items():
-    name = hex(nid)
-    if node["isBridge"]:
-        #dot.node(name, shape="point", width="0.0625", height="0.0625") 
-        dot.node(name, label=str(nid)) 
-    elif node["inEdges"] == 0:
-        dot.node(name, label=node["name"], fillcolor="red", rank="source", shape="invhouse") 
-    elif nid not in matrix:
-        dot.node(name, label=node["name"], fillcolor="green", rank="sink")
-    else:
-        dot.node(name, label=node["name"], fillcolor="red")
-    rendered_nids.add(nid)
-
-if 0:
-    cluster_id = 0
-    for name, cluster in clusters.items():
-        if not (name.startswith('util/') or name.startswith('stdx/') or name.startswith('base/')):
-            continue
-        graph_name = 'cluster_{}'.format(cluster_id)
-        cluster_id += 1
-        with dot.subgraph(name=graph_name) as subdot:
-            subdot.graph_attr['label'] = name
-            for nid in cluster:
-                if nid not in rendered_nids:
-                    continue
-                subdot.node(hex(nid))
-
-for nid, row in matrix.items():
-    node = nodes[nid]
-    name = hex(nid)
-
-    if node["leaves"]:
-        leaf_name = "{}-leaves".format(name)
-        label = str(len(node["leaves"]))
-        dot.node(leaf_name, label=label, fillcolor="green", rank="sink", shape="octagon") 
-        dot.edge(name, leaf_name)
-
-    for dep_nid in row:
-        dep_name = hex(dep_nid)
-        dot.edge(name, dep_name)
-
-with open(sys.argv[2], 'w') as f:
-    f.write(dot.source)
+render_graph("abridged", nodes, matrix)

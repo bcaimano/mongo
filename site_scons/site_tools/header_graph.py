@@ -16,6 +16,7 @@ def _dump_graph_yaml(path, nodes, matrix):
         out_matrix[nid] = list(row)
 
     with open(path, "w") as f:
+        print("==Writing graph to {}==".format(path))
         yaml.dump({
             'nodes': nodes,
             'matrix': out_matrix
@@ -37,7 +38,7 @@ def link_graph(env, target, source):
     while name_stack:
         nid, name = name_stack.pop()
         row = link_matrix[name]
-        print(name, row)
+        #print(name, row)
         for dep_name in row:
             if dep_name in nids_by_name:
                 matrix[nid].add(nids_by_name[dep_name])
@@ -63,7 +64,7 @@ def link_graph(env, target, source):
 
     return []
 
-def _get_header_includes(filepath):
+def _get_header_includes(env, filepath):
     cmd = [
         'gcc',
         '-o',
@@ -86,7 +87,7 @@ def _get_header_includes(filepath):
 
     header_graph_lines = []
     for line in output.stderr.decode('utf-8').split('\n'):
-        if line[0] != '.':
+        if not line or line[0] != '.':
             continue
         if line == "Multiple include guards may be useful for:":
             break
@@ -94,38 +95,30 @@ def _get_header_includes(filepath):
         header_path = line.lstrip('.')
         header_level = len(line) - len(header_path)
         header_graph_lines.append((header_level, header_path.strip()))
+    return header_graph_lines
 
 def header_graph(env, target, source):
     """Generate a header graph for source."""
 
-    if not source:
-        return []
-
-    if not isinstance(source, list):
-        source = [source]
-
-    source = [str(s) for s in source]
-
     paths = set()
     edges = set()
 
+    build_dir = env.Dir('$BUILD_ROOT/$VARIANT_DIR').get_abspath() + '/'
+    src_dir = env.Dir('#src').get_abspath() + '/'
     for s in source:
-        paths.add(s)
-        parent_stack = [s]
+        source_path = s.get_abspath().replace(build_dir, '').replace(src_dir, '')
+        source_path = source_path.replace('src/mongo/','')
+        paths.add(source_path)
+        parent_stack = [source_path]
         last_level = 0
         
-        for (level, header_path) in _get_header_includes(s):
+        for (level, header_path) in _get_header_includes(env, s.get_abspath()):
             if level == 0:
                 continue
 
-            keystring = '/build/opt/mongo/'
-            build_idx = header_path.find(keystring)
-            if build_idx != -1:
-                header_path = header_path[build_idx + len(keystring):]
-
-            keystring = 'src/mongo/'
-            if header_path.startswith(keystring):
-                header_path = header_path[len(keystring):]
+            header_path = os.path.abspath(header_path)
+            header_path = header_path.replace(build_dir, '').replace(src_dir, '')
+            header_path = header_path.replace("mongo/", '')
 
             #print("path: {}, level: {}".format(header_path, level))
             for i in range(level, last_level + 1):
@@ -134,11 +127,12 @@ def header_graph(env, target, source):
             last_level = level
             parent_stack.append(header_path)
             
-            if "/third_party/" in header_path:
+            if header_path.startswith("third_party/"):
                 continue
             
             if "/usr/" in header_path:
                 continue
+
 
             edges.add((parent_stack[-2], header_path))
             paths.add(header_path)
@@ -172,23 +166,40 @@ def header_graph(env, target, source):
 
 def header_graph_emitter(target, source, env):
     """For each appropriate source file emit a graph builder."""
+
+    build_dir = env.Dir('$BUILD_ROOT/$VARIANT_DIR').get_abspath() + '/'
+
     source_files = []
     for s in source:
         for child in s.sources:
             entry = env.Entry(child)
             suffix = entry.get_suffix()
             if suffix in [".h", ".cpp", ".c", ".hpp"]:
-                source_files.append(entry.get_abspath())
+                source_files.append(entry)
+
+    if not source_files:
+        return (target, source)
 
     for t in target:
         entry = env.Entry(t)
-        path = "graphs/include/" + str(entry.name) + ".yaml"
+        path = "{}graphs/include/{}.yml".format(build_dir, str(entry.name))
 
         if path in SEEN_FILES:
             continue
         SEEN_FILES.add(path)
+
+        target_name = str(entry.name)
+        alias_name = "header-graph-{}".format(target_name)
+        infixes = {
+            '.so': 'shlib',
+            '.a': 'lib',
+        }
+        target_suffix = entry.get_suffix()
+        if target_suffix in infixes:
+            alias_name = "header-graph-{}-{}".format(infixes[target_suffix], target_name[3:-3])
+
         env.Alias(
-            "header-graph-{}".format(str(entry.name)),
+            alias_name,
             env.HeaderGraph(
                 target=path,
                 source=source_files,
@@ -201,7 +212,7 @@ link_targets = set()
 def link_graph_emitter(target, source, env):
     """For each appropriate source file emit a graph builder."""
 
-    build_dir = env.subst('$BUILD_ROOT/$VARIANT_DIR/')[1:]
+    build_dir = env.Dir('$BUILD_ROOT/$VARIANT_DIR').get_abspath() + '/'
     #print("BUILD_DIR={}".format(build_dir))
     get_libdeps = env['_LIBDEPS_GET_LIBS']
     libdeps = get_libdeps(source, target, env, False)
@@ -217,7 +228,7 @@ def link_graph_emitter(target, source, env):
         if target_name in link_targets:
             continue
 
-        target_dir  = os.path.dirname(target_entry.get_internal_path().replace(build_dir,''))
+        target_dir  = os.path.dirname(target_entry.get_abspath().replace(build_dir,''))
         link_dirs[target_name] = target_dir
 
         alias_name = "link-graph-{}".format(target_name)
@@ -230,7 +241,7 @@ def link_graph_emitter(target, source, env):
             alias_name = "link-graph-{}-{}".format(infixes[target_suffix], target_name[3:-3])
         link_targets.add(target_name)
 
-        graph_path = "graphs/link/{}.yml".format(target_name)
+        graph_path = "{}graphs/link/{}.yml".format(build_dir, target_name)
         env.Alias(
             alias_name,
             env.LinkGraph(
