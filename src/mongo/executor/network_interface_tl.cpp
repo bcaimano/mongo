@@ -408,9 +408,10 @@ void NetworkInterfaceTL::_onAcquireConn(std::shared_ptr<CommandState> state,
                 const std::string message = str::stream()
                     << "Request " << state->requestOnAny.id << " timed out"
                     << ", deadline was " << state->deadline.toString() << ", op was "
-                    << redact(state->requestOnAny.toString());
+                    << redact(state->requestOnAny.toString()) << ", msgId was "
+                    << client->getMessageId();
 
-                LOG(2) << message;
+                LOG(0) << message;
                 state->promise.setError(
                     Status(ErrorCodes::NetworkInterfaceExceededTimeLimit, message));
 
@@ -434,7 +435,8 @@ void NetworkInterfaceTL::_onAcquireConn(std::shared_ptr<CommandState> state,
 
             return RemoteCommandOnAnyResponse(target, std::move(response));
         })
-        .getAsync([this, state, baton](StatusWith<RemoteCommandOnAnyResponse> swr) {
+        .getAsync([this, state, baton, client](StatusWith<RemoteCommandOnAnyResponse> swr) {
+            log() << "Processing msg " << client->getMessageId();
             if (!swr.isOK()) {
                 state->conn->indicateFailure(swr.getStatus());
             } else if (!swr.getValue().isOK()) {

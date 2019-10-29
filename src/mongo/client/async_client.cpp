@@ -201,6 +201,7 @@ Future<Message> AsyncDBClient::_call(Message request, const BatonHandle& baton) 
 
     request = std::move(swm.getValue());
     auto msgId = nextMessageId();
+
     request.header().setId(msgId);
     request.header().setResponseToMsgId(0);
 #ifdef MONGO_CONFIG_SSL
@@ -211,6 +212,8 @@ Future<Message> AsyncDBClient::_call(Message request, const BatonHandle& baton) 
     OpMsg::appendChecksum(&request);
 #endif
 
+    _currentMessageId.store(msgId);
+    log() << "Starting msg " << msgId;
     return _session->asyncSinkMessage(request, baton)
         .then([this, baton] { return _session->asyncSourceMessage(baton); })
         .then([this, msgId](Message response) -> StatusWith<Message> {
@@ -253,6 +256,7 @@ Future<executor::RemoteCommandResponse> AsyncDBClient::runCommandRequest(
 }
 
 void AsyncDBClient::cancel(const BatonHandle& baton) {
+    log() << "Canceling msg " << getMessageId();
     _session->cancelAsyncOperations(baton);
 }
 

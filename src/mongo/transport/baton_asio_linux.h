@@ -184,7 +184,11 @@ public:
             return false;
         }
 
-        _safeExecute(std::move(lk), [id, this] { _sessions.erase(id); });
+        _safeExecute(std::move(lk), [id, this] {
+            auto it = _sessions.find(id);
+            it->second.promise.setError(Status(ErrorCodes::CallbackCanceled, "Borked, yo"));
+            _sessions.erase(it);
+        });
 
         return true;
     }

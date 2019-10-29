@@ -80,6 +80,10 @@ public:
     const HostAndPort& remote() const;
     const HostAndPort& local() const;
 
+    auto getMessageId() const {
+        return _currentMessageId.load();
+    }
+
 private:
     Future<Message> _call(Message request, const BatonHandle& baton = nullptr);
     BSONObj _buildIsMasterRequest(const std::string& appName,
@@ -93,6 +97,7 @@ private:
     ServiceContext* const _svcCtx;
     MessageCompressorManager _compressorManager;
     boost::optional<rpc::Protocol> _negotiatedProtocol;
+    AtomicWord<int32_t> _currentMessageId;
 };
 
 }  // namespace mongo
