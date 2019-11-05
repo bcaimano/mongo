@@ -295,6 +295,7 @@ public:
         // mongod and mongos.
         auto internalClientElement = cmdObj["internalClient"];
         if (internalClientElement) {
+            log() << "Found internal client field";
             sessionTagsToSet |= transport::Session::kInternalClient;
 
             uassert(ErrorCodes::TypeMismatch,

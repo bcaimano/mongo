@@ -340,10 +340,11 @@ public:
         }
 
         // The 'temp' field is only allowed to be used internally and isn't available to clients.
-        if (cmd.getTemp()) {
+        if (opCtx->getClient()->isInDirectClient() ||
+            opCtx->getClient()->session()->isInternalClient()) {
             uassert(ErrorCodes::InvalidOptions,
                     str::stream() << "the 'temp' field is an invalid option",
-                    opCtx->getClient()->isInDirectClient());
+                    !cmd.getTemp());
         }
 
         // Validate _id index spec and fill in missing fields.

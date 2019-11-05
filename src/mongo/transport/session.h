@@ -184,6 +184,10 @@ public:
 
     TagMask getTags() const;
 
+    bool isInternalClient() const {
+        return getTags() & kInternalClient;
+    }
+
 protected:
     Session();
 

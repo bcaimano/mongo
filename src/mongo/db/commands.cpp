@@ -485,14 +485,14 @@ bool CommandHelpers::shouldActivateFailCommandFailPoint(const BSONObj& data,
         return false;
     }
 
-    if (client->session() && (client->session()->getTags() & transport::Session::kInternalClient)) {
+    if(!client->session()){
+        return false;
+    }
+
+    if (client->session()->isInternalClient()) {
         if (!data.hasField("failInternalCommands") || !data.getBoolField("failInternalCommands")) {
             return false;
         }
-    }
-
-    if (!client->session()) {
-        return false;
     }
 
     if (data.hasField("namespace") && nss != NamespaceString(data.getStringField("namespace"))) {
