@@ -63,6 +63,20 @@ env.Library(
     ],
 )
 
+env.Library(
+    target='latch_analyzer',
+    source=[
+        'latch_analyzer.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+        "$BUILD_DIR/mongo/db/service_context",
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/commands/server_status',
+    ],
+)
+
 debuggerEnv = env.Clone()
 if has_option("gdbserver"):
     debuggerEnv.Append(CPPDEFINES=["USE_GDBSERVER"])
@@ -277,17 +291,6 @@ env.Library(
     target='diagnostic_info',
     source= [
         'diagnostic_info.cpp',
-    ],
-    LIBDEPS=[
-        '$BUILD_DIR/mongo/base',
-        "$BUILD_DIR/mongo/db/service_context",
-    ],
-)
-
-env.Library(
-    target='latch_analyzer',
-    source= [
-        'latch_analyzer.cpp',
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',

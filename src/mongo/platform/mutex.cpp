@@ -33,16 +33,16 @@ namespace mongo {
 
 void Mutex::lock() {
     if (_mutex.try_lock()) {
-        _onQuickLock(_id);
+        _onQuickLock();
         return;
     }
 
-    _onContendedLock(_id);
+    _onContendedLock();
     _mutex.lock();
-    _onSlowLock(_id);
+    _onSlowLock();
 }
 void Mutex::unlock() {
-    _onUnlock(_id);
+    _onUnlock();
     _mutex.unlock();
 }
 bool Mutex::try_lock() {
@@ -50,8 +50,12 @@ bool Mutex::try_lock() {
         return false;
     }
 
-    _onQuickLock(_id);
+    _onQuickLock();
     return true;
+}
+
+StringData Mutex::getName() const {
+    return StringData(_entry->id.name());
 }
 
 void Mutex::addLockListener(LockListener* listener) {
@@ -60,31 +64,39 @@ void Mutex::addLockListener(LockListener* listener) {
     state.list.push_back(listener);
 }
 
-void Mutex::_onContendedLock(const Identity& id) noexcept {
+void Mutex::_onContendedLock() noexcept {
+    _entry->contendedCount.fetchAndAdd(1);
+
     auto& state = _getListenerState();
     for (auto listener : state.list) {
-        listener->onContendedLock(id);
+        listener->onContendedLock(_entry->id);
     }
 }
 
-void Mutex::_onQuickLock(const Identity& id) noexcept {
+void Mutex::_onQuickLock() noexcept {
+    _entry->acquireCount.fetchAndAdd(1);
+
     auto& state = _getListenerState();
     for (auto listener : state.list) {
-        listener->onQuickLock(id);
+        listener->onQuickLock(_entry->id);
     }
 }
 
-void Mutex::_onSlowLock(const Identity& id) noexcept {
+void Mutex::_onSlowLock() noexcept {
+    _entry->acquireCount.fetchAndAdd(1);
+
     auto& state = _getListenerState();
     for (auto listener : state.list) {
-        listener->onSlowLock(id);
+        listener->onSlowLock(_entry->id);
     }
 }
 
-void Mutex::_onUnlock(const Identity& id) noexcept {
+void Mutex::_onUnlock() noexcept {
+    _entry->releaseCount.fetchAndAdd(1);
+
     auto& state = _getListenerState();
     for (auto listener : state.list) {
-        listener->onUnlock(id);
+        listener->onUnlock(_entry->id);
     }
 }
 

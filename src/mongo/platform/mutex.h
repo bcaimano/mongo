@@ -34,12 +34,111 @@
 #include "mongo/base/error_codes.h"
 #include "mongo/base/string_data.h"
 #include "mongo/platform/atomic_word.h"
+#include "mongo/platform/lock_free.h"
 #include "mongo/platform/source_location.h"
 #include "mongo/stdx/mutex.h"
+#include "mongo/util/decorable.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/hierarchical_acquisition.h"
 
 namespace mongo {
+namespace latch_detail {
+
+using Level = hierarchical_acquisition_detail::Level;
+
+static constexpr auto kAnonymousName = "AnonymousLatch"_sd;
+
+class Identity {
+public:
+    Identity(StringData name) : Identity(boost::none, name, boost::none) {}
+
+    Identity(SourceLocationHolder sourceLocation, StringData name)
+        : Identity(sourceLocation, name, boost::none) {}
+
+    Identity(StringData name, Level level) : Identity(boost::none, name, level) {}
+
+    Identity(boost::optional<SourceLocationHolder> sourceLocation,
+             StringData name,
+             boost::optional<Level> level)
+        : _sourceLocation(sourceLocation),
+          _name(name.empty() ? kAnonymousName.toString() : name.toString()),
+          _level(level),
+          _id(_nextId()) {}
+
+    const auto& level() const {
+        return _level;
+    }
+
+    const auto& sourceLocation() const {
+        return _sourceLocation;
+    }
+
+    StringData name() const {
+        return _name;
+    }
+
+    const auto& id() const {
+        return _id;
+    }
+
+private:
+    static int64_t _nextId() {
+        static int64_t nextId = 0;
+        return nextId++;
+    }
+
+    boost::optional<SourceLocationHolder> _sourceLocation;
+    std::string _name;
+    boost::optional<Level> _level;
+    int64_t _id;
+};
+
+class CatalogEntry {
+public:
+    CatalogEntry(const Identity& id_) : id(id_) {}
+
+    const Identity id;
+
+    AtomicWord<int> contendedCount{0};
+    AtomicWord<int> acquireCount{0};
+    AtomicWord<int> releaseCount{0};
+};
+
+class Catalog : public LockFreeList<CatalogEntry> {
+public:
+    static auto& get() {
+        static Catalog gCatalog;
+        return gCatalog;
+    }
+};
+
+class CatalogRegistration {
+public:
+    CatalogRegistration(const Identity& id)
+        : _entry(id), _index{latch_detail::Catalog::get().add(&_entry)} {}
+
+    CatalogEntry* entry() {
+        return &_entry;
+    }
+
+private:
+    CatalogEntry _entry;
+    size_t _index;
+};
+
+template <typename T>
+auto registerLatch(T&&,
+                   SourceLocationHolder loc,
+                   StringData name,
+                   boost::optional<Level> level = boost::none) {
+    static auto reg = CatalogRegistration(Identity(loc, name, level));
+    return reg.entry();
+}
+
+inline auto defaultCatalogEntry() {
+    return registerLatch([] {}, MONGO_SOURCE_LOCATION(), kAnonymousName);
+}
+}  // namespace latch_detail
 
 class Latch {
 public:
@@ -50,51 +149,21 @@ public:
     virtual bool try_lock() = 0;
 
     virtual StringData getName() const {
-        return "AnonymousLatch"_sd;
+        return latch_detail::kAnonymousName;
     }
 };
 
 class Mutex : public Latch {
-    class LockNotifier;
-
 public:
     class LockListener;
-
-    static constexpr auto kAnonymousMutexStr = "AnonymousMutex"_sd;
 
     void lock() override;
     void unlock() override;
     bool try_lock() override;
-    StringData getName() const override {
-        return StringData(_id.name);
-    }
+    StringData getName() const override;
 
-    struct Identity {
-        Identity(StringData name = kAnonymousMutexStr) : Identity(boost::none, boost::none, name) {}
-
-        Identity(SourceLocationHolder sourceLocation, StringData name = kAnonymousMutexStr)
-            : Identity(boost::none, sourceLocation, name) {}
-
-        Identity(hierarchical_acquisition_detail::Level level, StringData name = kAnonymousMutexStr)
-            : Identity(level, boost::none, name) {}
-
-        Identity(boost::optional<hierarchical_acquisition_detail::Level> level,
-                 boost::optional<SourceLocationHolder> sourceLocation,
-                 StringData name = kAnonymousMutexStr)
-            : level(level), sourceLocation(sourceLocation), name(name.toString()) {}
-
-        boost::optional<hierarchical_acquisition_detail::Level> level;
-        boost::optional<SourceLocationHolder> sourceLocation;
-        std::string name;
-    };
-
-    Mutex() : Mutex(Identity()) {}
-
-    Mutex(const Identity& id) : _id(id) {}
-
-    struct LatchSetState {
-        hierarchical_acquisition_detail::Set levelsHeld;
-    };
+    Mutex() : Mutex(latch_detail::defaultCatalogEntry()) {}
+    Mutex(latch_detail::CatalogEntry* entry) : _entry(entry) {}
 
     /**
      * This function adds a LockListener subclass to the triggers for certain actions.
@@ -117,13 +186,12 @@ private:
         return state;
     }
 
-    static void _onContendedLock(const Identity& id) noexcept;
-    static void _onQuickLock(const Identity& id) noexcept;
-    static void _onSlowLock(const Identity& id) noexcept;
-    static void _onUnlock(const Identity& id) noexcept;
+    void _onContendedLock() noexcept;
+    void _onQuickLock() noexcept;
+    void _onSlowLock() noexcept;
+    void _onUnlock() noexcept;
 
-    const Identity _id;
-
+    latch_detail::CatalogEntry* const _entry;
     stdx::mutex _mutex;  // NOLINT
 };
 
@@ -134,6 +202,8 @@ class Mutex::LockListener {
     friend class Mutex;
 
 public:
+    using Identity = latch_detail::Identity;
+
     virtual ~LockListener() = default;
 
     /**
@@ -162,7 +232,6 @@ public:
 /**
  * Define a mongo::Mutex with all arguments passed through to the ctor
  */
-#define MONGO_MAKE_LATCH(...)               \
-    mongo::Mutex {                          \
-        mongo::Mutex::Identity(__VA_ARGS__) \
-    }
+#define MONGO_MAKE_LATCH(name)                           \
+    ::mongo::Mutex(::mongo::latch_detail::registerLatch( \
+        [] {}, MONGO_SOURCE_LOCATION_NO_FUNC(), ::mongo::StringData(name)));

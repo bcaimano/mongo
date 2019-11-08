@@ -101,6 +101,7 @@
 #include "mongo/util/exception_filter_win32.h"
 #include "mongo/util/exit.h"
 #include "mongo/util/fast_clock_source_factory.h"
+#include "mongo/util/latch_analyzer.h"
 #include "mongo/util/log.h"
 #include "mongo/util/net/socket_exception.h"
 #include "mongo/util/net/socket_utils.h"
@@ -342,6 +343,8 @@ void cleanupTask(ServiceContext* serviceContext) {
     }
 
     audit::logShutdown(Client::getCurrent());
+
+    LatchAnalyzer::get(serviceContext).dump();
 }
 
 Status initializeSharding(OperationContext* opCtx) {
