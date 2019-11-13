@@ -32,6 +32,7 @@
 #include "mongo/executor/remote_command_response.h"
 
 #include "mongo/bson/simple_bsonobj_comparator.h"
+#include "mongo/rpc/get_status_from_command_result.h"
 #include "mongo/rpc/reply_interface.h"
 #include "mongo/util/str.h"
 
@@ -56,7 +57,7 @@ RemoteCommandResponseBase::RemoteCommandResponseBase(Status s, Milliseconds mill
 };
 
 RemoteCommandResponseBase::RemoteCommandResponseBase(BSONObj dataObj, Milliseconds millis)
-    : data(std::move(dataObj)), elapsedMillis(millis) {
+    : data(std::move(dataObj)), elapsedMillis(millis), status(getStatusFromCommandResult(data)) {
     // The buffer backing the default empty BSONObj has static duration so it is effectively
     // owned.
     invariant(data.isOwned() || data.objdata() == BSONObj().objdata());

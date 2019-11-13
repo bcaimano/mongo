@@ -139,19 +139,22 @@ public:
 
     StatusWith<Message> sourceMessage() override {
         ensureSync();
+        _messageStatus = MessageStatus::kIdleRead;
         return sourceMessageImpl().getNoThrow();
     }
 
     Future<Message> asyncSourceMessage(const BatonHandle& baton = nullptr) override {
         ensureAsync();
+        _messageStatus = MessageStatus::kIdleRead;
         return sourceMessageImpl(baton);
     }
 
     Status sinkMessage(Message message) override {
         ensureSync();
-
+        _messageStatus = MessageStatus::kIdleWrite;
         return write(asio::buffer(message.buf(), message.size()))
             .then([this, &message] {
+                _messageStatus = MessageStatus::kIdle;
                 if (_isIngressSession) {
                     networkCounter.hitPhysicalOut(message.size());
                 }
@@ -161,8 +164,10 @@ public:
 
     Future<void> asyncSinkMessage(Message message, const BatonHandle& baton = nullptr) override {
         ensureAsync();
+        _messageStatus = MessageStatus::kIdleWrite;
         return write(asio::buffer(message.buf(), message.size()), baton)
             .then([this, message /*keep the buffer alive*/]() {
+                _messageStatus = MessageStatus::kIdle;
                 if (_isIngressSession) {
                     networkCounter.hitPhysicalOut(message.size());
                 }
@@ -171,6 +176,7 @@ public:
 
     void cancelAsyncOperations(const BatonHandle& baton = nullptr) override {
         LOG(3) << "Cancelling outstanding I/O operations on connection to " << _remote;
+        _messageStatus = MessageStatus::kCancelled;
         if (baton && baton->networking()) {
             baton->networking()->cancelSession(*this);
         } else {
@@ -354,6 +360,7 @@ private:
         auto ptr = headerBuffer.get();
         return read(asio::buffer(ptr, kHeaderSize), baton)
             .then([headerBuffer = std::move(headerBuffer), this, baton]() mutable {
+                _messageStatus = MessageStatus::kIdle;
                 if (checkForHTTPRequest(asio::buffer(headerBuffer.get(), kHeaderSize))) {
                     return sendHTTPResponse(baton);
                 }
@@ -462,6 +469,10 @@ private:
             size = asio::read(stream, buffers, ec);
         }
 
+        if (size > 0) {
+            _messageStatus = MessageStatus::kProcessing;
+        }
+
         if (((ec == asio::error::would_block) || (ec == asio::error::try_again)) &&
             (_blockingMode == Async)) {
             // asio::read is a loop internally, so some of buffers may have been read into already.
@@ -543,6 +554,10 @@ private:
             }
         } else {
             size = asio::write(stream, buffers, ec);
+        }
+
+        if (size > 0) {
+            _messageStatus = MessageStatus::kProcessing;
         }
 
         if (((ec == asio::error::would_block) || (ec == asio::error::try_again)) &&

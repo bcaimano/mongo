@@ -40,6 +40,7 @@
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/transport/baton.h"
 #include "mongo/transport/transport_layer.h"
+#include "mongo/util/duration.h"
 #include "mongo/util/hierarchical_acquisition.h"
 #include "mongo/util/strong_weak_finish_line.h"
 
@@ -47,7 +48,11 @@ namespace mongo {
 namespace executor {
 
 class NetworkInterfaceTL : public NetworkInterface {
+    static constexpr int kDiagnosticLogLevel = 4;
+
 public:
+    static constexpr auto kDrainTimeout = Milliseconds{1};
+
     NetworkInterfaceTL(std::string instanceName,
                        ConnectionPool::Options connPoolOpts,
                        ServiceContext* ctx,
@@ -100,6 +105,8 @@ private:
                          const TaskExecutor::CallbackHandle& cbHandle,
                          Promise<RemoteCommandOnAnyResponse> promise);
 
+        AsyncDBClient* client();
+
         NetworkInterfaceTL* interface;
 
         RemoteCommandRequestOnAny requestOnAny;
@@ -140,6 +147,10 @@ private:
     void _onAcquireConn(std::shared_ptr<CommandState> state,
                         ConnectionPool::ConnectionHandle conn,
                         const BatonHandle& baton);
+    void _drain(Milliseconds timeout,
+                Status status,
+                std::shared_ptr<CommandState> state,
+                const BatonHandle& baton);
 
     std::string _instanceName;
     ServiceContext* _svcCtx;

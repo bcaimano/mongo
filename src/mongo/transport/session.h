@@ -153,6 +153,12 @@ public:
         return boost::none;
     }
 
+    enum class MessageStatus { kIdle, kIdleWrite, kIdleRead, kProcessing, kCancelled };
+
+    const MessageStatus getMessageStatus() {
+        return _messageStatus;
+    }
+
     /**
      * Atomically set all of the session tags specified in the 'tagsToSet' bit field. If the
      * 'kPending' tag is set, indicating that no tags have yet been specified for the session, this
@@ -186,6 +192,8 @@ public:
 
 protected:
     Session();
+
+    MessageStatus _messageStatus = MessageStatus::kIdle;
 
 private:
     const Id _id;
