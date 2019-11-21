@@ -186,7 +186,7 @@ Future<void> authenticateClient(const BSONObj& params,
 
 AuthMongoCRHandler authMongoCR = authMongoCRImpl;
 
-static auto internalAuthKeysMutex = MONGO_MAKE_LATCH();
+static Mutex internalAuthKeysMutex;
 static bool internalAuthSet = false;
 static std::vector<std::string> internalAuthKeys;
 static BSONObj internalAuthParams;

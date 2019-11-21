@@ -254,7 +254,7 @@ protected:
     // For synchronous connections where we don't have an async timer, just take a dummy lock and
     // pass it to the WithLock version of handshakeSSLForEgress
     Future<void> handshakeSSLForEgress(const HostAndPort& target) {
-        auto mutex = MONGO_MAKE_LATCH();
+        Mutex mutex;
         return handshakeSSLForEgressWithLock(stdx::unique_lock<Latch>(mutex), target);
     }
 #endif

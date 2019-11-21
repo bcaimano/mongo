@@ -285,7 +285,7 @@ bool ServiceExecutorAdaptive::_isStarved() const {
  *   by schedule().
  */
 void ServiceExecutorAdaptive::_controllerThreadRoutine() {
-    auto noopLock = MONGO_MAKE_LATCH();
+    auto noopLock = Mutex();
     setThreadName("worker-controller"_sd);
 
     // Setup the timers/timeout values for stuck thread detection.
@@ -452,7 +452,7 @@ void ServiceExecutorAdaptive::_startWorkerThread(ThreadCreationReason reason) {
 }
 
 Milliseconds ServiceExecutorAdaptive::_getThreadJitter() const {
-    static auto jitterMutex = MONGO_MAKE_LATCH();
+    static auto jitterMutex = Mutex();
     static std::default_random_engine randomEngine = [] {
         std::random_device seed;
         return std::default_random_engine(seed());
