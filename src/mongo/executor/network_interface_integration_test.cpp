@@ -39,6 +39,7 @@
 #include "mongo/client/connection_string.h"
 #include "mongo/db/commands/test_commands_enabled.h"
 #include "mongo/db/wire_version.h"
+#include "mongo/executor/connection_pool_stats.h"
 #include "mongo/executor/network_connection_hook.h"
 #include "mongo/executor/network_interface_integration_fixture.h"
 #include "mongo/executor/test_network_connection_hook.h"
@@ -215,37 +216,51 @@ TEST_F(NetworkInterfaceTest, CancelMissingOperation) {
     assertNumOps(0u, 0u, 0u, 0u);
 }
 
+constexpr auto kMaxWait = Milliseconds(Minutes(1));
+
 TEST_F(NetworkInterfaceTest, CancelOperation) {
     auto cbh = makeCallbackHandle();
 
-    // Kick off our operation
-    FailPointEnableBlock fpb("networkInterfaceDiscardCommandsAfterAcquireConn");
+    auto deferred = [&] {
+        // Kick off our operation
+        FailPointEnableBlock fpb("networkInterfaceDiscardCommandsAfterAcquireConn");
 
-    auto deferred = runCommand(cbh, makeTestCommand());
+        auto deferred = runCommand(cbh, makeTestCommand(kMaxWait));
 
-    waitForIsMaster();
+        waitForIsMaster();
 
-    net().cancelCommand(cbh);
+        fpb->waitForTimesEntered(fpb.initialTimesEntered() + 1);
+
+        net().cancelCommand(cbh);
+
+        return deferred;
+    }();
 
     // Wait for op to complete, assert that it was canceled.
     auto result = deferred.get();
     ASSERT_EQ(ErrorCodes::CallbackCanceled, result.status);
     ASSERT(result.elapsedMillis);
+
     assertNumOps(1u, 0u, 0u, 0u);
 }
 
 TEST_F(NetworkInterfaceTest, ImmediateCancel) {
     auto cbh = makeCallbackHandle();
 
-    // Kick off our operation
+    auto deferred = [&] {
+        // Kick off our operation
+        FailPointEnableBlock fpb("networkInterfaceDiscardCommandsBeforeAcquireConn");
 
-    FailPointEnableBlock fpb("networkInterfaceDiscardCommandsBeforeAcquireConn");
+        auto deferred = runCommand(cbh, makeTestCommand(kMaxWait));
 
-    auto deferred = runCommand(cbh, makeTestCommand());
+        fpb->waitForTimesEntered(fpb.initialTimesEntered() + 1);
 
-    net().cancelCommand(cbh);
+        net().cancelCommand(cbh);
 
-    ASSERT_FALSE(hasIsMaster());
+        return deferred;
+    }();
+
+    ASSERT_EQ(net().getCounters().sent, 0);
 
     // Wait for op to complete, assert that it was canceled.
     auto result = deferred.get();
@@ -257,15 +272,57 @@ TEST_F(NetworkInterfaceTest, ImmediateCancel) {
 TEST_F(NetworkInterfaceTest, LateCancel) {
     auto cbh = makeCallbackHandle();
 
-    auto deferred = runCommand(cbh, makeTestCommand());
+    auto deferred = runCommand(cbh, makeTestCommand(kMaxWait));
 
     // Wait for op to complete, assert that it was canceled.
     auto result = deferred.get();
     net().cancelCommand(cbh);
 
-    ASSERT(result.isOK());
+    ASSERT_OK(result.status);
     ASSERT(result.elapsedMillis);
     assertNumOps(0u, 0u, 0u, 1u);
+}
+
+TEST_F(NetworkInterfaceTest, RemoteCancel) {
+
+    {
+        // Set the failCommand
+        BSONObjBuilder bob;
+        bob.append("configureFailPoint", "failCommand");
+        bob.append("mode", "alwaysOn");
+
+        {
+            BSONObjBuilder dataBob = bob.subobjStart("data");
+            dataBob.append("errorCode", ErrorCodes::Interrupted);
+
+            BSONArrayBuilder commandBob = bob.subarrayStart("failCommands");
+            commandBob.append("echo");
+        }
+
+        assertCommandOK("admin", bob.done(), Milliseconds{1000});
+    }
+
+    ON_BLOCK_EXIT([&]() {
+        // Unset the failCommand
+        BSONObjBuilder bob;
+        bob.append("configureFailPoint", "failCommand");
+        bob.append("mode", "off");
+
+        assertCommandOK("admin", bob.done(), Milliseconds{1000});
+    });
+
+
+    // Kick off our operation
+    auto deferred = runCommand(makeCallbackHandle(), makeTestCommand(kMaxWait));
+
+    ASSERT_EQ(net().getCounters().sent, 2);
+
+    // Wait for op to complete, assert that it was canceled.
+    auto result = deferred.get();
+    ASSERT_OK(result.status);
+    ASSERT_EQ(ErrorCodes::Interrupted, getStatusFromCommandResult(result.data));
+    ASSERT(result.elapsedMillis);
+    ASSERT_EQ(net().getCounters().succeeded, 2);
 }
 
 TEST_F(NetworkInterfaceTest, AsyncOpTimeout) {

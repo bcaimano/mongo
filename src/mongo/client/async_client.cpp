@@ -211,9 +211,11 @@ Future<Message> AsyncDBClient::_call(Message request, const BatonHandle& baton) 
     OpMsg::appendChecksum(&request);
 #endif
 
+    log() << "Sending message " << msgId;
     return _session->asyncSinkMessage(request, baton)
         .then([this, baton] { return _session->asyncSourceMessage(baton); })
         .then([this, msgId](Message response) -> StatusWith<Message> {
+            log() << response.header().getResponseToMsgId() << " vs " << msgId;
             uassert(50787,
                     "ResponseId did not match sent message ID.",
                     response.header().getResponseToMsgId() == msgId);
@@ -245,10 +247,6 @@ Future<executor::RemoteCommandResponse> AsyncDBClient::runCommandRequest(
         .then([start, clkSource, this](rpc::UniqueReply response) {
             auto duration = duration_cast<Milliseconds>(clkSource->now() - start);
             return executor::RemoteCommandResponse(*response, duration);
-        })
-        .onError([start, clkSource](Status status) {
-            auto duration = duration_cast<Milliseconds>(clkSource->now() - start);
-            return executor::RemoteCommandResponse(status, duration);
         });
 }
 

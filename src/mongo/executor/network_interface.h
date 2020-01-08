@@ -121,9 +121,11 @@ public:
     virtual std::string getHostName() = 0;
 
     struct Counters {
+        uint64_t sent = 0;
         uint64_t canceled = 0;
         uint64_t timedOut = 0;
         uint64_t failed = 0;
+        uint64_t failedRemotely = 0;
         uint64_t succeeded = 0;
     };
     /*

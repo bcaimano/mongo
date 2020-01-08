@@ -47,6 +47,8 @@ namespace mongo {
 namespace executor {
 
 class NetworkInterfaceTL : public NetworkInterface {
+    static constexpr int kDiagnosticLogLevel = 4;
+
 public:
     NetworkInterfaceTL(std::string instanceName,
                        ConnectionPool::Options connPoolOpts,
@@ -100,6 +102,8 @@ private:
                          const TaskExecutor::CallbackHandle& cbHandle,
                          Promise<RemoteCommandOnAnyResponse> promise);
 
+        AsyncDBClient* client();
+
         NetworkInterfaceTL* interface;
 
         RemoteCommandRequestOnAny requestOnAny;
@@ -107,6 +111,8 @@ private:
         TaskExecutor::CallbackHandle cbHandle;
         Date_t deadline = RemoteCommandRequest::kNoExpirationDate;
         Date_t start;
+
+        BatonHandle baton;
 
         StrongWeakFinishLine finishLine;
         ConnectionPool::ConnectionHandle conn;
@@ -137,9 +143,7 @@ private:
     void _answerAlarm(Status status, std::shared_ptr<AlarmState> state);
 
     void _run();
-    void _onAcquireConn(std::shared_ptr<CommandState> state,
-                        ConnectionPool::ConnectionHandle conn,
-                        const BatonHandle& baton);
+    void _onAcquireConn(std::shared_ptr<CommandState> state);
 
     std::string _instanceName;
     ServiceContext* _svcCtx;
@@ -153,7 +157,9 @@ private:
     ConnectionPool::Options _connPoolOpts;
     std::unique_ptr<NetworkConnectionHook> _onConnectHook;
     std::shared_ptr<ConnectionPool> _pool;
-    Counters _counters;
+
+    class SynchronizedCounters;
+    std::shared_ptr<SynchronizedCounters> _counters;
 
     std::unique_ptr<rpc::EgressMetadataHook> _metadataHook;
 
