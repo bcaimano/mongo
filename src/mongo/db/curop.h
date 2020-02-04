@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "mongo/config.h"
 #include "mongo/db/clientcursor.h"
 #include "mongo/db/commands.h"
 #include "mongo/db/cursor_id.h"
@@ -37,9 +38,12 @@
 #include "mongo/db/server_options.h"
 #include "mongo/db/write_concern_options.h"
 #include "mongo/platform/atomic_word.h"
-#include "mongo/util/diagnostic_info.h"
 #include "mongo/util/progress_meter.h"
 #include "mongo/util/time_support.h"
+
+#ifndef MONGO_CONFIG_USE_RAW_LATCHES
+#include "mongo/util/diagnostic_info.h"
+#endif
 
 namespace mongo {
 

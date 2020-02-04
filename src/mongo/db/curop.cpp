@@ -315,6 +315,7 @@ void CurOp::reportCurrentOpForClient(OperationContext* opCtx,
         CurOp::get(clientOpCtx)->reportState(clientOpCtx, infoBuilder, truncateOps);
     }
 
+#ifndef MONGO_CONFIG_USE_RAW_LATCHES
     if (auto diagnostic = DiagnosticInfo::get(*client)) {
         BSONObjBuilder waitingForLatchBuilder(infoBuilder->subobjStart("waitingForLatch"));
         waitingForLatchBuilder.append("timestamp", diagnostic->getTimestamp());
@@ -330,6 +331,7 @@ void CurOp::reportCurrentOpForClient(OperationContext* opCtx,
             */
         }
     }
+#endif
 }
 
 void CurOp::setGenericCursor_inlock(GenericCursor gc) {

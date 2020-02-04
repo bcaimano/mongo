@@ -41,6 +41,7 @@ TEST(MutexTest, BasicSingleThread) {
     m.unlock();
 }
 
+#ifndef MONGO_CONFIG_USE_RAW_LATCHES
 namespace {
 // Since this MONGO_MAKE_LATCH has no arguments, the mutex is anonymous
 auto gMutex = MONGO_MAKE_LATCH();
@@ -65,4 +66,6 @@ TEST(MutexTest, Macros) {
     static_assert(std::is_same_v<decltype(gMutex), Mutex>);
     ASSERT_EQ(gMutex.getName(), latch_detail::kAnonymousName);
 }
+#endif
+
 }  // namespace mongo

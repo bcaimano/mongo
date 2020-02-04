@@ -345,7 +345,9 @@ void cleanupTask(ServiceContext* serviceContext) {
 
     audit::logShutdown(Client::getCurrent());
 
+#ifndef MONGO_CONFIG_USE_RAW_LATCHES
     LatchAnalyzer::get(serviceContext).dump();
+#endif
 }
 
 Status initializeSharding(OperationContext* opCtx) {
