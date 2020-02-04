@@ -29,9 +29,11 @@
 
 #include "mongo/platform/mutex.h"
 
-namespace mongo {
+#include "mongo/base/init.h"
 
-Mutex::Mutex(std::shared_ptr<latch_detail::Data> data) : _data{std::move(data)} {
+namespace mongo::latch_detail {
+
+Mutex::Mutex(std::shared_ptr<Data> data) : _data{std::move(data)} {
     invariant(_data);
 
     _data->counts().created.fetchAndAdd(1);
@@ -117,4 +119,4 @@ void Mutex::_onUnlock() noexcept {
     }
 }
 
-}  // namespace mongo
+}  // namespace mongo::latch_detail
