@@ -12026,6 +12026,19 @@ buildvariants:
     distros:
     - ubuntu1604-build
 
+- name: enterprise-ubuntu-no-latch-1804-64-bit
+  display_name: "~ Enterprise Ubuntu 18.04 (unoptimized)"
+  batchtime: 1440 # 1 day
+  modules:
+  - enterprise
+  expansions:
+    compile_flags: MONGO_DISTMOD=ubuntu1804 -j$(grep -c ^processor /proc/cpuinfo) --dbg=on --opt=off --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars
+  tasks:
+  - name: compile_all_run_unittests_TG
+    distros:
+    - ubuntu1804-build
+
+
 - name: shared-scons-cache-pruning
   display_name: "Shared SCons Cache Pruning"
   run_on:
@@ -12033,7 +12046,6 @@ buildvariants:
   stepback: false
   tasks:
   - name: shared_scons_cache_pruning
-
 
 - name: windows-shared-scons-cache-pruning
   display_name: "Windows shared SCons Cache Pruning"
