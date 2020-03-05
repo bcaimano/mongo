@@ -48,6 +48,7 @@
 #include "mongo/platform/mutex.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/latch_analyzer.h"
+#include "mongo/util/testing_proctor.h"
 
 namespace mongo {
 
@@ -126,7 +127,7 @@ struct LatchSetState {
     using LatchIdentitySet = std::deque<const latch_detail::Identity*>;
 
     LatchSetState() {
-        if (getTestCommandsEnabled()) {
+        if (TestingProctor::areTestingDiagnosticsEnabled()) {
             identities = std::make_unique<LatchIdentitySet>();
         }
     }
@@ -139,7 +140,7 @@ struct LatchSetState {
 
     // This is an ordered list of latch Identities. Each acquired Latch will add itself to the end
     // of this list and each released Latch will remove itself from the end. This is populated when
-    // getTestCommandsEnabled() is true, i.e. in a testing environment.
+    // TestingProctor::areTestingDiagnosticsEnabled() is true, i.e. in a testing environment.
     std::unique_ptr<LatchIdentitySet> identities;
 };
 
@@ -166,7 +167,7 @@ void LatchAnalyzer::setAllowExitOnViolation(bool allowExitOnViolation) {
 }
 
 bool LatchAnalyzer::allowExitOnViolation() {
-    return _allowExitOnViolation.load() && (getTestCommandsEnabled());
+    return _allowExitOnViolation.load() && TestingProctor::areTestingDiagnosticsEnabled();
 }
 
 LatchAnalyzer& LatchAnalyzer::get(ServiceContext* serviceContext) {

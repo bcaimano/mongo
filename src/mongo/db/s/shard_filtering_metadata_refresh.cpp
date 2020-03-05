@@ -49,6 +49,7 @@
 #include "mongo/s/catalog_cache.h"
 #include "mongo/s/grid.h"
 #include "mongo/util/fail_point.h"
+#include "mongo/util/testing_proctor.h"
 
 namespace mongo {
 
@@ -157,7 +158,7 @@ CatalogCache& getCatalogCacheForFiltering(OperationContext* opCtx) {
 
 bool hasAdditionalCatalogCacheForFiltering() {
     invariant(serverGlobalParams.clusterRole == ClusterRole::ShardServer);
-    return getTestCommandsEnabled() && !storageGlobalParams.readOnly;
+    return TestingProctor::areTestingDiagnosticsEnabled() && !storageGlobalParams.readOnly;
 }
 
 void setCatalogCacheForFiltering(ServiceContext* serviceContext,

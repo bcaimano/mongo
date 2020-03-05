@@ -37,6 +37,7 @@
 
 #include "mongo/base/initializer.h"
 #include "mongo/client/connection_string.h"
+#include "mongo/db/commands/test_commands_enabled.h"
 #include "mongo/db/server_options_base.h"
 #include "mongo/db/server_options_helpers.h"
 #include "mongo/db/service_context.h"
@@ -51,6 +52,7 @@
 #include "mongo/util/options_parser/startup_options.h"
 #include "mongo/util/quick_exit.h"
 #include "mongo/util/signal_handlers_synchronous.h"
+#include "mongo/util/testing_proctor.h"
 
 using namespace mongo;
 
@@ -73,6 +75,10 @@ ConnectionString getFixtureConnectionString() {
 int main(int argc, char** argv, char** envp) {
     setupSynchronousSignalHandlers();
     runGlobalInitializersOrDie(argc, argv, envp);
+
+    invariant(TestingProctor::setTestingDiagnosticsEnabled(true));
+    setTestCommandsEnabled(true);
+
     setGlobalServiceContext(ServiceContext::make());
     quickExit(unittest::Suite::run(std::vector<std::string>(), "", "", 1));
 }

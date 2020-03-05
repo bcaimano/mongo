@@ -33,6 +33,7 @@
 
 #include "mongo/base/initializer.h"
 #include "mongo/base/status.h"
+#include "mongo/db/commands/test_commands_enabled.h"
 #include "mongo/logger/logger.h"
 #include "mongo/logv2/log_domain_global.h"
 #include "mongo/logv2/log_manager.h"
@@ -43,6 +44,7 @@
 #include "mongo/util/options_parser/option_section.h"
 #include "mongo/util/options_parser/options_parser.h"
 #include "mongo/util/signal_handlers_synchronous.h"
+#include "mongo/util/testing_proctor.h"
 
 using mongo::Status;
 
@@ -103,6 +105,9 @@ int main(int argc, char** argv, char** envp) {
         }
         return EXIT_SUCCESS;
     }
+
+    invariant(::mongo::TestingProctor::setTestingDiagnosticsEnabled(true));
+    ::mongo::setTestCommandsEnabled(true);
 
     auto result = ::mongo::unittest::Suite::run(suites, filter, fileNameFilter, repeat);
 

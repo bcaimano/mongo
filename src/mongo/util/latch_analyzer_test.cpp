@@ -35,6 +35,7 @@
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/hierarchical_acquisition.h"
 #include "mongo/util/latch_analyzer.h"
+#include "mongo/util/testing_proctor.h"
 
 namespace mongo {
 namespace {
@@ -44,11 +45,15 @@ using Level = HierarchicalAcquisitionLevel;
 class LatchAnalyzerTest : public ServiceContextTest {
     void setUp() override {
         ServiceContextTest::setUp();
-        setTestCommandsEnabled(true);
+
+        auto status = TestingProctor::setTestingDiagnosticsEnabled(true);
+        ASSERT(status.isOK() || status == ErrorCodes::AlreadyInitialized);
     }
 
     void tearDown() override {
-        setTestCommandsEnabled(false);
+        auto status = TestingProctor::setTestingDiagnosticsEnabled(false);
+        ASSERT(status.isOK() || status == ErrorCodes::AlreadyInitialized);
+
         ServiceContextTest::tearDown();
     }
 };

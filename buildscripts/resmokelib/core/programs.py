@@ -107,6 +107,13 @@ def get_default_log_component_verbosity_for_mongod(executable):
     return default_mongod_log_component_verbosity()
 
 
+def _add_testing_set_parameters(suite_set_parameters):
+    # Certain behaviors should only be enabled for resmoke usage. These are traditionally new
+    # commands, insecure access, and increased diagnostics.
+    suite_set_parameters.setdefault("testingDiagnosticsEnabled", True)
+    suite_set_parameters.setdefault("enableTestCommands", True)
+
+
 def mongod_program(  # pylint: disable=too-many-branches,too-many-statements
         logger, executable=None, process_kwargs=None, **kwargs):
     """Return a Process instance that starts mongod arguments constructed from 'kwargs'."""
@@ -196,6 +203,16 @@ def mongod_program(  # pylint: disable=too-many-branches,too-many-statements
             "mode": "alwaysOn", "data": {"numTickets": config.FLOW_CONTROL_TICKETS}
         }
 
+    # Certain behaviors should only be enabled for resmoke usage. These are traditionally new
+    # commands, insecure access, and increased diagnostics.
+    if "testingDiagnosticsEnabled" not in suite_set_parameters:
+        suite_set_parameters["testingDiagnosticsEnabled"] = True
+
+    if "enableTestCommands" not in suite_set_parameters:
+        suite_set_parameters["enableTestCommands"] = True
+
+    _add_testing_set_parameters(suite_set_parameters)
+
     _apply_set_parameters(args, suite_set_parameters)
 
     shortcut_opts = {
@@ -272,6 +289,8 @@ def mongos_program(logger, executable=None, process_kwargs=None, **kwargs):
     # Set default log verbosity levels if none were specified.
     if "logComponentVerbosity" not in suite_set_parameters:
         suite_set_parameters["logComponentVerbosity"] = default_mongos_log_component_verbosity()
+
+    _add_testing_set_parameters(suite_set_parameters)
 
     _apply_set_parameters(args, suite_set_parameters)
 
