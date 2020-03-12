@@ -1132,6 +1132,7 @@ void ConnectionPool::SpecificPool::updateEventTimer() {
         while (_requests.size() && (_requests.front().first <= now)) {
             std::pop_heap(begin(_requests), end(_requests), RequestComparator{});
 
+            LOGV2(22578, "Timing out connection request"); 
             auto& request = _requests.back();
             request.second.setError(Status(
                 ErrorCodes::NetworkInterfaceExceededTimeLimit,

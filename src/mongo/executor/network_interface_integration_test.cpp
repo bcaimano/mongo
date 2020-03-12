@@ -43,6 +43,7 @@
 #include "mongo/executor/network_connection_hook.h"
 #include "mongo/executor/network_interface_integration_fixture.h"
 #include "mongo/executor/test_network_connection_hook.h"
+#include "mongo/logv2/log_debug.h"
 #include "mongo/rpc/factory.h"
 #include "mongo/rpc/get_status_from_command_result.h"
 #include "mongo/rpc/message.h"
@@ -114,7 +115,6 @@ class HangingHook : public executor::NetworkConnectionHook {
         return {ErrorCodes::ExceededTimeLimit, "No ping command. Returning pseudo-timeout."};
     }
 };
-
 
 // Test that we time out a command if the connection hook hangs.
 TEST_F(NetworkInterfaceIntegrationFixture, HookHangs) {
@@ -335,7 +335,7 @@ TEST_F(NetworkInterfaceTest, CancelRemotely) {
                          << "mode"
                          << "alwaysOn"
                          << "data"
-                         << BSON("blockConnection" << true << "blockTimeMS" << 1000000000
+                         << BSON("blockConnection" << true << "blockTimeMS" << 50000
                                                    << "failCommands" << BSON_ARRAY("echo"))),
                     kNoTimeout);
 

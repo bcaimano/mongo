@@ -35,6 +35,7 @@
 #include "mongo/db/service_context.h"
 #include "mongo/executor/connection_pool.h"
 #include "mongo/executor/network_interface.h"
+#include "mongo/executor/hedging_metrics.h"
 #include "mongo/logv2/log_severity.h"
 #include "mongo/platform/mutex.h"
 #include "mongo/rpc/metadata/metadata_hook.h"
@@ -49,7 +50,7 @@ namespace mongo {
 namespace executor {
 
 class NetworkInterfaceTL : public NetworkInterface {
-    static constexpr int kDiagnosticLogLevel = 4;
+    static constexpr int kDiagnosticLogLevel = 2;
 
 public:
     NetworkInterfaceTL(std::string instanceName,
@@ -103,25 +104,77 @@ public:
 
 private:
     struct RequestState;
-    struct RequestManager;
+    struct CommandStateBase;
+
+    using ConnectionHandle = std::shared_ptr<ConnectionPool::ConnectionHandle::element_type>;
+    using WeakConnectionHandle = std::weak_ptr<ConnectionPool::ConnectionHandle::element_type>;
+
+    class RequestManager {
+    public:
+        RequestManager(CommandStateBase* cmdState);
+
+        /**
+         * Attempt to send a request using the given connection
+         */
+        void trySend(StatusWith<ConnectionPool::ConnectionHandle> swConn, size_t idx) noexcept;
+
+        void cancelRequests() noexcept;
+
+        /**
+         * Return true if any requests have been sent out
+         */
+        bool hasSentRequests() const {
+            return _connsAcquired.load() > 0;
+        }
+
+        bool hasSentAllRequests() const {
+            return _connsAcquired.load() >= _weakConns.size();
+        }
+
+        bool markRequestResolved() {
+            return _requestsResolved.addAndFetch(1) == _weakConns.size();
+        }
+
+        auto timer() const {
+            return _timer.get();
+        }
+
+    private:
+        CommandStateBase* _cmdState;
+        std::unique_ptr<transport::ReactorTimer> _timer;
+        std::vector<WeakConnectionHandle> _weakConns;
+
+        AtomicWord<size_t> _connsResolved{0};
+        AtomicWord<size_t> _connsAcquired{0};
+        AtomicWord<size_t> _requestsResolved{0};
+        AtomicWord<bool> _done{false};
+    };
 
     struct CommandStateBase : public std::enable_shared_from_this<CommandStateBase> {
+        enum class Events {
+            kSent,
+            kFinished,
+            kCanceled,
+        };
+
         CommandStateBase(NetworkInterfaceTL* interface_,
                          RemoteCommandRequestOnAny request_,
                          const TaskExecutor::CallbackHandle& cbHandle_);
         virtual ~CommandStateBase() = default;
 
+        size_t maxConcurrentRequests() const noexcept {
+            if (!requestOnAny.hedgeOptions) {
+                return 1ull;
+            }
+
+            return requestOnAny.hedgeOptions->count + 1ull;
+        }
+
         /**
          * Use the current RequestState to send out a command request.
          */
-        virtual Future<RemoteCommandResponse> sendRequest(size_t reqId) = 0;
-
-        /**
-         * Return the maximum number of request failures this Command can tolerate
-         */
-        virtual size_t maxRequestFailures() {
-            return 1;
-        }
+        virtual Future<RemoteCommandResponse> sendRequest(
+            const std::shared_ptr<RequestState>& requestState) = 0;
 
         /**
          * Set a timer to fulfill the promise with a timeout error.
@@ -132,6 +185,10 @@ private:
          * Fulfill the promise with the response.
          */
         virtual void fulfillFinalPromise(StatusWith<RemoteCommandOnAnyResponse> response) = 0;
+
+        auto getAnchor() noexcept {
+            return shared_from_this();
+        }
 
         /**
          * Fulfill the promise for the Command.
@@ -148,6 +205,8 @@ private:
          */
         void doMetadataHook(const RemoteCommandOnAnyResponse& response);
 
+        void cancel();
+
         NetworkInterfaceTL* interface;
 
         RemoteCommandRequestOnAny requestOnAny;
@@ -157,20 +216,17 @@ private:
         ClockSource::StopWatch stopwatch;
 
         BatonHandle baton;
-        std::unique_ptr<transport::ReactorTimer> timer;
-
-        std::unique_ptr<RequestManager> requestManager;
-
-        StrongWeakFinishLine finishLine;
 
         boost::optional<UUID> operationKey;
+        boost::optional<RequestManager> requestManager;
+
+        AtomicWord<bool> done;
     };
 
     struct CommandState final : public CommandStateBase {
         CommandState(NetworkInterfaceTL* interface_,
                      RemoteCommandRequestOnAny request_,
                      const TaskExecutor::CallbackHandle& cbHandle_);
-        ~CommandState() = default;
 
         // Create a new CommandState in a shared_ptr
         // Prefer this over raw construction
@@ -178,13 +234,12 @@ private:
                          RemoteCommandRequestOnAny request,
                          const TaskExecutor::CallbackHandle& cbHandle);
 
-        Future<RemoteCommandResponse> sendRequest(size_t reqId) override;
+        Future<RemoteCommandResponse> sendRequest(
+            const std::shared_ptr<RequestState>& requestState) override;
 
         void fulfillFinalPromise(StatusWith<RemoteCommandOnAnyResponse> response) override;
 
         Promise<RemoteCommandOnAnyResponse> promise;
-
-        const size_t hedgeCount;
     };
 
     struct ExhaustCommandState final : public CommandStateBase {
@@ -201,7 +256,8 @@ private:
                          const TaskExecutor::CallbackHandle& cbHandle,
                          RemoteCommandOnReplyFn&& onReply);
 
-        Future<RemoteCommandResponse> sendRequest(size_t reqId) override;
+        Future<RemoteCommandResponse> sendRequest(
+            const std::shared_ptr<RequestState>& requestState) override;
 
         void fulfillFinalPromise(StatusWith<RemoteCommandOnAnyResponse> response) override;
 
@@ -213,49 +269,9 @@ private:
         RemoteCommandOnReplyFn onReplyFn;
     };
 
-    enum class ConnStatus { Unset, OK, Failed };
-
-    struct RequestManager {
-        RequestManager(size_t numHedges, std::shared_ptr<CommandStateBase> cmdState_)
-            : connStatus(cmdState_->requestOnAny.target.size(), ConnStatus::Unset),
-              requests(numHedges),
-              cmdState(cmdState_){};
-
-        std::shared_ptr<RequestState> makeRequest();
-        std::shared_ptr<RequestState> getRequest(size_t reqId);
-        std::shared_ptr<RequestState> getNextRequest();
-
-        void trySend(StatusWith<ConnectionPool::ConnectionHandle> swConn, size_t idx) noexcept;
-        void cancelRequests();
-        void killOperationsForPendingRequests();
-
-        bool sentNone() const;
-        bool sentAll() const;
-
-        ConnStatus getConnStatus(size_t reqId);
-        bool usedAllConn() const;
-
-        std::vector<ConnStatus> connStatus;
-        std::vector<std::weak_ptr<RequestState>> requests;
-        std::weak_ptr<CommandStateBase> cmdState;
-
-        // Number of sent requests.
-        AtomicWord<size_t> sentIdx{0};
-
-        // Number of requests to send.
-        AtomicWord<size_t> requestCount{0};
-
-        // Set to true when the command finishes or is canceled to block remaining requests.
-        bool isLocked{false};
-
-        Mutex mutex = MONGO_MAKE_LATCH("NetworkInterfaceTL::RequestManager::mutex");
-    };
-
     struct RequestState final : public std::enable_shared_from_this<RequestState> {
-        using ConnectionHandle = std::shared_ptr<ConnectionPool::ConnectionHandle::element_type>;
-        using WeakConnectionHandle = std::weak_ptr<ConnectionPool::ConnectionHandle::element_type>;
-        RequestState(RequestManager* mgr, std::shared_ptr<CommandStateBase> cmdState_, size_t id)
-            : cmdState{std::move(cmdState_)}, requestManager(mgr), reqId(id) {}
+        RequestState(std::shared_ptr<CommandStateBase> cmdState_)
+            : cmdState(std::move(cmdState_)) {}
 
         ~RequestState();
 
@@ -265,11 +281,6 @@ private:
         static AsyncDBClient* getClient(const ConnectionHandle& conn) noexcept;
 
         /**
-         * Cancel the current client operation or do nothing if there is no client.
-         */
-        void cancel() noexcept;
-
-        /**
          * Return the current connection to the pool and unset it locally.
          *
          * This must be called from the networking thread (i.e. the reactor).
@@ -277,43 +288,25 @@ private:
         void returnConnection(Status status) noexcept;
 
         /**
-         * Attempt to send a request using the given connection
-         */
-        void trySend(StatusWith<ConnectionPool::ConnectionHandle> swConn, size_t idx) noexcept;
-
-        void send(StatusWith<ConnectionPool::ConnectionHandle> swConn,
-                  RemoteCommandRequest remoteCommandRequest) noexcept;
-
-        /**
          * Resolve an eventual response
          */
         void resolve(Future<RemoteCommandResponse> future) noexcept;
 
-        NetworkInterfaceTL* interface() noexcept {
+        auto interface() noexcept {
             return cmdState->interface;
+        }
+
+        auto isHedged() const noexcept {
+            return connIdForRequest;
         }
 
         std::shared_ptr<CommandStateBase> cmdState;
 
         ClockSource::StopWatch stopwatch;
 
-        RequestManager* const requestManager{nullptr};
-
-        boost::optional<RemoteCommandRequest> request;
-        HostAndPort host;
+        RemoteCommandRequest request;
         ConnectionHandle conn;
-        WeakConnectionHandle weakConn;
-
-        // Internal id of this request as tracked by the RequestManager.
-        size_t reqId;
-
-        // True if this request is an additional request sent to hedge the operation.
-        bool isHedge{false};
-
-        // Set to true if the response to the request is used to fulfill the command's
-        // promise (i.e. arrives before the responses to all other requests and is not
-        // a MaxTimeMSExpired error response if this is a hedged request).
-        bool fulfilledPromise{false};
+        size_t connIdForRequest;
     };
 
     struct AlarmState {
@@ -339,10 +332,9 @@ private:
 
     void _run();
 
-    Status _killOperation(std::shared_ptr<RequestState> requestStateToKill);
-
     std::string _instanceName;
     ServiceContext* _svcCtx = nullptr;
+    HedgingMetrics* _hedgingMetrics = nullptr;
     transport::TransportLayer* _tl = nullptr;
     // Will be created if ServiceContext is null, or if no TransportLayer was configured at startup
     std::unique_ptr<transport::TransportLayer> _ownedTransportLayer;
