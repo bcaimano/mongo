@@ -80,6 +80,9 @@ class TransportLayerASIO::ASIOSession final : public Session {
 public:
     using Endpoint = asio::generic::stream_protocol::endpoint;
 
+    static inline auto kCanceled =
+        Status(ErrorCodes::CallbackCanceled, "transport::Session operation canceled locally");
+
     // If the socket is disconnected while any of these options are being set, this constructor
     // may throw, but it is guaranteed to throw a mongo DBException.
     ASIOSession(TransportLayerASIO* tl,
@@ -185,10 +188,12 @@ public:
     }
 
     void cancelAsyncOperations(const BatonHandle& baton = nullptr) override {
+        auto lastSequenceNumber = _sequenceNumber.fetchAndAdd(1);
         LOGV2_DEBUG(4615608,
                     3,
-                    "Cancelling outstanding I/O operations on connection to {remote}",
-                    "remote"_attr = _remote);
+                    "Cancelling outstanding I/O operations on connection",
+                    "remote"_attr = _remote,
+                    "sequenceNumber"_attr = lastSequenceNumber);
         if (baton && baton->networking() && baton->networking()->cancelSession(*this)) {
             // If we have a baton, it was for networking, and it owned our session, then we're done.
             return;
@@ -425,7 +430,6 @@ private:
 
     template <typename MutableBufferSequence>
     Future<void> read(const MutableBufferSequence& buffers, const BatonHandle& baton = nullptr) {
-        // TODO SERVER-47229 Guard active ops for cancelation here.
 #ifdef MONGO_CONFIG_SSL
         if (_sslSocket) {
             return opportunisticRead(*_sslSocket, buffers, baton);
@@ -451,7 +455,6 @@ private:
 
     template <typename ConstBufferSequence>
     Future<void> write(const ConstBufferSequence& buffers, const BatonHandle& baton = nullptr) {
-        // TODO SERVER-47229 Guard active ops for cancelation here.
 #ifdef MONGO_CONFIG_SSL
         _ranHandshake = true;
         if (_sslSocket) {
@@ -463,6 +466,7 @@ private:
             if (_blockingMode == Async) {
                 // Opportunistic writes are broken for async egress SSL (switching between blocking
                 // and non-blocking mode corrupts the TLS exchange).
+                _sequenceNumber.fetchAndAdd(1);
                 return asio::async_write(*_sslSocket, buffers, UseFuture{}).ignoreValue();
             } else {
                 return opportunisticWrite(*_sslSocket, buffers, baton);
@@ -477,8 +481,22 @@ private:
     Future<void> opportunisticRead(Stream& stream,
                                    const MutableBufferSequence& buffers,
                                    const BatonHandle& baton = nullptr) {
+        auto initialSequenceNumber = _sequenceNumber.load();
+        return continueOpportunisticRead(stream, buffers, initialSequenceNumber, baton);
+    }
+
+    template <typename Stream, typename MutableBufferSequence>
+    Future<void> continueOpportunisticRead(Stream& stream,
+                                           const MutableBufferSequence& buffers,
+                                           uint64_t initialSequenceNumber,
+                                           const BatonHandle& baton) {
         std::error_code ec;
         size_t size;
+
+        auto nextSequenceNumber = _sequenceNumber.addAndFetch(1);
+        if ((initialSequenceNumber + 1) != nextSequenceNumber) {
+            return kCanceled;
+        }
 
         if (MONGO_unlikely(transportLayerASIOshortOpportunisticReadWrite.shouldFail()) &&
             _blockingMode == Async) {
@@ -519,11 +537,13 @@ private:
 
                         return error;
                     })
-                    .then([&stream, asyncBuffers, baton, this] {
-                        return opportunisticRead(stream, asyncBuffers, baton);
+                    .then([&stream, asyncBuffers, nextSequenceNumber, baton, this] {
+                        return continueOpportunisticRead(
+                            stream, asyncBuffers, nextSequenceNumber, baton);
                     });
             }
 
+            _sequenceNumber.fetchAndAdd(1);
             return asio::async_read(stream, asyncBuffers, UseFuture{}).ignoreValue();
         } else {
             return futurize(ec);
@@ -570,8 +590,22 @@ private:
     Future<void> opportunisticWrite(Stream& stream,
                                     const ConstBufferSequence& buffers,
                                     const BatonHandle& baton = nullptr) {
+        auto initialSequenceNumber = _sequenceNumber.load();
+        return continueOpportunisticWrite(stream, buffers, initialSequenceNumber, baton);
+    }
+
+    template <typename Stream, typename ConstBufferSequence>
+    Future<void> continueOpportunisticWrite(Stream& stream,
+                                            const ConstBufferSequence& buffers,
+                                            uint64_t initialSequenceNumber,
+                                            const BatonHandle& baton) {
         std::error_code ec;
         std::size_t size;
+
+        auto nextSequenceNumber = _sequenceNumber.addAndFetch(1);
+        if ((initialSequenceNumber + 1) != nextSequenceNumber) {
+            return kCanceled;
+        }
 
         if (MONGO_unlikely(transportLayerASIOshortOpportunisticReadWrite.shouldFail()) &&
             _blockingMode == Async) {
@@ -617,11 +651,13 @@ private:
 
                         return error;
                     })
-                    .then([&stream, asyncBuffers, baton, this] {
-                        return opportunisticWrite(stream, asyncBuffers, baton);
+                    .then([&stream, asyncBuffers, nextSequenceNumber, baton, this] {
+                        return continueOpportunisticWrite(
+                            stream, asyncBuffers, nextSequenceNumber, baton);
                     });
             }
 
+            _sequenceNumber.fetchAndAdd(1);
             return asio::async_write(stream, asyncBuffers, UseFuture{}).ignoreValue();
         } else {
             return futurize(ec);
@@ -771,6 +807,16 @@ private:
 
     TransportLayerASIO* const _tl;
     bool _isIngressSession;
+
+    /**
+     * This sequence number is incremented before we invoke networking operations either via ASIO or
+     * manually. continueOpportunisticRead() and continueOpportunisticWrite() check if it is
+     * incremented to detect cancelAsyncOperations(). This means that they can also simultaneously
+     * be "canceled" and "cancel" a new concurrent call to read() or write(). If it is important
+     * that these operations can run concurrently, we should a) separate read and write sequence
+     * numbers and b) use a compareAndSwap() instead of a fetchAndAdd()/addAndFetch() to increment.
+     */
+    AtomicWord<uint64_t> _sequenceNumber;
 };
 
 }  // namespace transport
