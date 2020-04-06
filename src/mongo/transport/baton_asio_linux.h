@@ -42,7 +42,9 @@
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/transport/baton.h"
 #include "mongo/transport/session_asio.h"
+#include "mongo/util/concepts.h"
 #include "mongo/util/errno_util.h"
+#include "mongo/util/functional.h"
 #include "mongo/util/future.h"
 #include "mongo/util/hierarchical_acquisition.h"
 #include "mongo/util/time_support.h"
@@ -57,6 +59,7 @@ namespace transport {
  */
 class TransportLayerASIO::BatonASIO : public NetworkingBaton {
     static const inline auto kDetached = Status(ErrorCodes::ShutdownInProgress, "Baton detached");
+    static const inline auto kCanceled = Status(ErrorCodes::CallbackCanceled, "Baton wait canceled");
 
     /**
      * We use this internal reactor timer to exit run_until calls (by forcing an early timeout for
@@ -159,38 +162,46 @@ public:
         auto pf = makePromiseFuture<void>();
         auto id = timer.id();
 
-        stdx::unique_lock<Latch> lk(_mutex);
+        stdx::unique_lock<Mutex> lk(_mutex);
 
         if (!_opCtx) {
             return kDetached;
         }
 
-        _safeExecute(std::move(lk),
-                     [id, expiration, promise = std::move(pf.promise), this]() mutable {
-                         auto iter = _timers.emplace(std::piecewise_construct,
-                                                     std::forward_as_tuple(expiration),
-                                                     std::forward_as_tuple(id, std::move(promise)));
-                         _timersById[id] = iter;
-                     });
+        _safeExecute(std::move(lk), [ id, expiration, promise = std::move(pf.promise),
+                                      this ](auto /*lk*/) mutable noexcept {
+            auto iter = _timers.emplace(expiration, Timer{id, std::move(promise)});
+            _timersById[id] = iter;
+        });
 
         return std::move(pf.future);
     }
 
     bool canWait() noexcept override {
-        stdx::lock_guard<Latch> lk(_mutex);
+        stdx::lock_guard<Mutex> lk(_mutex);
         return _opCtx;
     }
 
     bool cancelSession(Session& session) noexcept override {
         const auto id = session.id();
 
-        stdx::unique_lock<Latch> lk(_mutex);
+        stdx::unique_lock<Mutex> lk(_mutex);
 
         if (_sessions.find(id) == _sessions.end()) {
             return false;
         }
 
-        _safeExecute(std::move(lk), [id, this] { _sessions.erase(id); });
+        _safeExecute(std::move(lk), [ id, this ](auto lk) noexcept {
+            auto iter = _sessions.find(id);
+            if (iter == _sessions.end()) {
+                return;
+            }
+            auto session = std::exchange(iter->second, {});
+            _sessions.erase(iter);
+            lk.unlock();
+
+            session.promise.setError(kCanceled);
+        });
 
         return true;
     }
@@ -198,38 +209,50 @@ public:
     bool cancelTimer(const ReactorTimer& timer) noexcept override {
         const auto id = timer.id();
 
-        stdx::unique_lock<Latch> lk(_mutex);
+        stdx::unique_lock<Mutex> lk(_mutex);
 
         if (_timersById.find(id) == _timersById.end()) {
             return false;
         }
 
-        _safeExecute(std::move(lk), [id, this] {
+        _safeExecute(std::move(lk), [ id, this ](auto lk) noexcept {
             auto iter = _timersById.find(id);
 
-            if (iter != _timersById.end()) {
-                _timers.erase(iter->second);
-                _timersById.erase(iter);
+            if (iter == _timersById.end()) {
+                return;
             }
+
+            auto timer = std::exchange(iter->second->second, {});
+            _timers.erase(iter->second);
+            _timersById.erase(iter);
+            lk.unlock();
+
+            timer.promise.setError(kCanceled);
         });
 
         return true;
     }
 
     void schedule(Task func) noexcept override {
-        stdx::lock_guard<Latch> lk(_mutex);
+        stdx::unique_lock<Mutex> lk(_mutex);
 
         if (!_opCtx) {
+            lk.unlock();
             func(kDetached);
 
             return;
         }
 
-        _scheduled.push_back(std::move(func));
 
-        if (_inPoll) {
-            efd().notify();
-        }
+        _safeExecute(std::move(lk), [this, func = std::move(func)](auto lk) mutable {
+            auto status = Status::OK();
+            if (!_opCtx) {
+                status = kDetached;
+            }
+            lk.unlock();
+
+            func(status);
+        });
     }
 
     void notify() noexcept override {
@@ -267,22 +290,21 @@ public:
                 promise.emplaceValue();
             }
 
-            stdx::unique_lock<Latch> lk(_mutex);
+            auto lk = stdx::unique_lock(_mutex);
             while (_scheduled.size()) {
-                auto toRun = std::exchange(_scheduled, {});
-
-                lk.unlock();
-                while (toRun.size()) {
+                {
                     // While there are jobs to run, run and dtor in sequence
-                    auto& job = toRun.back();
-                    job(Status::OK());
-                    toRun.pop_back();
+                    auto job = std::exchange(_scheduled.back(), {});
+                    _scheduled.pop_back();
+                    job(std::move(lk));
                 }
-                lk.lock();
+
+                // Reacquire the lock for the next run
+                lk = stdx::unique_lock(_mutex);
             }
         });
 
-        stdx::unique_lock<Latch> lk(_mutex);
+        stdx::unique_lock<Mutex> lk(_mutex);
 
         // If anything was scheduled, run it now.  No need to poll
         if (_scheduled.size()) {
@@ -385,16 +407,16 @@ private:
         auto id = session.id();
         auto pf = makePromiseFuture<void>();
 
-        stdx::unique_lock<Latch> lk(_mutex);
+        stdx::unique_lock<Mutex> lk(_mutex);
 
         if (!_opCtx) {
             return kDetached;
         }
 
-        _safeExecute(std::move(lk),
-                     [id, fd, type, promise = std::move(pf.promise), this]() mutable {
-                         _sessions[id] = TransportSession{fd, type, std::move(promise)};
-                     });
+        _safeExecute(std::move(lk), [ id, fd, type, promise = std::move(pf.promise),
+                                      this ](auto /* lk */) mutable noexcept {
+            _sessions[id] = TransportSession{fd, type, std::move(promise)};
+        });
 
         return std::move(pf.future);
     }
@@ -405,22 +427,29 @@ private:
         decltype(_timers) timers;
 
         {
-            stdx::lock_guard<Latch> lk(_mutex);
+            stdx::unique_lock lk(_mutex);
 
             invariant(_opCtx->getBaton().get() == this);
             _opCtx->setBaton(nullptr);
 
             _opCtx = nullptr;
 
+            while (_scheduled.size()) {
+                // Clear every job in _scheduled well before we look at our sessions or timers.
+                {
+                    auto job = std::exchange(_scheduled.back(), {});
+                    _scheduled.pop_back();
+                    job(std::move(lk));
+                }
+
+                lk = stdx::unique_lock(_mutex);
+            }
+
             using std::swap;
             swap(_sessions, sessions);
-            swap(_scheduled, scheduled);
             swap(_timers, timers);
         }
 
-        for (auto& job : scheduled) {
-            job(kDetached);
-        }
 
         for (auto& session : sessions) {
             session.second.promise.setError(kDetached);
@@ -432,8 +461,6 @@ private:
     }
 
     struct Timer {
-        Timer(size_t id, Promise<void> promise) : id(id), promise(std::move(promise)) {}
-
         size_t id;
         Promise<void> promise;  // Needs to be mutable to move from it while in std::set.
     };
@@ -444,21 +471,26 @@ private:
         Promise<void> promise;
     };
 
+    // Internally, the BatonASIO thinks in terms of synchronized units of work. This is because
+    // a Baton effectively represents a green thread with the potential to add or remove work (i.e.
+    // Jobs) at any time. Jobs with external notifications (OutOfLineExecutor::Tasks,
+    // TransportSession:promise, ReactorTimer::promise) are expected to release their lock before
+    // generating those notifications.
+    using Job = unique_function<void(stdx::unique_lock<Mutex>)>;
+
     /**
-     * Safely executes method on the reactor.  If we're in poll, we schedule a task, then write to
-     * the eventfd.  If not, we run inline.
+     * Safely executes a Job during run() or detachImpl().
+     *
+     * If we are currently _inPoll, schedule the Job and write to eventfd. If we are not _inPoll,
+     * run the Job immediately.
      */
-    template <typename Callback>
-    void _safeExecute(stdx::unique_lock<Latch> lk, Callback&& cb) {
+    void _safeExecute(stdx::unique_lock<Mutex> lk, Job&& job) {
         if (_inPoll) {
-            _scheduled.push_back([cb = std::forward<Callback>(cb), this](Status) mutable {
-                stdx::lock_guard<Latch> lk(_mutex);
-                cb();
-            });
+            _scheduled.push_back(std::forward<Job>(job));
 
             efd().notify();
         } else {
-            cb();
+            job(std::move(lk));
         }
     }
 
@@ -479,10 +511,10 @@ private:
     // The set is used to find the next timer which will fire.  The unordered_map looks up the
     // timers so we can remove them in O(1)
     std::multimap<Date_t, Timer> _timers;
-    stdx::unordered_map<size_t, decltype(_timers)::const_iterator> _timersById;
+    stdx::unordered_map<size_t, decltype(_timers)::iterator> _timersById;
 
     // For tasks that come in via schedule.  Or that were deferred because we were in poll
-    std::vector<Task> _scheduled;
+    std::vector<Job> _scheduled;
 
     // We hold the two following values at the object level to save on allocations when a baton is
     // waited on many times over the course of its lifetime.
