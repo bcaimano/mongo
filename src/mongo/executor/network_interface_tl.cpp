@@ -268,6 +268,7 @@ NetworkInterfaceTL::CommandStateBase::CommandStateBase(
     : interface(interface_),
       requestOnAny(std::move(request_)),
       cbHandle(cbHandle_),
+      timer(interface->_reactor->makeTimer()),
       finishLine(maxRequestFailures()),
       operationKey(request_.operationKey) {}
 
@@ -335,7 +336,6 @@ void NetworkInterfaceTL::CommandStateBase::setTimer() {
     }
 
     // TODO reform with SERVER-41459
-    timer = interface->_reactor->makeTimer();
     timer->waitUntil(deadline, baton).getAsync([this, anchor = shared_from_this()](Status status) {
         if (!status.isOK()) {
             return;
@@ -375,10 +375,10 @@ void NetworkInterfaceTL::CommandStateBase::tryFinish(Status status) noexcept {
     LOGV2_DEBUG(
         4646302, 2, "Finished request", "requestId"_attr = requestOnAny.id, "status"_attr = status);
 
-    if (timer) {
-        // The command has resolved one way or another,
-        timer->cancel(baton);
-    }
+    invariant(timer);
+
+    // The command has resolved one way or another,
+    timer->cancel(baton);
 
     if (!status.isOK() && requestManager) {
         requestManager->cancelRequests();
@@ -396,8 +396,19 @@ void NetworkInterfaceTL::CommandStateBase::tryFinish(Status status) noexcept {
     }
 
     if (operationKey && requestManager) {
-        // Kill operations for requests that we didn't use to fulfill the promise.
-        requestManager->killOperationsForPendingRequests();
+        if (!requestManager->sentNone() ) {
+            auto deadline = stopwatch.now() + Milliseconds(100);
+            timer->waitUntil(deadline, nullptr)
+                .getAsync([this, weakAnchor = weak_from_this()](Status status) mutable {
+                    auto anchor = weakAnchor.lock();
+                    if(!anchor){
+                        return;
+                    }
+
+                    // Kill operations for requests that we didn't use to fulfill the promise.
+                    requestManager->killOperationsForPendingRequests();
+                });
+        }
     }
 
     networkInterfaceCommandsFailedWithErrorCode.shouldFail([&](const BSONObj& data) {
