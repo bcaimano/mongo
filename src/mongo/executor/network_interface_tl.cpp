@@ -556,7 +556,9 @@ Future<RemoteCommandResponse> NetworkInterfaceTL::CommandState::sendRequest(
     invariant(requestState);
 
     return makeReadyFutureWith([this, requestState] {
-               setTimer();
+               if (!requestState->isHedged()) {
+                   setTimer();
+               }
                return RequestState::getClient(requestState->conn)
                    ->runCommandRequest(requestState->request, baton);
            })
@@ -794,7 +796,7 @@ void NetworkInterfaceTL::RequestState::resolve(Future<RemoteCommandResponse> fut
                 }
 
                 auto commandStatus = getStatusFromCommandResult(response.data);
-                if (ErrorCodes::isNetworkTimeoutError(commandStatus)) {
+                if (ErrorCodes::isExceededTimeLimitError(commandStatus)) {
                     // Ignore maxTimeMS expiration errors for hedged reads without triggering the
                     // finish line.
                     LOGV2_DEBUG(4660701,
