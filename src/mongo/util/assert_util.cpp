@@ -341,4 +341,9 @@ Status exceptionToStatus() noexcept {
         std::terminate();
     }
 }
+
+void violateNoexcept(ErrorCodes::Error ec, StringData message) noexcept {
+    uasserted(ec, message);
+}
+
 }  // namespace mongo

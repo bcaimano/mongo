@@ -626,6 +626,7 @@ icuEnv.CppUnitTest(
         'future_test_shared_future.cpp',
         'future_util_test.cpp',
         'hierarchical_acquisition_test.cpp',
+        'noexcept_test.cpp',
         'icu_test.cpp',
         'static_immortal_test.cpp',
         'invalidating_lru_cache_test.cpp',
@@ -663,6 +664,7 @@ icuEnv.CppUnitTest(
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/db/service_context_test_fixture',
         '$BUILD_DIR/mongo/executor/thread_pool_task_executor_test_fixture',
+        '$BUILD_DIR/mongo/transport/service_executor',
         'alarm',
         'background_job',
         'caching',
@@ -681,6 +683,7 @@ icuEnv.CppUnitTest(
         'progress_meter',
         'safe_num',
         'secure_zero_memory',
+        'signal_handlers',
         'summation',
     ],
 )

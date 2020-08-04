@@ -605,6 +605,8 @@ std::string demangleName(const std::type_info& typeinfo);
  */
 Status exceptionToStatus() noexcept;
 
+void violateNoexcept(ErrorCodes::Error ec, StringData message) noexcept;
+
 }  // namespace mongo
 
 #define MONGO_ASSERT_ON_EXCEPTION(expression)                                         \

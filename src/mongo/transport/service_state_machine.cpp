@@ -438,6 +438,8 @@ void ServiceStateMachine::_sinkCallback(Status status) {
 Future<void> ServiceStateMachine::_processMessage(ThreadGuard guard) {
     invariant(!_inMessage.empty());
 
+    violateNoexcept(ErrorCodes::InternalError, "Violate during message processing"_sd);
+
     TrafficRecorder::get(_serviceContext)
         .observe(_sessionHandle, _serviceContext->getPreciseClockSource()->now(), _inMessage);
 

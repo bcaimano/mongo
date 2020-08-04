@@ -738,6 +738,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
         }
     }
 
+    violateNoexcept(ErrorCodes::InternalError, "Violate before startup complete"_sd);
+
     serviceContext->notifyStartupComplete();
 
 #ifndef _WIN32
