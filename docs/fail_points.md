@@ -8,9 +8,9 @@ and/or disabled via command request to a remote process or via an API within the
 ## Using Fail Points
 
 A fail point must first be defined using `MONGO_FAIL_POINT_DEFINE(myFailPoint)`. This statement
-merely adds the fail point to a registry. It can now be configured, waited upon, and evalutated in
-code.  However, this is not enough to allow a user to modify runtime behavior. The fail point also
-needs to be evaluated in code. There are three common patterns for when a fail point is enabled:
+merely adds the fail point to a registry. It can now be configured, waited upon, and referenced.
+However, this is not enough to allow a user to modify runtime behavior. The fail point also needs to
+be evaluated in code. There are three common patterns for when a fail point is enabled:
 - Chose to perform a certain behavior:
   `if (myRareCondition || myFailPoint.shouldFail()) { ... }`
 - Block until it is unset:
