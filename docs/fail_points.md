@@ -3,42 +3,42 @@
 Fail points are test-only configurable hooks that can be triggered at runtime. Fail points allow
 tests to change behaviour at pre-defined points to block threads, chose rarely executed branches,
 enhance diagnostics, or achieve any number of other aims. Fail points can be enabled, configured,
-and/or disabled via command to a remote node or via an API within the same process.
+and/or disabled via command request to a remote process or via an API within the same process.
 
 ## Using Fail Points
 
 A fail point must first be defined using `MONGO_FAIL_POINT_DEFINE(myFailPoint)`. This statement
 merely adds the fail point to a registry. It can now be configured, waited upon, and evalutated in
 code.  However, this is not enough to allow a user to modify runtime behavior. The fail point also
-needs to be evaluated in code. There are three common patterns for using a fail point:
-- If the fail point is set, chose to perform a certain behavior:
+needs to be evaluated in code. There are three common patterns for when a fail point is enabled:
+- Chose to perform a certain behavior:
   `if (myRareCondition || myFailPoint.shouldFail()) { ... }`
-- If the fail point is set, block until it is unset:
+- Block until it is unset:
   `myFailPoint.pauseWhileSet();`
-- If the fail point is set, use its payload to perform custom behavior:
-  `myFailPoint.execute([](const BSONObj& obj) { ...  };`
+- Use its payload to perform custom behavior:
+  `myFailPoint.execute([](const BSONObj& data) { ...  };`
 
-For more complete usage, see the [fail point header][fail_points] or the [fail point
+For more complete usage, see the [fail point header][fail_point] or the [fail point
 tests][fail_point_test].
 
 ## Configuring and Waiting on Fail Points
 
-Fail points configuration involves chosing a "mode" for activation (e.g., "alwaysOn") and optionally
+Fail point configuration involves chosing a "mode" for activation (e.g., "alwaysOn") and optionally
 providing additional data in the form of a BSON object. For the vast majority of cases, this is done
-by issuing a `configureFailPoint` command request from a javascript test. This is made easier using
-the `configureFailPoint` helper from [fail_point_util.js][fail_point_utils]. However, fail points
-can also be useful in C++ unit tests and integration tests. To configure fail points on the local
-process, use a `FailPointEnableBlock` to enable and configure the fail point for a given block
-scope.
+by issuing a `configureFailPoint` command request. This is made easier in javascript using the
+`configureFailPoint` helper from [fail_point_util.js][fail_point_util]. Fail points can also be
+useful in C++ unit tests and integration tests. To configure fail points on the local process, use
+a `FailPointEnableBlock` to enable and configure the fail point for a given block scope. Finally,
+a fail point can also be set via setParameter by its name prefixed with "failpoint." (e.g.,
+"failpoint.myFailPoint").
 
-Similarly to configuration, users can wait until a fail point has been evaluated a certain number of
-times _*over its lifetime*_. In javascript tests, a `waitForFailPoint` command request will send
-a response back when the fail point has been evaluated the given number of times. The
-`configureFailPoint` helper returns an object that can be used to wait a certain amount of times
-_*from when the fail point was enabled*_. In C++ tests, users can invoke
-`FailPoint::waitForTimesEntered()` for similar behavior. `FailPointEnableBlock::initialTimesEntered`
-is the amount of times the fail point had been evaluated when the `FailPointEnableBlock` was
-constructed.
+Users can also wait until a fail point has been evaluated a certain number of times ***over its
+lifetime***. A `waitForFailPoint` command request will send a response back when the fail point has
+been evaluated the given number of times. For ease of use, the `configureFailPoint` javascript
+helper returns an object that can be used to wait a certain amount of times ***from when the fail
+point was enabled***. In C++ tests, users can invoke `FailPoint::waitForTimesEntered()` for similar
+behavior. `FailPointEnableBlock` records the amount of times the fail point had been evaluated when
+it was constructed, accessible via `FailPointEnableBlock::initialTimesEntered()`.
 
 For javascript examples, see the [javascript fail point test][fail_point_javascript_test]. For the
 command implimentations, see [here][fail_point_commands].
