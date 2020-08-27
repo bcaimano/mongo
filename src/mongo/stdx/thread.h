@@ -33,6 +33,7 @@
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <ctime>
 #include <exception>
 #include <thread>
@@ -81,7 +82,7 @@ private:
         ss.ss_flags = 0;
         ss.ss_size = kStackSize;
         if (sigaltstack(&ss, nullptr)) {
-            abort();
+            std::abort();
         }
     }
 
@@ -89,7 +90,7 @@ private:
         stack_t ss = {};
         ss.ss_flags = SS_DISABLE;
         if (sigaltstack(&ss, nullptr)) {
-            abort();
+            std::abort();
         }
     }
 
