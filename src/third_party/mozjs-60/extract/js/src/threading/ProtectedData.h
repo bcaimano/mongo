@@ -32,7 +32,9 @@ namespace js {
 
 #define DECLARE_ONE_BOOL_OPERATOR(OP, T)        \
     template <typename U>                       \
-    bool operator OP(const U& other) const { return ref() OP static_cast<T>(other); }
+    bool operator OP(const U& other) const { return ref() OP reinterpret_cast<const T&>(other); } \
+    template <typename U>                       \
+    bool operator OP(U const* other) const { return ref() OP reinterpret_cast<std::remove_pointer_t<T> const*>(other); } 
 
 #define DECLARE_BOOL_OPERATORS(T)               \
     DECLARE_ONE_BOOL_OPERATOR(==, T)            \

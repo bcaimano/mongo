@@ -62,13 +62,13 @@ public:
 
 #if BOOST_LOG_ATTRIBUTE_SET_MAX_POOL_SIZE > 0
 
-    typedef typename base_type::value_type value_type;
-    typedef typename base_type::size_type size_type;
-    typedef typename base_type::difference_type difference_type;
-    typedef typename base_type::pointer pointer;
-    typedef typename base_type::const_pointer const_pointer;
-    typedef typename base_type::reference reference;
-    typedef typename base_type::const_reference const_reference;
+    typedef typename std::allocator_traits<base_type>::value_type value_type;
+    typedef typename std::allocator_traits<base_type>::size_type size_type;
+    typedef typename std::allocator_traits<base_type>::difference_type difference_type;
+    typedef typename std::allocator_traits<base_type>::pointer pointer;
+    typedef typename std::allocator_traits<base_type>::const_pointer const_pointer;
+    typedef typename std::allocator_traits<base_type>::value_type& reference;
+    typedef const typename std::allocator_traits<base_type>::value_type& const_reference;
 
 private:
     array< pointer, BOOST_LOG_ATTRIBUTE_SET_MAX_POOL_SIZE > m_Pool;
@@ -122,7 +122,7 @@ public:
             return m_Pool[m_PooledCount];
         }
         else
-            return base_type::allocate(n, hint);
+            return base_type::allocate(n);
     }
 
     void deallocate(pointer p, size_type n)
