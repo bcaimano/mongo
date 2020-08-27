@@ -478,8 +478,9 @@ TEST_F(ServerDescriptionTestFixture, ShouldStoreSetVersionAndName) {
                                     duration_cast<IsMasterRTT>(mongo::Milliseconds(40)));
     auto description = ServerDescription(clockSource, response);
     ASSERT_EQUALS(kBsonSetVersionName.getIntField("setVersion"), description.getSetVersion());
+    ASSERT(description.getSetName());
     ASSERT_EQUALS(std::string(kBsonSetVersionName.getStringField("setName")),
-                  description.getSetName());
+                  description.getSetName().get());
 }
 
 TEST_F(ServerDescriptionTestFixture, ShouldStoreElectionId) {
