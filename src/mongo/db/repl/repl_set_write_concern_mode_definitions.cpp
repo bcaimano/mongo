@@ -31,7 +31,6 @@
 
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/repl/repl_set_write_concern_mode_definitions.h"
-#include "mongo/unittest/unittest.h"
 
 namespace mongo {
 namespace repl {
