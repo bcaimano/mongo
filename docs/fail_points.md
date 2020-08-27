@@ -40,7 +40,7 @@ point was enabled***. In C++ tests, users can invoke `FailPoint::waitForTimesEnt
 behavior. `FailPointEnableBlock` records the amount of times the fail point had been evaluated when
 it was constructed, accessible via `FailPointEnableBlock::initialTimesEntered()`.
 
-For JavaScript examples, see the [javascript fail point test][fail_point_javascript_test]. For the
+For JavaScript examples, see the [fail point JavaScript test][fail_point_javascript_test]. For the
 command implementations, see [here][fail_point_commands].
 
 ## The `failCommand` Fail Point
