@@ -43,6 +43,8 @@ namespace mongo {
  */
 class DeinitializerContext {
 public:
+    DeinitializerContext() = default;
+
     DeinitializerContext(DeinitializerContext const&) = delete;
     DeinitializerContext& operator=(DeinitializerContext const&) = delete;
 };
