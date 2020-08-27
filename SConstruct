@@ -425,7 +425,7 @@ add_option('cache-dir',
 )
 
 add_option("cxx-std",
-    choices=["17"],
+    choices=["17", "20"],
     default="17",
     help="Select the C++ langauge standard to build with",
 )
@@ -2642,6 +2642,10 @@ def doConfigure(myenv):
         if get_option('cxx-std') == "17":
             myenv.AppendUnique(CCFLAGS=['/std:c++17'])
     else:
+        if get_option('cxx-std') == "20":
+            if not AddToCXXFLAGSIfSupported(myenv, '-std=c++20'):
+                myenv.ConfError('Compiler does not honor -std=c++20')
+
         if get_option('cxx-std') == "17":
             if not AddToCXXFLAGSIfSupported(myenv, '-std=c++17'):
                 myenv.ConfError('Compiler does not honor -std=c++17')
