@@ -43,6 +43,10 @@
 #include <sys/uio.h>
 #endif  // __OpenBSD__
 
+#else  // _WIN32
+
+#include <winsock2.h>
+
 #endif  // not _WIN32
 
 #include "mongo/base/string_data.h"
