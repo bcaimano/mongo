@@ -53,6 +53,7 @@
 #include "mongo/unittest/bson_test_util.h"
 #include "mongo/unittest/unittest_helpers.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/concepts.h"
 #include "mongo/util/str.h"
 
 /**
@@ -672,6 +673,9 @@ private:
 
 enum class ComparisonOp { kEq, kNe, kLt, kLe, kGt, kGe };
 
+template <typename T>
+constexpr bool is_stringable = std::is_convertible_v<T, StringData>;
+
 template <ComparisonOp op>
 class ComparisonAssertion {
 private:
@@ -757,9 +761,7 @@ public:
                                     const void* a,
                                     const void* b);
     TEMPLATE(typename A, typename B)
-    REQUIRES(!(std::is_convertible_v<A, StringData> && std::is_convertible_v<B, StringData>)&&  //
-             !(std::is_pointer_v<A> && std::is_pointer_v<B>)&&                                  //
-             !(std::is_array_v<A> && std::is_array_v<B>))
+    REQUIRES(!is_stringable<A> || !is_stringable<B>)
     static ComparisonAssertion make(const char* theFile,
                                     unsigned theLine,
                                     StringData aExpression,
