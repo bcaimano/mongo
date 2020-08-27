@@ -1898,7 +1898,8 @@ elif env.TargetOSIs('windows'):
 
     # Warnings as errors
     if not has_option("disable-warnings-as-errors"):
-        env.Append( CCFLAGS=["/WX"] )
+        pass
+        #env.Append( CCFLAGS=["/WX"] )
 
     env.Append( CPPDEFINES=["_CONSOLE","_CRT_SECURE_NO_WARNINGS", "_SCL_SECURE_NO_WARNINGS"] )
 
@@ -2081,8 +2082,9 @@ if env.TargetOSIs('posix'):
                          "-Winvalid-pch"] )
     # env.Append( " -Wconversion" ) TODO: this doesn't really work yet
     if env.TargetOSIs('linux', 'darwin', 'solaris'):
-        if not has_option("disable-warnings-as-errors"):
-            env.Append( CCFLAGS=["-Werror"] )
+        #if not has_option("disable-warnings-as-errors"):
+        #    env.Append( CCFLAGS=["-Werror"] )
+        pass
 
     env.Append( CXXFLAGS=["-Woverloaded-virtual"] )
     if env.ToolchainIs('clang'):

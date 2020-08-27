@@ -9151,6 +9151,23 @@ buildvariants:
     distros:
     - ubuntu2004-small
 
+- name: enterprise-ubuntu2004-64-system
+  display_name: "^ Enterprise Ubuntu 20.04 (System GCC-9)"
+  modules:
+  - enterprise
+  run_on:
+  - ubuntu2004-small
+  stepback: false
+  expansions:
+    compile_flags: --ssl MONGO_DISTMOD=ubuntu2004 -j$(grep -c ^processor /proc/cpuinfo)
+    repo_edition: enterprise
+    scons_cache_scope: shared
+  tasks:
+  - name: compile_all_run_unittests_TG
+    distros:
+    - ubuntu2004-large
+  - name: .jscore .common !.compat !.decimal !.sharding
+
 - name: enterprise-ubuntu2004-64
   display_name: Enterprise Ubuntu 20.04
   modules:
@@ -10670,6 +10687,23 @@ buildvariants:
     - name: secondary_reads_passthrough_gen
 
 - &enterprise-rhel-70-64-bit-template
+  name: enterprise-rhel-70-64-bit-static
+  display_name: "^ Enterprise RHEL 7.0 (static)"
+  modules:
+  - enterprise
+  run_on:
+  - rhel70-small
+  expansions: &enterprise-rhel-70-64-bit-expansions-template
+    compile_flags: --ssl MONGO_DISTMOD=rhel70 -j$(grep -c ^processor /proc/cpuinfo) --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars --link-model=static
+    repo_edition: enterprise
+    scons_cache_scope: shared
+  tasks:
+  - name: compile_all_run_unittests_TG
+    distros:
+    - rhel70
+  - name: .jscore .common !.compat !.decimal !.sharding
+
+- &enterprise-rhel-70-64-bit-template
   name: enterprise-rhel-70-64-bit
   display_name: "* Enterprise RHEL 7.0"
   batchtime: 240 # 4 hours
@@ -10748,6 +10782,23 @@ buildvariants:
   - name: jsCore
   - name: sharding_gen
   - name: replica_sets
+
+- &enterprise-rhel-80-64-bit-template
+  name: enterprise-rhel-80-64-bit-system
+  display_name: "^ Enterprise RHEL 8.0 (System GCC-8)"
+  modules:
+  - enterprise
+  run_on:
+  - rhel80-build
+  expansions:
+    compile_flags: --ssl MONGO_DISTMOD=rhel80 -j$(grep -c ^processor /proc/cpuinfo)
+    repo_edition: enterprise
+    scons_cache_scope: shared
+  tasks:
+  - name: compile_all_run_unittests_TG
+    distros:
+    - rhel80-build
+  - name: .jscore .common !.compat !.decimal !.sharding
 
 - &enterprise-rhel-80-64-bit-template
   name: enterprise-rhel-80-64-bit
@@ -11963,6 +12014,22 @@ buildvariants:
     distros:
     - debian92-small
 
+- name: enterprise-debian10-64-system
+  display_name: "^ Enterprise Debian 10 (System GCC-8)"
+  modules:
+  - enterprise
+  run_on:
+  - debian10-test
+  expansions:
+    compile_flags: --ssl MONGO_DISTMOD=debian10 -j$(grep -c ^processor /proc/cpuinfo)
+    repo_edition: enterprise
+    scons_cache_scope: shared
+  tasks:
+  - name: compile_all_run_unittests_TG
+    distros:
+    - debian10-build
+  - name: .jscore .common !.compat !.decimal !.sharding
+
 - name: enterprise-debian10-64
   display_name: Enterprise Debian 10
   modules:
@@ -12518,9 +12585,11 @@ buildvariants:
     distros:
     - ubuntu1604-build
 
-- name: enterprise-ubuntu-no-latch-1804-64-bit
+- name: enterprise-ubuntu-unopt-odr-1804-64-bit
   display_name: "~ Enterprise Ubuntu 18.04 DEBUG (Unoptimized)"
   batchtime: 1440 # 1 day
+  run_on:
+  - ubuntu1804-test
   modules:
   - enterprise
   expansions:
@@ -12530,6 +12599,7 @@ buildvariants:
   - name: compile_all_run_unittests_TG
     distros:
     - ubuntu1804-build
+  - name: .jscore .common !.compat !.decimal !.sharding
 
 - name: enterprise-ubuntu-scanning-replica-set-monitor-1604-64-bit
   display_name: "~ Enterprise Ubuntu 16.04 (with ScanningReplicaSetMonitor)"
