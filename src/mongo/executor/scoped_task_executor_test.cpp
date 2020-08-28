@@ -280,7 +280,7 @@ TEST_F(ScopedTaskExecutorTest, scheduleRemoteCommandLoseRaceWithShutdown) {
 }
 
 // Fail to schedule on the underlying
-TEST_F(ScopedTaskExecutorTest, scheduleLoseRaceWithShutdownOfUnderlying) {
+TEST_F(ScopedTaskExecutorTest, scheduleWorkLoseRaceWithShutdownOfUnderlying) {
     auto& bfp = ScopedTaskExecutorHangBeforeSchedule;
     auto& efp = ScopedTaskExecutorHangExitBeforeSchedule;
     bfp.setMode(FailPoint::alwaysOn);
@@ -301,6 +301,27 @@ TEST_F(ScopedTaskExecutorTest, scheduleLoseRaceWithShutdownOfUnderlying) {
     efp.setMode(FailPoint::off);
 
     scheduler.join();
+}
+
+TEST_F(ScopedTaskExecutorTest, scheduleLoseRaceWithShutdownOfUnderlying) {
+    auto& bfp = ScopedTaskExecutorHangBeforeSchedule;
+    auto& efp = ScopedTaskExecutorHangExitBeforeSchedule;
+    bfp.setMode(FailPoint::alwaysOn);
+    efp.setMode(FailPoint::alwaysOn);
+
+    auto schedulerThread = stdx::thread([&] {
+        getExecutor()->schedule([](Status status) {
+            ASSERT_EQ(status.code(), ErrorCodes::ShutdownInProgress);
+        });
+    });
+
+    (bfp).pauseWhileSet();
+
+    shutdownUnderlying();
+
+    efp.setMode(FailPoint::off);
+
+    schedulerThread.join();
 }
 
 TEST_F(ScopedTaskExecutorTest, DestructionShutsDown) {
