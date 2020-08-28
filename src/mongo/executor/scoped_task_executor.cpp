@@ -132,6 +132,17 @@ public:
         return _executor->waitForEvent(opCtx, event, deadline);
     }
 
+    void schedule(OutOfLineExecutor::Task task) override {
+        auto cb = _makeCallback(1000000,
+            [task = std::move(task)](const CallbackArgs& args) { task(args.status); });
+        auto swCallbackHandle =
+            _scheduleCallback([&](auto&& x) { return _executor->scheduleWork(std::move(x)); }, cb);
+        if (!swCallbackHandle.isOK()) {
+            CallbackArgs args(this, {}, swCallbackHandle.getStatus(), nullptr);
+            cb(std::move(args));  // NOLINT(bugprone-use-after-move)
+        }
+    }
+
     StatusWith<CallbackHandle> scheduleWork(CallbackFn&& work) override {
         return _wrapCallback([&](auto&& x) { return _executor->scheduleWork(std::move(x)); },
                              std::move(work));
@@ -183,6 +194,45 @@ public:
     }
 
 private:
+    template <typename Work>
+    Work _makeCallback(size_t id, Work&& work) {
+        return [id, work = std::forward<Work>(work), self = shared_from_this()](const auto& cargs) {
+            using ArgsT = std::decay_t<decltype(cargs)>;
+
+            stdx::unique_lock<Latch> lk(self->_mutex);
+
+            auto doWorkAndNotify = [&](const ArgsT& x) noexcept {
+                lk.unlock();
+                work(x);
+                lk.lock();
+
+                // After we've run the task, we erase and notify.  Sometimes that happens
+                // before we stash the cbHandle.
+                self->_eraseAndNotifyIfNeeded(lk, id);
+            };
+
+            if (!self->_inShutdown) {
+                doWorkAndNotify(cargs);
+                return;
+            }
+
+            // Have to copy args because we get the arguments by const& and need to
+            // modify the status field.
+            auto args = cargs;
+
+            if constexpr (std::is_same_v<ArgsT, CallbackArgs>) {
+                args.status = self->_shutdownStatus;
+            } else {
+                static_assert(std::is_same_v<ArgsT, RemoteCommandOnAnyCallbackArgs>,
+                              "_wrapCallback only supports CallbackArgs and "
+                              "RemoteCommandOnAnyCallbackArgs");
+                args.response.status = self->_shutdownStatus;
+            }
+
+            doWorkAndNotify(args);
+        };
+    }
+
     /**
      * Wraps a scheduling call, along with its callback, so that:
      *
@@ -224,7 +274,7 @@ private:
      * 4. The task has already completed and removed itself from the table.
      */
     template <typename ScheduleCall, typename Work>
-    StatusWith<CallbackHandle> _wrapCallback(ScheduleCall&& schedule, Work&& work) {
+    StatusWith<CallbackHandle> _scheduleCallback(ScheduleCall&& schedule, Work& work) {
         size_t id;
 
         // State 1 - No Data
@@ -236,7 +286,7 @@ private:
                 return _shutdownStatus;
             }
 
-            id = _id++;
+            id = _id.fetchAndAdd(1);
 
             _cbHandles.emplace(
                 std::piecewise_construct, std::forward_as_tuple(id), std::forward_as_tuple());
@@ -249,43 +299,7 @@ private:
         }
 
         // State 2 - Indeterminate state.  We don't know yet if the task will get scheduled.
-        auto swCbHandle = std::forward<ScheduleCall>(schedule)(
-            [id, work = std::forward<Work>(work), self = shared_from_this()](const auto& cargs) {
-                using ArgsT = std::decay_t<decltype(cargs)>;
-
-                stdx::unique_lock<Latch> lk(self->_mutex);
-
-                auto doWorkAndNotify = [&](const ArgsT& x) noexcept {
-                    lk.unlock();
-                    work(x);
-                    lk.lock();
-
-                    // After we've run the task, we erase and notify.  Sometimes that happens
-                    // before we stash the cbHandle.
-                    self->_eraseAndNotifyIfNeeded(lk, id);
-                };
-
-                if (!self->_inShutdown) {
-                    doWorkAndNotify(cargs);
-                    return;
-                }
-
-                // Have to copy args because we get the arguments by const& and need to
-                // modify the status field.
-                auto args = cargs;
-
-                if constexpr (std::is_same_v<ArgsT, CallbackArgs>) {
-                    args.status = self->_shutdownStatus;
-                } else {
-                    static_assert(std::is_same_v<ArgsT, RemoteCommandOnAnyCallbackArgs>,
-                                  "_wrapCallback only supports CallbackArgs and "
-                                  "RemoteCommandOnAnyCallbackArgs");
-                    args.response.status = self->_shutdownStatus;
-                }
-
-                doWorkAndNotify(args);
-            });
-
+        auto swCbHandle = std::forward<ScheduleCall>(schedule)(std::forward(work));
         ScopedTaskExecutorHangAfterSchedule.pauseWhileSet();
 
         stdx::unique_lock lk(_mutex);
@@ -320,6 +334,12 @@ private:
         return swCbHandle;
     }
 
+    template <typename ScheduleCall, typename Work>
+    StatusWith<CallbackHandle> _wrapCallback(ScheduleCall&& schedule, Work&& work) {
+        auto cb = _makeCallback(std::forward<Work>(work));
+        return _scheduleCallback(std::forward<ScheduleCall>(schedule), cb);
+    }
+
     void _eraseAndNotifyIfNeeded(WithLock, size_t id) {
         invariant(_cbHandles.erase(id) == 1);
 
@@ -335,7 +355,7 @@ private:
     bool _inShutdown = false;
     std::shared_ptr<TaskExecutor> _executor;
     Status _shutdownStatus;
-    size_t _id = 0;
+    AtomicWord<size_t> _id{0};
     stdx::unordered_map<size_t, CallbackHandle> _cbHandles;
 
     // Promise that is set when the executor has been shut down and there aren't any outstanding

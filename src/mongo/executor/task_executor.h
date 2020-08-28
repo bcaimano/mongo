@@ -217,7 +217,7 @@ public:
      * Schedules the given Task to run in this executor.
      * Note that 'func' is implicitly noexcept and should not ever leak exceptions.
      */
-    void schedule(OutOfLineExecutor::Task func) final override;
+    void schedule(OutOfLineExecutor::Task func) override;
 
     /**
      * Schedules "work" to be run by the executor ASAP.
