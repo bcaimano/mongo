@@ -43,8 +43,16 @@
 #include "mongo/util/interruptible.h"
 #include "mongo/util/intrusive_counter.h"
 #include "mongo/util/out_of_line_executor.h"
+#include "mongo/util/functional.h"
 
 namespace mongo {
+
+using ScheduleFunction = std::function<void(OutOfLineExecutor::Task)>;
+inline ScheduleFunction scheduleWithExecutor(ExecutorPtr exec) {
+    return [exec = std::move(exec)](OutOfLineExecutor::Task&& task) mutable {
+        exec->schedule(std::forward<OutOfLineExecutor::Task>(task));
+    };
+}
 
 /**
  * SemiFuture<T> is logically a possibly-deferred StatusWith<T> (or Status when T is void).
@@ -247,7 +255,10 @@ public:
      *
      * Be sure to read the ExecutorFuture class comment.
      */
-    ExecutorFuture<T> thenRunOn(ExecutorPtr exec) && noexcept;
+    ExecutorFuture<T> thenRunWith(ScheduleFunction sched) && noexcept;
+    ExecutorFuture<T> thenRunOn(ExecutorPtr exec) && noexcept {
+        return std::move(*this).thenRunWith(scheduleWithExecutor(exec));
+    }
 
 private:
     friend class Promise<T>;
@@ -313,6 +324,7 @@ public:
     using SemiFuture<T>::getNoThrow;
     using SemiFuture<T>::semi;
     using SemiFuture<T>::thenRunOn;
+    using SemiFuture<T>::thenRunWith;
 
     /**
      * Re-export makeReady, but return a Future<T>
@@ -552,20 +564,21 @@ public:
     ExecutorFuture() = delete;
 
     ExecutorFuture(ExecutorPtr exec, Status status)
-        : SemiFuture<T>(std::move(status)), _exec(std::move(exec)) {}
+        : SemiFuture<T>(std::move(status)), _sched(scheduleWithExecutor(std::move(exec))) {}
 
     // These should not be used with T=void.
     ExecutorFuture(ExecutorPtr exec, T_unless_void val)
-        : SemiFuture<T>(std::move(val)), _exec(std::move(exec)) {
+        : SemiFuture<T>(std::move(val)), _sched(scheduleWithExecutor(std::move(exec))) {
         static_assert(!std::is_void_v<T>);
     }
     ExecutorFuture(ExecutorPtr exec, StatusWith<T_unless_void> sw)
-        : SemiFuture<T>(std::move(sw)), _exec(std::move(exec)) {
+        : SemiFuture<T>(std::move(sw)), _sched(scheduleWithExecutor(std::move(exec))) {
         static_assert(!std::is_void_v<T>);
     }
 
     REQUIRES_FOR_NON_TEMPLATE(std::is_void_v<T>)
-    explicit ExecutorFuture(ExecutorPtr exec) : SemiFuture<void>(), _exec(std::move(exec)) {}
+    explicit ExecutorFuture(ExecutorPtr exec)
+        : SemiFuture<void>(), _sched(scheduleWithExecutor(std::move(exec))) {}
 
     /**
      * Re-export the accessor API of SemiFuture. The access API of ExecutorFuture is a superset, but
@@ -580,9 +593,10 @@ public:
     using SemiFuture<T>::getNoThrow;
     using SemiFuture<T>::semi;
     using SemiFuture<T>::thenRunOn;
+    using SemiFuture<T>::thenRunWith;
 
     ExecutorFuture<void> ignoreValue() && noexcept {
-        return ExecutorFuture<void>(std::move(_exec), std::move(this->_impl).ignoreValue());
+        return ExecutorFuture<void>(std::move(_sched), std::move(this->_impl).ignoreValue());
     }
 
     //
@@ -609,11 +623,12 @@ public:
         // Can't use wrapCB since we don't want to return a future, just schedule a non-chainable
         // callback.
         std::move(this->_impl).getAsync([
-            exec = std::move(_exec),  // Unlike wrapCB this can move because we won't need it later.
+            sched =
+                std::move(_sched),  // Unlike wrapCB this can move because we won't need it later.
             func = std::forward<Func>(func)
         ](StatusOrStatusWith<T> arg) mutable noexcept {
-            exec->schedule([ func = std::move(func),
-                             arg = std::move(arg) ](Status execStatus) mutable noexcept {
+            sched([ func = std::move(func),
+                    arg = std::move(arg) ](Status execStatus) mutable noexcept {
                 if (execStatus.isOK())
                     func(std::move(arg));
             });
@@ -624,14 +639,14 @@ public:
     REQUIRES(future_details::isCallable<Func, T>)
     auto then(Func&& func) && noexcept {
         return mongo::ExecutorFuture(
-            std::move(_exec), std::move(this->_impl).then(wrapCB<T>(std::forward<Func>(func))));
+            std::move(_sched), std::move(this->_impl).then(wrapCB<T>(std::forward<Func>(func))));
     }
 
     TEMPLATE(typename Func)
     REQUIRES(future_details::isCallable<Func, StatusOrStatusWith<T>>)
     auto onCompletion(Func&& func) && noexcept {
         return mongo::ExecutorFuture(
-            std::move(_exec),
+            std::move(_sched),
             std::move(this->_impl)
                 .onCompletion(wrapCB<StatusOrStatusWith<T>>(std::forward<Func>(func))));
     }
@@ -640,7 +655,7 @@ public:
     REQUIRES(future_details::isCallableR<T, Func, Status>)
     ExecutorFuture<T> onError(Func&& func) && noexcept {
         return mongo::ExecutorFuture(
-            std::move(_exec),
+            std::move(_sched),
             std::move(this->_impl).onError(wrapCB<Status>(std::forward<Func>(func))));
     }
 
@@ -648,7 +663,7 @@ public:
     REQUIRES(future_details::isCallableR<T, Func, Status>)
     ExecutorFuture<T> onError(Func&& func) && noexcept {
         return mongo::ExecutorFuture(
-            std::move(_exec),
+            std::move(_sched),
             std::move(this->_impl)
                 .template onError<code>(wrapCB<Status>(std::forward<Func>(func))));
     }
@@ -657,20 +672,21 @@ public:
     REQUIRES(future_details::isCallableR<T, Func, Status>)
     ExecutorFuture<T> onErrorCategory(Func&& func) && noexcept {
         return mongo::ExecutorFuture(
-            std::move(_exec),
+            std::move(_sched),
             std::move(this->_impl)
                 .template onErrorCategory<category>(wrapCB<Status>(std::forward<Func>(func))));
     }
 
 private:
     // This *must* take exec by ref to ensure it isn't moved from while evaluating wrapCB above.
-    ExecutorFuture(ExecutorPtr&& exec, Impl&& impl) : SemiFuture<T>(std::move(impl)), _exec(exec) {
-        dassert(_exec);
+    ExecutorFuture(ScheduleFunction&& sched, Impl&& impl)
+        : SemiFuture<T>(std::move(impl)), _sched(sched) {
+        dassert(_sched);
     }
 
     /**
      * Wraps func in a callback that takes the argument it would and returns an appropriately typed
-     * Future<U>, then schedules a task on _exec to complete the associated promise with the result
+     * Future<U>, then schedules a task on _sched to complete the associated promise with the result
      * of calling func with that argument.
      */
     template <typename RawArg, typename Func>
@@ -702,7 +718,7 @@ private:
     template <typename>
     friend class future_details::FutureImpl;
 
-    ExecutorPtr _exec;
+    ScheduleFunction _sched;
 };
 
 // Deduction Guides
@@ -710,7 +726,7 @@ TEMPLATE(typename T)
 REQUIRES(!isStatusOrStatusWith<T> && !future_details::isFutureLike<T>)
 ExecutorFuture(ExecutorPtr, T)->ExecutorFuture<T>;
 template <typename T>
-ExecutorFuture(ExecutorPtr, future_details::FutureImpl<T>)->ExecutorFuture<T>;
+ExecutorFuture(ScheduleFunction, future_details::FutureImpl<T>)->ExecutorFuture<T>;
 template <typename T>
 ExecutorFuture(ExecutorPtr, StatusWith<T>)->ExecutorFuture<T>;
 ExecutorFuture(ExecutorPtr)->ExecutorFuture<void>;
@@ -948,8 +964,12 @@ public:
         return _shared.getNoThrow(interruptible);
     }
 
+    ExecutorFuture<T> thenRunWith(ScheduleFunction sched) const noexcept {
+        return ExecutorFuture<T>(std::move(sched), toFutureImpl());
+    }
+
     ExecutorFuture<T> thenRunOn(ExecutorPtr exec) const noexcept {
-        return ExecutorFuture<T>(std::move(exec), toFutureImpl());
+        return thenRunWith(scheduleWithExecutor(std::move(exec)));
     }
 
     /**
@@ -1146,13 +1166,13 @@ MONGO_COMPILER_NOINLINE auto ExecutorFuture<T>::wrapCBHelper(unique_function<Sig
     using namespace future_details;
     return [
         func = std::move(func),
-        exec = _exec  // can't move this!
+        sched = _sched  // can't move this!
     ](auto&&... args) mutable noexcept
         ->Future<UnwrappedType<decltype(func(std::forward<decltype(args)>(args)...))>> {
         auto [promise, future] = makePromiseFuture<
             UnwrappedType<decltype(func(std::forward<decltype(args)>(args)...))>>();
 
-        exec->schedule([
+        sched([
             promise = std::move(promise),
             func = std::move(func),
             argsT =
@@ -1183,8 +1203,8 @@ MONGO_COMPILER_NOINLINE auto ExecutorFuture<T>::wrapCBHelper(unique_function<Sig
 }
 
 template <typename T>
-    inline ExecutorFuture<T> SemiFuture<T>::thenRunOn(ExecutorPtr exec) && noexcept {
-    return ExecutorFuture<T>(std::move(exec), std::move(_impl));
+    inline ExecutorFuture<T> SemiFuture<T>::thenRunWith(ScheduleFunction sched) && noexcept {
+    return ExecutorFuture<T>(std::move(sched), std::move(_impl));
 }
 
 template <typename T>

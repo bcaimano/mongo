@@ -196,5 +196,26 @@ TEST(Executor_Future, Success_reject_recoverToFallback) {
                             ASSERT_EQ(accepter->tasksRun.load(), 1);
                         });
 }
+
+TEST(Executor_Future, Success_thenRunWith) {
+    FUTURE_SUCCESS_TEST([] {},
+                        [](/*Future<void>*/ auto&& fut) {
+                            auto tasksRun = 0;
+                            auto scheduler = [&](auto task) {
+                                // Run the task inline and increment our counter.
+                                ++tasksRun;
+                                task(Status::OK());
+                            };
+
+                            auto res = std::move(fut)
+                                           .thenRunWith(scheduler)
+                                           .then([&]() { return 4; })
+                                           .then([&](auto value) { return --value; })
+                                           .get();
+                            ASSERT_EQ(res, 3);
+                            ASSERT_EQ(tasksRun, 2);
+                        });
+}
+
 }  // namespace
 }  // namespace mongo
