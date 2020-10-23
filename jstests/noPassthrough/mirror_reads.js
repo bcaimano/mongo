@@ -20,44 +20,68 @@ function getMirroredReadsStats(rst) {
 }
 
 function sendAndCheckReads({rst, cmd, minRate, maxRate}) {
-    let startMirroredReads = getMirroredReadsStats(rst);
+    const numNodes = rst.getSecondaries().length;
 
-    jsTestLog(`Sending ${kBurstCount} request burst of ${tojson(cmd)} to primary`);
+    const startMirroredReads = getMirroredReadsStats(rst);
+
+    jsTestLog(
+        "Sending request burst to primary: " +
+        tojson({count: kBurstCount, command: cmd, secondariesCount: numNodes})
+    );
 
     for (var i = 0; i < kBurstCount; ++i) {
         rst.getPrimary().getDB(kDbName).runCommand(cmd);
     }
 
-    jsTestLog(`Verifying ${tojson(cmd)} was mirrored`);
+    jsTestLog(
+        "Verifying command was mirrored: " +
+        tojson({command: cmd})
+    );
 
     // Verify that the commands have been observed on the primary
     {
-        let currentMirroredReads = getMirroredReadsStats(rst);
+        const currentMirroredReads = getMirroredReadsStats(rst);
         assert.lte(startMirroredReads.seen + kBurstCount, currentMirroredReads.seen);
     }
 
     // Verify that the reads mirrored to the secondaries have responded
     assert.soon(() => {
-        let currentMirroredReads = getMirroredReadsStats(rst);
+        const currentMirroredReads = getMirroredReadsStats(rst);
 
-        let readsSeen = currentMirroredReads.seen - startMirroredReads.seen;
-        let readsMirrored = currentMirroredReads.resolved - startMirroredReads.resolved;
+        const readsSent = currentMirroredReads.sent - startMirroredReads.sent;
+        const readsResolved = currentMirroredReads.resolved - startMirroredReads.resolved;
 
-        let numNodes = rst.getSecondaries().length;
-        jsTestLog(`Seen ${readsSeen} requests; ` +
-                  `verified ${readsMirrored / numNodes} requests ` +
-                  `x ${numNodes} nodes`);
+        jsTestLog(
+            "Evaluating requests: " +
+            tojson({sent: readsSent, resolved: readsResolved})
+        );
 
-        let rate = readsMirrored / readsSeen / numNodes;
-        return (rate >= minRate) && (readsSeen >= kBurstCount);
-    }, "Did not verify all requests within time limit", 10000);
-    let currentMirroredReads = getMirroredReadsStats(rst);
-    const resolvedRate = (currentMirroredReads.resolved - startMirroredReads.resolved) /
-        (currentMirroredReads.seen - startMirroredReads.seen) / rst.getSecondaries().length;
-    jsTestLog(`Comparing resolvedRate: ${resolvedRate} versus maxRate: ${maxRate}`);
-    assert(resolvedRate <= maxRate);
+        return readsSent == readsResolved;
+    }, "Did not resolve all requests within time limit", 10000);
 
-    jsTestLog(`Verified ${tojson(cmd)} was mirrored`);
+    // Verify that we have the expected postconditions.
+    {
+        const currentMirroredReads = getMirroredReadsStats(rst);
+        const readsSeen = currentMirroredReads.seen - startMirroredReads.seen;
+        const readsSent = currentMirroredReads.sent - startMirroredReads.sent;
+        const readsResolved = currentMirroredReads.resolved - startMirroredReads.resolved;
+        const rate = readsResolved / readsSeen / numNodes;
+
+        jsTestLog(
+            "Verifying statistics: " +
+            tojson({current: currentMirroredReads, start: startMirroredReads})
+        );
+
+        assert.gte(readsSeen, kBurstCount);
+        assert.eq(readsSent, readsResolved);
+        assert.gte(rate, 0);
+        assert.lte(rate, maxRate);
+    }
+
+    jsTestLog(
+        "Verified command was mirrored: " +
+        tojson({command: cmd})
+    );
 }
 
 function verifyMirrorReads(rst, cmd) {
