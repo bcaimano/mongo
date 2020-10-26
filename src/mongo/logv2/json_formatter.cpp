@@ -225,6 +225,7 @@ void JSONFormatter::format(fmt::memory_buffer& buffer,
                            LogComponent component,
                            Date_t date,
                            int32_t id,
+                           int64_t tid,
                            StringData context,
                            StringData message,
                            const TypeErasedAttributeStorage& attrs,
@@ -325,6 +326,7 @@ void JSONFormatter::format(fmt::memory_buffer& buffer,
         field(top, c::kSeverityFieldName, padNextComma(top, 5, quote(strFn(severityString))));
         field(top, c::kComponentFieldName, padNextComma(top, 11, quote(strFn(componentString))));
         field(top, c::kIdFieldName, padNextComma(top, 8, intFn(id)));
+        field(top, c::kTidFieldName, padNextComma(top, 8, intFn(tid)));
         field(top, c::kContextFieldName, quote(strFn(context)));
         field(top, c::kMessageFieldName, quote(escFn(message)));
         if (!attrs.empty()) {
@@ -353,6 +355,7 @@ void JSONFormatter::operator()(boost::log::record_view const& rec,
            extract<LogComponent>(attributes::component(), rec).get(),
            extract<Date_t>(attributes::timeStamp(), rec).get(),
            extract<int32_t>(attributes::id(), rec).get(),
+           extract<int64_t>(attributes::tid(), rec).get(),
            extract<StringData>(attributes::threadName(), rec).get(),
            extract<StringData>(attributes::message(), rec).get(),
            extract<TypeErasedAttributeStorage>(attributes::attributes(), rec).get(),

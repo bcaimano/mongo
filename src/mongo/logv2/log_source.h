@@ -44,6 +44,7 @@
 #include "mongo/logv2/log_severity.h"
 #include "mongo/logv2/log_tag.h"
 #include "mongo/logv2/log_truncation.h"
+#include "mongo/util/thread_context.h"
 #include "mongo/util/time_support.h"
 
 namespace mongo::logv2 {
@@ -71,6 +72,14 @@ public:
         add_attribute_unlocked(attributes::truncation(), _truncation);
         add_attribute_unlocked(attributes::userassert(), _uassertErrorCode);
         add_attribute_unlocked(attributes::id(), _id);
+        add_attribute_unlocked(
+            attributes::tid(), boost::log::attributes::make_function([]() -> int64_t {
+                if (auto& threadContext = ThreadContext::get(); MONGO_likely(threadContext)) {
+                    return threadContext->threadId().asInt64();
+                }
+
+                return -1;
+            }));
         add_attribute_unlocked(attributes::timeStamp(), boost::log::attributes::make_function([]() {
                                    return Date_t::now();
                                }));

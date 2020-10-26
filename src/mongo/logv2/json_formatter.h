@@ -54,6 +54,7 @@ public:
                 LogComponent component,
                 Date_t date,
                 int32_t id,
+                int64_t tid,
                 StringData context,
                 StringData message,
                 const TypeErasedAttributeStorage& attrs,

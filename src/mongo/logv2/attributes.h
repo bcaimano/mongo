@@ -41,6 +41,7 @@ const boost::log::attribute_name& timeStamp();
 const boost::log::attribute_name& threadName();
 const boost::log::attribute_name& tags();
 const boost::log::attribute_name& id();
+const boost::log::attribute_name& tid();
 const boost::log::attribute_name& message();
 const boost::log::attribute_name& attributes();
 const boost::log::attribute_name& truncation();

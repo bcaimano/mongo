@@ -66,6 +66,11 @@ const boost::log::attribute_name& id() {
     return attr;
 }
 
+const boost::log::attribute_name& tid() {
+    static const boost::log::attribute_name attr("tid");
+    return attr;
+}
+
 const boost::log::attribute_name& message() {
     static const boost::log::attribute_name attr("message");
     return attr;

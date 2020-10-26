@@ -44,6 +44,7 @@ constexpr StringData kSeverityFieldName = "s"_sd;
 constexpr StringData kComponentFieldName = "c"_sd;
 constexpr StringData kContextFieldName = "ctx"_sd;
 constexpr StringData kIdFieldName = "id"_sd;
+constexpr StringData kTidFieldName = "tid"_sd;
 constexpr StringData kMessageFieldName = "msg"_sd;
 constexpr StringData kAttributesFieldName = "attr"_sd;
 constexpr StringData kTruncatedFieldName = "truncated"_sd;

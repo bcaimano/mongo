@@ -40,6 +40,7 @@
 #include "mongo/logv2/log_detail.h"
 #include "mongo/logv2/shared_access_fstream.h"
 #include "mongo/util/string_map.h"
+#include "mongo/util/thread_context.h"
 
 
 namespace mongo::logv2 {
@@ -166,6 +167,7 @@ void FileRotateSink::consume(const boost::log::record_view& rec,
                         LogComponent::kControl,
                         Date_t::now(),
                         4522200,
+                        ThreadContext::get()->threadId().asInt64(),
                         getThreadName(),
                         "Writing to log file failed, aborting application",
                         TypeErasedAttributeStorage(attrs),
