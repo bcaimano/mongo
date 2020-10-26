@@ -220,16 +220,7 @@ public:
         ClientSet::const_iterator _end;
     };
 
-    /**
-     * Special deleter used for cleaning up ServiceContext objects.
-     * See UniqueServiceContext, below.
-     */
-    class ServiceContextDeleter {
-    public:
-        void operator()(ServiceContext* service) const;
-    };
-
-    using UniqueServiceContext = std::unique_ptr<ServiceContext, ServiceContextDeleter>;
+    using UniqueServiceContext = std::unique_ptr<ServiceContext>;
 
     /**
      * Special deleter used for cleaning up Client objects owned by a ServiceContext.
@@ -258,92 +249,6 @@ public:
      * This is the unique handle type for OperationContexts created by a ServiceContext.
      */
     using UniqueOperationContext = std::unique_ptr<OperationContext, OperationContextDeleter>;
-
-    /**
-     * Register a function of this type using  an instance of ConstructorActionRegisterer,
-     * below, to cause the function to be executed on new ServiceContext instances.
-     */
-    using ConstructorAction = std::function<void(ServiceContext*)>;
-
-    /**
-     * Register a function of this type using an instance of ConstructorActionRegisterer,
-     * below, to cause the function to be executed on ServiceContext instances before they
-     * are destroyed.
-     */
-    using DestructorAction = std::function<void(ServiceContext*)>;
-
-    /**
-     * Representation of a paired ConstructorAction and DestructorAction.
-     */
-    class ConstructorDestructorActions {
-    public:
-        ConstructorDestructorActions(ConstructorAction constructor, DestructorAction destructor)
-            : _constructor(std::move(constructor)), _destructor(std::move(destructor)) {}
-
-        void onCreate(ServiceContext* service) const {
-            _constructor(service);
-        }
-        void onDestroy(ServiceContext* service) const {
-            _destructor(service);
-        }
-
-    private:
-        ConstructorAction _constructor;
-        DestructorAction _destructor;
-    };
-
-    /**
-     * Registers a function to execute on new service contexts when they are created, and optionally
-     * also register a function to execute before those contexts are destroyed.
-     *
-     * Construct instances of this type during static initialization only, as they register
-     * MONGO_INITIALIZERS.
-     */
-    class ConstructorActionRegisterer {
-    public:
-        /**
-         * This constructor registers a constructor and optional destructor with the given
-         * "name" and no prerequisite constructors or mongo initializers.
-         */
-        ConstructorActionRegisterer(std::string name,
-                                    ConstructorAction constructor,
-                                    DestructorAction destructor = {});
-
-        /**
-         * This constructor registers a constructor and optional destructor with the given
-         * "name", and a list of names of prerequisites, "prereqs".
-         *
-         * The named constructor will run after all of its prereqs successfully complete,
-         * and the corresponding destructor, if provided, will run before any of its
-         * prerequisites execute.
-         */
-        ConstructorActionRegisterer(std::string name,
-                                    std::vector<std::string> prereqs,
-                                    ConstructorAction constructor,
-                                    DestructorAction destructor = {});
-
-        /**
-         * This constructor registers a constructor and optional destructor with the given
-         * "name", a list of names of prerequisites, "prereqs", and a list of names of dependents,
-         * "dependents".
-         *
-         * The named constructor will run after all of its prereqs successfully complete,
-         * and the corresponding destructor, if provided, will run before any of its
-         * prerequisites execute. The dependents will run after this constructor and
-         * the corresponding destructor, if provided, will run after any of its
-         * dependents execute.
-         */
-        ConstructorActionRegisterer(std::string name,
-                                    std::vector<std::string> prereqs,
-                                    std::vector<std::string> dependents,
-                                    ConstructorAction constructor,
-                                    DestructorAction destructor = {});
-
-    private:
-        using ConstructorActionListIterator = std::list<ConstructorDestructorActions>::iterator;
-        ConstructorActionListIterator _iter;
-        boost::optional<GlobalInitializerRegisterer> _registerer;
-    };
 
     /**
      * Factory function for making instances of ServiceContext. It is the only means by which they

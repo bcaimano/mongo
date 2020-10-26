@@ -60,13 +60,161 @@
 
 #pragma once
 
+#include <list>
+
+#include "boost/optional.hpp"
+
+#include "mongo/base/checked_cast.h"
+#include "mongo/base/global_initializer_registerer.h"
 #include "mongo/util/decoration_container.h"
 #include "mongo/util/decoration_registry.h"
+#include "mongo/util/functional.h"
 
 namespace mongo {
 
+// TODO(CR) this actually belongs in its own class.
 template <typename D>
-class Decorable {
+class ComponentConstructable {
+public:
+    virtual ~ComponentConstructable() = default;
+
+    /**
+     * Register a function of this type using  an instance of ConstructorActionRegisterer,
+     * below, to cause the function to be executed on new D instances.
+     */
+    using ConstructorAction = std::function<void(D*)>;
+
+    /**
+     * Register a function of this type using an instance of ConstructorActionRegisterer,
+     * below, to cause the function to be executed on D instances before they
+     * are destroyed.
+     */
+    using DestructorAction = std::function<void(D*)>;
+
+    /**
+     * Representation of a paired ConstructorAction and DestructorAction.
+     */
+    class ConstructorDestructorActions {
+    public:
+        ConstructorDestructorActions(ConstructorAction constructor, DestructorAction destructor)
+            : _constructor(std::move(constructor)), _destructor(std::move(destructor)) {}
+
+        void onCreate(D* service) const {
+            _constructor(service);
+        }
+        void onDestroy(D* service) const {
+            _destructor(service);
+        }
+
+    private:
+        ConstructorAction _constructor;
+        DestructorAction _destructor;
+    };
+
+    using ConstructorActionList = std::list<ConstructorDestructorActions>;
+    using ConstructorActionListIterator = typename ConstructorActionList::iterator;
+
+    /**
+     * Registers a function to execute on new service contexts when they are created, and optionally
+     * also register a function to execute before those contexts are destroyed.
+     *
+     * Construct instances of this type during static initialization only, as they register
+     * MONGO_INITIALIZERS.
+     */
+    class ConstructorActionRegisterer {
+    public:
+        /**
+         * This constructor registers a constructor and optional destructor with the given
+         * "name" and no prerequisite constructors or mongo initializers.
+         */
+        ConstructorActionRegisterer(std::string name,
+                                    ConstructorAction constructor,
+                                    DestructorAction destructor = {})
+            : ConstructorActionRegisterer(
+                  std::move(name), {}, std::move(constructor), std::move(destructor)) {}
+
+        /**
+         * This constructor registers a constructor and optional destructor with the given
+         * "name", and a list of names of prerequisites, "prereqs".
+         *
+         * The named constructor will run after all of its prereqs successfully complete,
+         * and the corresponding destructor, if provided, will run before any of its
+         * prerequisites execute.
+         */
+        ConstructorActionRegisterer(std::string name,
+                                    std::vector<std::string> prereqs,
+                                    ConstructorAction constructor,
+                                    DestructorAction destructor = {})
+            : ConstructorActionRegisterer(
+                  std::move(name), prereqs, {}, std::move(constructor), std::move(destructor)) {}
+
+        /**
+         * This constructor registers a constructor and optional destructor with the given
+         * "name", a list of names of prerequisites, "prereqs", and a list of names of dependents,
+         * "dependents".
+         *
+         * The named constructor will run after all of its prereqs successfully complete,
+         * and the corresponding destructor, if provided, will run before any of its
+         * prerequisites execute. The dependents will run after this constructor and
+         * the corresponding destructor, if provided, will run after any of its
+         * dependents execute.
+         */
+        ConstructorActionRegisterer(std::string name,
+                                    std::vector<std::string> prereqs,
+                                    std::vector<std::string> dependents,
+                                    ConstructorAction constructor,
+                                    DestructorAction destructor = {});
+
+    private:
+        ConstructorActionListIterator _iter;
+        boost::optional<GlobalInitializerRegisterer> _registerer;
+    };
+
+protected:
+    // Note that destructors run in reverse order of constructors, and that failed construction
+    // leads to corresponding destructors to run, similarly to how member variable construction and
+    // destruction behave.
+    void _onCreate() {
+        auto& observers = _actions();
+        auto observer = observers.begin();
+        try {
+            for (; observer != observers.end(); ++observer) {
+                observer->onCreate(checked_cast<D*>(this));
+            }
+        } catch (...) {
+            _onDestroy(observers.begin(), observer);
+            throw;
+        }
+    }
+
+    void _onDestroy() noexcept {
+        auto& observers = _actions();
+        _onDestroy(observers.begin(), observers.end());
+    }
+
+    void _onDestroy(ConstructorActionListIterator observerBegin,
+                    ConstructorActionListIterator observerEnd) noexcept {
+        auto observer = observerEnd;
+        while (observer != observerBegin) {
+            --observer;
+            observer->onDestroy(checked_cast<D*>(this));
+        }
+    }
+
+private:
+    /**
+     * Accessor function to get the global list of ServiceContext constructor and destructor
+     * functions.
+     */
+    static ConstructorActionList& _actions() {
+        static ConstructorActionList cal;
+        return cal;
+    }
+};
+
+
+template <typename D>
+class Decorable : public ComponentConstructable<D> {
     Decorable(const Decorable&) = delete;
     Decorable& operator=(const Decorable&) = delete;
 
@@ -228,5 +376,30 @@ private:
 
     DecorationContainer<D> _decorations;
 };
+
+template <typename D>
+ComponentConstructable<D>::ConstructorActionRegisterer::ConstructorActionRegisterer(
+    std::string name,
+    std::vector<std::string> prereqs,
+    std::vector<std::string> dependents,
+    ConstructorAction constructor,
+    DestructorAction destructor) {
+    if (!destructor)
+        destructor = [](D*) {};
+    _registerer.emplace(std::move(name),
+                        [this, constructor, destructor](InitializerContext* context) {
+                            auto& actions = ComponentConstructable<D>::_actions();
+                            _iter = actions.emplace(
+                                actions.end(), std::move(constructor), std::move(destructor));
+                            return Status::OK();
+                        },
+                        [this](DeinitializerContext* context) {
+                            auto& actions = ComponentConstructable<D>::_actions();
+                            actions.erase(_iter);
+                            return Status::OK();
+                        },
+                        std::move(prereqs),
+                        std::move(dependents));
+}
 
 }  // namespace mongo

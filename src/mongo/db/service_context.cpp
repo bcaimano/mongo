@@ -57,8 +57,6 @@
 namespace mongo {
 namespace {
 
-using ConstructorActionList = std::list<ServiceContext::ConstructorDestructorActions>;
-
 ServiceContext* globalServiceContext = nullptr;
 
 AtomicWord<int> _numCurrentOps{0};
@@ -102,6 +100,8 @@ ServiceContext::ServiceContext()
       _preciseClockSource(std::make_unique<SystemClockSource>()) {}
 
 ServiceContext::~ServiceContext() {
+    _onDestroy();
+
     stdx::lock_guard<Latch> lk(_mutex);
     for (const auto& client : _clients) {
         LOGV2_ERROR(23828,
@@ -423,65 +423,10 @@ int ServiceContext::getActiveClientOperations() {
     return _numCurrentOps.load();
 }
 
-namespace {
-
-/**
- * Accessor function to get the global list of ServiceContext constructor and destructor
- * functions.
- */
-ConstructorActionList& registeredConstructorActions() {
-    static ConstructorActionList cal;
-    return cal;
-}
-
-}  // namespace
-
-ServiceContext::ConstructorActionRegisterer::ConstructorActionRegisterer(
-    std::string name, ConstructorAction constructor, DestructorAction destructor)
-    : ConstructorActionRegisterer(
-          std::move(name), {}, std::move(constructor), std::move(destructor)) {}
-
-ServiceContext::ConstructorActionRegisterer::ConstructorActionRegisterer(
-    std::string name,
-    std::vector<std::string> prereqs,
-    ConstructorAction constructor,
-    DestructorAction destructor)
-    : ConstructorActionRegisterer(
-          std::move(name), prereqs, {}, std::move(constructor), std::move(destructor)) {}
-
-ServiceContext::ConstructorActionRegisterer::ConstructorActionRegisterer(
-    std::string name,
-    std::vector<std::string> prereqs,
-    std::vector<std::string> dependents,
-    ConstructorAction constructor,
-    DestructorAction destructor) {
-    if (!destructor)
-        destructor = [](ServiceContext*) {};
-    _registerer.emplace(std::move(name),
-                        [this, constructor, destructor](InitializerContext* context) {
-                            _iter = registeredConstructorActions().emplace(
-                                registeredConstructorActions().end(),
-                                std::move(constructor),
-                                std::move(destructor));
-                            return Status::OK();
-                        },
-                        [this](DeinitializerContext* context) {
-                            registeredConstructorActions().erase(_iter);
-                            return Status::OK();
-                        },
-                        std::move(prereqs),
-                        std::move(dependents));
-}
-
 ServiceContext::UniqueServiceContext ServiceContext::make() {
-    auto service = std::make_unique<ServiceContext>();
-    onCreate(service.get(), registeredConstructorActions());
-    return UniqueServiceContext{service.release()};
-}
-
-void ServiceContext::ServiceContextDeleter::operator()(ServiceContext* service) const {
-    onDestroy(service, registeredConstructorActions());
-    delete service;
+    UniqueServiceContext service = std::make_unique<ServiceContext>();
+    service->_onCreate();
+    return service;
 }
 
 BatonHandle ServiceContext::makeBaton(OperationContext* opCtx) const {
