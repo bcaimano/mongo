@@ -39,6 +39,7 @@
 #include <type_traits>
 
 #include "mongo/stdx/exception.h"
+#include "mongo/util/thread_context.h"
 #include "mongo/util/thread_safety_context.h"
 
 #if defined(__linux__) || defined(__FreeBSD__)
@@ -170,6 +171,7 @@ public:
     explicit thread(Function f, Args&&... args) noexcept
         : ::std::thread::thread(  // NOLINT
               [
+                  parentThreadContext = ThreadContext::get(),
                   sigAltStackController = support::SigAltStackController(),
                   f = std::move(f),
                   pack = std::make_tuple(std::forward<Args>(args)...)
@@ -181,8 +183,11 @@ public:
                   ::std::set_terminate(  // NOLINT
                       ::mongo::stdx::TerminateHandlerDetailsInterface::dispatch);
 #endif
+                  ThreadContext::init(std::move(parentThreadContext));
                   ThreadSafetyContext::getThreadSafetyContext()->onThreadCreate();
                   auto sigAltStackGuard = sigAltStackController.makeInstallGuard();
+
+
                   return std::apply(std::move(f), std::move(pack));
               }) {
     }

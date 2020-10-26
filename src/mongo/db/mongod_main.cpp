@@ -205,6 +205,7 @@
 #include "mongo/util/signal_handlers.h"
 #include "mongo/util/stacktrace.h"
 #include "mongo/util/text.h"
+#include "mongo/util/thread_context.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/version.h"
 #include "mongo/watchdog/watchdog_mongod.h"
@@ -1380,6 +1381,7 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
 }  // namespace
 
 int mongod_main(int argc, char* argv[]) {
+    ThreadContext::init();
     ThreadSafetyContext::getThreadSafetyContext()->forbidMultiThreading();
 
     registerShutdownTask(shutdownTask);

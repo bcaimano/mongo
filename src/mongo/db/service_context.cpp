@@ -52,12 +52,33 @@
 #include "mongo/util/str.h"
 #include "mongo/util/system_clock_source.h"
 #include "mongo/util/system_tick_source.h"
+#include "mongo/util/thread_context.h"
 #include <iostream>
 
 namespace mongo {
 namespace {
 
-ServiceContext* globalServiceContext = nullptr;
+auto getServiceContextForThread =
+    ThreadContext::declareDecoration<ServiceContext::UniqueServiceContext>();
+
+auto threadConstructorAction = ThreadContext::ConstructorActionRegisterer(
+    "ServiceContext",
+    [](ThreadContext* threadContext) {
+        auto parentThreadContext = threadContext->getParent();
+        if (!parentThreadContext) {
+            // If there is no parent, there is no hierarchy to expand.
+            return;
+        }
+
+        // Take our parent's ServiceContext and make it our ServiceContext as well.
+        auto serviceContext = getServiceContextForThread(parentThreadContext.get());
+        getServiceContextForThread(threadContext) = std::move(serviceContext);
+    },
+    [](ThreadContext* threadContext) {
+        // Remove from the thread local access, then destroy.
+        auto serviceContext = std::exchange(getServiceContextForThread(threadContext), {});
+        serviceContext.reset();
+    });
 
 AtomicWord<int> _numCurrentOps{0};
 
@@ -66,12 +87,24 @@ AtomicWord<int> _numCurrentOps{0};
 LockedClient::LockedClient(Client* client) : _lk{*client}, _client{client} {}
 
 bool hasGlobalServiceContext() {
-    return globalServiceContext;
+    auto threadContext = ThreadContext::get();
+    if (!threadContext) {
+        return false;
+    }
+
+    auto& serviceContext = getServiceContextForThread(threadContext.get());
+    return static_cast<bool>(serviceContext);
 }
 
 ServiceContext* getGlobalServiceContext() {
-    fassert(17508, globalServiceContext);
-    return globalServiceContext;
+    auto threadContext = ThreadContext::get();
+    if (!threadContext) {
+        // TODO(CR) Can I invariant this eventually?
+        return nullptr;
+    }
+
+    auto& serviceContext = getServiceContextForThread(threadContext.get());
+    return serviceContext.get();
 }
 
 ServiceContext* getCurrentServiceContext() {
@@ -84,14 +117,17 @@ ServiceContext* getCurrentServiceContext() {
 }
 
 void setGlobalServiceContext(ServiceContext::UniqueServiceContext&& serviceContext) {
+    auto threadContext = ThreadContext::get();
+    invariant(threadContext);
+
+    auto& globalServiceContext = getServiceContextForThread(threadContext.get());
     if (globalServiceContext) {
         // Make sure that calling getGlobalServiceContext() during the destructor results in
         // nullptr. Decorations might try and do this.
-        ServiceContext::UniqueServiceContext oldServiceContext{globalServiceContext};
-        globalServiceContext = nullptr;
+        auto oldServiceContext = std::exchange(globalServiceContext, {});
     }
 
-    globalServiceContext = serviceContext.release();
+    globalServiceContext = std::forward<ServiceContext::UniqueServiceContext>(serviceContext);
 }
 
 ServiceContext::ServiceContext()
@@ -424,7 +460,7 @@ int ServiceContext::getActiveClientOperations() {
 }
 
 ServiceContext::UniqueServiceContext ServiceContext::make() {
-    UniqueServiceContext service = std::make_unique<ServiceContext>();
+    UniqueServiceContext service = make_intrusive<ServiceContext>();
     service->_onCreate();
     return service;
 }

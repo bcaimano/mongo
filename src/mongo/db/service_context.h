@@ -48,6 +48,7 @@
 #include "mongo/util/concurrency/with_lock.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/hierarchical_acquisition.h"
+#include "mongo/util/intrusive_counter.h"
 #include "mongo/util/periodic_runner.h"
 #include "mongo/util/synchronized_value.h"
 #include "mongo/util/tick_source.h"
@@ -146,7 +147,7 @@ using OperationKey = UUID;
  * A ServiceContext is the root of a hierarchy of contexts.  A ServiceContext owns
  * zero or more Clients, which in turn each own OperationContexts.
  */
-class ServiceContext final : public Decorable<ServiceContext> {
+class ServiceContext final : public Decorable<ServiceContext>, public RefCountable {
     ServiceContext(const ServiceContext&) = delete;
     ServiceContext& operator=(const ServiceContext&) = delete;
 
@@ -220,7 +221,7 @@ public:
         ClientSet::const_iterator _end;
     };
 
-    using UniqueServiceContext = std::unique_ptr<ServiceContext>;
+    using UniqueServiceContext = boost::intrusive_ptr<ServiceContext>;
 
     /**
      * Special deleter used for cleaning up Client objects owned by a ServiceContext.

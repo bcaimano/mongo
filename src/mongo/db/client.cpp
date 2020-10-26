@@ -48,11 +48,27 @@
 #include "mongo/util/concurrency/thread_name.h"
 #include "mongo/util/exit.h"
 #include "mongo/util/str.h"
+#include "mongo/util/thread_context.h"
 
 namespace mongo {
 
 namespace {
-thread_local ServiceContext::UniqueClient currentClient;
+auto getClientForThread = ThreadContext::declareDecoration<ServiceContext::UniqueClient>();
+
+auto threadConstructorAction = ThreadContext::ConstructorActionRegisterer(
+    "Client",
+    [](ThreadContext*) {},
+    [](ThreadContext* threadContext) {
+        // Remove from the thread local access, then destroy.
+        auto client = std::exchange(getClientForThread(threadContext), {});
+        client.reset();
+    });
+
+ServiceContext::UniqueClient& clientForCurrentThread() {
+    auto threadContext = ThreadContext::get();
+    invariant(threadContext);
+    return getClientForThread(threadContext.get());
+}
 
 void invariantNoCurrentClient() {
     invariant(!haveClient(),
@@ -80,7 +96,8 @@ void Client::initThread(StringData desc,
     setThreadName(fullDesc);
 
     // Create the client obj, attach to thread
-    currentClient = service->makeClient(fullDesc, std::move(session));
+    auto client = service->makeClient(fullDesc, std::move(session));
+    clientForCurrentThread() = std::move(client);
 }
 
 namespace {
@@ -137,7 +154,11 @@ std::string Client::clientAddress(bool includePort) const {
 }
 
 Client* Client::getCurrent() {
-    return currentClient.get();
+    auto threadContext = ThreadContext::get();
+    if (MONGO_likely(threadContext)) {
+        return getClientForThread(threadContext.get()).get();
+    }
+    return nullptr;
 }
 
 std::unique_ptr<Locker> Client::swapLockState(std::unique_ptr<Locker> locker) {
@@ -152,21 +173,21 @@ Client& cc() {
 }
 
 bool haveClient() {
-    return static_cast<bool>(currentClient);
+    return static_cast<bool>(clientForCurrentThread());
 }
 
 ServiceContext::UniqueClient Client::releaseCurrent() {
     invariant(haveClient());
-    if (auto opCtx = currentClient->_opCtx)
+    if (auto opCtx = clientForCurrentThread()->_opCtx)
         if (auto timer = OperationCPUTimer::get(opCtx))
             timer->onThreadDetach();
-    return std::move(currentClient);
+    return std::move(clientForCurrentThread());
 }
 
 void Client::setCurrent(ServiceContext::UniqueClient client) {
     invariantNoCurrentClient();
-    currentClient = std::move(client);
-    if (auto opCtx = currentClient->_opCtx)
+    clientForCurrentThread() = std::move(client);
+    if (auto opCtx = clientForCurrentThread()->_opCtx)
         if (auto timer = OperationCPUTimer::get(opCtx))
             timer->onThreadAttach();
 }
@@ -202,8 +223,8 @@ ThreadClient::ThreadClient(StringData desc,
 }
 
 ThreadClient::~ThreadClient() {
-    invariant(currentClient);
-    currentClient.reset(nullptr);
+    invariant(clientForCurrentThread());
+    clientForCurrentThread().reset(nullptr);
 }
 
 Client* ThreadClient::get() const {

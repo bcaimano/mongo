@@ -43,6 +43,7 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/debug_util.h"
 #include "mongo/util/scopeguard.h"
+#include "mongo/util/thread_context.h"
 #include "mongo/util/thread_safety_context.h"
 
 #if !defined(_WIN32)
@@ -105,8 +106,10 @@ Status launchServiceWorkerThread(unique_function<void()> task) noexcept {
         }
 
         // Wrap the user-specified `task` so it runs with an installed `sigaltstack`.
-        task = [sigAltStackController = std::make_shared<stdx::support::SigAltStackController>(),
+        task = [parentThreadContext = ThreadContext::get(),
+                sigAltStackController = std::make_shared<stdx::support::SigAltStackController>(),
                 f = std::move(task)]() mutable {
+            ThreadContext::init(std::move(parentThreadContext));
             auto sigAltStackGuard = sigAltStackController->makeInstallGuard();
             f();
         };

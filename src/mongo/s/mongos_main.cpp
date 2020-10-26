@@ -125,6 +125,7 @@
 #include "mongo/util/stacktrace.h"
 #include "mongo/util/str.h"
 #include "mongo/util/text.h"
+#include "mongo/util/thread_context.h"
 #include "mongo/util/version.h"
 
 namespace mongo {
@@ -930,11 +931,13 @@ MONGO_INITIALIZER_GENERAL(setSSLManagerType, MONGO_NO_PREREQUISITES, ("SSLManage
 }  // namespace
 
 ExitCode mongos_main(int argc, char* argv[]) {
+    // TODO(cr) This is gonna be trouble.
     setMongos();
 
     if (argc < 1)
         return EXIT_BADOPTIONS;
 
+    ThreadContext::init();
 
     setupSignalHandlers();
 

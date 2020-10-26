@@ -37,6 +37,11 @@
 
 #include "mongo/base/static_assert.h"
 
+#if defined(__linux__)
+#include <sys/syscall.h>
+#include <sys/types.h>
+#endif
+
 namespace mongo {
 
 MONGO_STATIC_ASSERT(sizeof(NativeProcessId) == sizeof(uint32_t));
@@ -46,15 +51,27 @@ namespace {
 inline NativeProcessId getCurrentNativeProcessId() {
     return GetCurrentProcessId();
 }
+
+inline NativeProcessId getCurrentNativeThreadId() {
+    return GetCurrentThreadId();
+}
 #else
 inline NativeProcessId getCurrentNativeProcessId() {
     return getpid();
+}
+
+inline NativeProcessId getCurrentNativeThreadId() {
+    return syscall(SYS_gettid);
 }
 #endif
 }  // namespace
 
 ProcessId ProcessId::getCurrent() {
     return fromNative(getCurrentNativeProcessId());
+}
+
+ProcessId ProcessId::getCurrentThreadId() {
+    return fromNative(getCurrentNativeThreadId());
 }
 
 int64_t ProcessId::asInt64() const {
