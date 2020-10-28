@@ -240,7 +240,7 @@ StatusWith<CollModRequest> parseCollModRequest(OperationContext* opCtx,
                 maxFeatureCompatibilityVersion;
             // (Generic FCV reference): This FCV check should exist across LTS binary versions.
             FeatureCompatibility::Version fcv;
-            if (getStaticServerParams().validateFeaturesAsPrimary.load() &&
+            if (gValidateFeaturesAsPrimary.load() &&
                 getFeatureCompatibility().isLessThan(
                     FeatureCompatibility::kLatest, &fcv)) {
                 maxFeatureCompatibilityVersion = fcv;

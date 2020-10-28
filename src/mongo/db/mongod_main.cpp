@@ -681,7 +681,7 @@ void startMongoD(ServiceContext* serviceContext) {
         }
 
         if (replSettings.usingReplSets() || !gInternalValidateFeaturesAsPrimary) {
-            getStaticServerParams().validateFeaturesAsPrimary.store(false);
+            gValidateFeaturesAsPrimary.store(false);
         }
     }
 

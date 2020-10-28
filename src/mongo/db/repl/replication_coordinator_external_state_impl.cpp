@@ -560,7 +560,7 @@ OpTime ReplicationCoordinatorExternalStateImpl::onTransitionToPrimary(OperationC
         }
     });
 
-    getStaticServerParams().validateFeaturesAsPrimary.store(true);
+    gValidateFeaturesAsPrimary.store(true);
 
     return opTimeToReturn;
 }

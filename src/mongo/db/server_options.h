@@ -122,7 +122,7 @@ struct ServerGlobalParams {
 
     AuthState authState = AuthState::kUndefined;
 
-    bool transitionToAuth = false;    // --transitionToAuth, mixed mode for rolling auth upgrade
+    bool transitionToAuth = false;  // --transitionToAuth, mixed mode for rolling auth upgrade
 
     enum ClusterAuthModes {
         ClusterAuthMode_undefined,
@@ -153,13 +153,6 @@ struct ServerGlobalParams {
 
     // True if the current binary version is an LTS Version.
     static constexpr bool kIsLTSBinaryVersion = false;
-
-
-    // Feature validation differs depending on the role of a mongod in a replica set. Replica set
-    // primaries can accept user-initiated writes and validate based on the feature compatibility
-    // version. A secondary always validates in the upgraded mode so that it can sync new features,
-    // even when in the downgraded feature compatibility mode.
-    AtomicWord<bool> validateFeaturesAsPrimary{true};
 
     std::vector<std::string> disabledSecureAllocatorDomains;
 
@@ -320,6 +313,12 @@ inline bool shouldBeQuiet() {
 }
 
 extern AtomicWord<int> gClusterAuthMode;  // --clusterAuthMode, the internal cluster auth mode
+
+// Feature validation differs depending on the role of a mongod in a replica set. Replica set
+// primaries can accept user-initiated writes and validate based on the feature compatibility
+// version. A secondary always validates in the upgraded mode so that it can sync new features,
+// even when in the downgraded feature compatibility mode.
+extern AtomicWord<bool> gValidateFeaturesAsPrimary;
 
 template <typename NameTrait>
 struct TraitNamedDomain {

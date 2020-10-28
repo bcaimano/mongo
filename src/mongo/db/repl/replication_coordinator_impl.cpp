@@ -4060,7 +4060,7 @@ ReplicationCoordinatorImpl::_updateMemberStateFromTopologyCoordinator(WithLock l
         // _canAcceptNonLocalWrites should already be set.
         invariant(!_readWriteAbility->canAcceptNonLocalWrites(lk));
 
-        getStaticServerParams().validateFeaturesAsPrimary.store(false);
+        gValidateFeaturesAsPrimary.store(false);
         result = (newState.removed() || newState.rollback()) ? kActionRollbackOrRemoved
                                                              : kActionSteppedDown;
     } else {

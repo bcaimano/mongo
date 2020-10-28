@@ -78,9 +78,11 @@ void setFeatureCompatibility(FeatureCompatibility::Version version) {
     featureCompatibility.setVersion(version);
 }
 
-AtomicWord<bool> gBeQuiet;
+AtomicWord<bool> gBeQuiet{false};
 
-AtomicWord<int> gClusterAuthMode;
+AtomicWord<int> gClusterAuthMode{};
+
+AtomicWord<bool> gValidateFeaturesAsPrimary{true};
 
 std::string ServerGlobalParams::getPortSettingHelpText() {
     return str::stream() << "Specify port number - " << getStaticServerParams().port

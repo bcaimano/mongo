@@ -327,7 +327,7 @@ StatusWith<stdx::unordered_set<NamespaceString>> ViewCatalog::_validatePipeline(
     // persisted in the catalog.
     // (Generic FCV reference): This FCV check should exist across LTS binary versions.
     FeatureCompatibility::Version fcv;
-    if (getStaticServerParams().validateFeaturesAsPrimary.load() &&
+    if (gValidateFeaturesAsPrimary.load() &&
         getFeatureCompatibility().isLessThan(
             FeatureCompatibility::kLatest, &fcv)) {
         expCtx->maxFeatureCompatibilityVersion = fcv;
