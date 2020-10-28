@@ -937,8 +937,6 @@ ExitCode mongos_main(int argc, char* argv[]) {
     if (argc < 1)
         return EXIT_BADOPTIONS;
 
-    ThreadContext::init();
-
     setupSignalHandlers();
 
     Status status = runGlobalInitializers(std::vector<std::string>(argv, argv + argc));

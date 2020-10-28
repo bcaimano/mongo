@@ -691,10 +691,7 @@ bool mechanismRequiresPassword(const MongoURI& uri) {
 }  // namespace
 
 int mongo_main(int argc, char* argv[]) {
-    ThreadContext::init();
-
     try {
-
         registerShutdownTask([] {
             // NOTE: This function may be called at any time. It must not
             // depend on the prior execution of mongo initializers or the

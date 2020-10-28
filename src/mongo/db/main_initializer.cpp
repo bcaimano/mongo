@@ -43,8 +43,16 @@
 
 namespace mongo {
 
-void MainInitializer::begin() try {
+MONGO_INITIALIZER_GENERAL(InitMainThreadContext, ("ServerGlobalParams"), MONGO_NO_DEPENDENTS)
+(InitializerContext* context) {
+    // Initialize our first thread context after we make our global params but before we make
+    // ServerParameters.
     ThreadContext::init();
+
+    return Status::OK();
+}
+
+void MainInitializer::begin() try {
     ThreadSafetyContext::getThreadSafetyContext()->forbidMultiThreading();
 
     setupSignalHandlers();
