@@ -45,7 +45,10 @@ namespace {
 auto getServerParams = ThreadContext::declareDecoration<std::shared_ptr<ServerGlobalParams>>();
 
 auto threadConstructorAction = ThreadContext::ConstructorActionRegisterer(
-    "ServerGlobalParams", [](ThreadContext* threadContext) {
+    "ServerGlobalParams",
+    {},
+    {"BeginServerParameterRegistration"},
+    [](ThreadContext* threadContext) {
         auto parentThreadContext = threadContext->getParent();
         if (!parentThreadContext) {
             // The main thread gets a new ServerGlobalParams. It probably shouldn't, but I don't
