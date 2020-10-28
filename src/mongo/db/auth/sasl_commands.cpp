@@ -223,7 +223,7 @@ Status doSaslStep(OperationContext* opCtx,
             return status;
         }
 
-        if (!serverGlobalParams.quiet.load()) {
+        if (!getStaticServerParams().quiet.load()) {
             LOGV2(20250,
                   "Successfully authenticated as principal {principalName} on "
                   "{authenticationDatabase} from client {client} with mechanism {mechanism}",

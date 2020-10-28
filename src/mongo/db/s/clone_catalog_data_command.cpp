@@ -88,7 +88,7 @@ public:
 
         uassert(ErrorCodes::IllegalOperation,
                 str::stream() << "_shardsvrCloneCatalogData can only be run on shard servers",
-                serverGlobalParams.clusterRole == ClusterRole::ShardServer);
+                getStaticServerParams().clusterRole == ClusterRole::ShardServer);
 
         uassert(ErrorCodes::InvalidOptions,
                 str::stream()

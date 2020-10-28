@@ -62,8 +62,8 @@ auto scenario(bool debugLogEnabled, bool slowOp, bool forceSample) {
         component, debugLogEnabled ? logv2::LogSeverity::Debug(1) : logv2::LogSeverity::Info());
 
     auto sampleRateGuard = makeGuard(
-        [savedRate = serverGlobalParams.sampleRate] { serverGlobalParams.sampleRate = savedRate; });
-    serverGlobalParams.sampleRate = forceSample ? 1.0 : 0.0;
+        [savedRate = getStaticServerParams().sampleRate] { getStaticServerParams().sampleRate = savedRate; });
+    getStaticServerParams().sampleRate = forceSample ? 1.0 : 0.0;
 
     return shouldLogSlowOpWithSampling(
         opCtx.get(), component, Milliseconds{slowOp ? 11 : 9}, Milliseconds{10});

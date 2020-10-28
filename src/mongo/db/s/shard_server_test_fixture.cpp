@@ -60,7 +60,7 @@ void ShardServerTestFixture::setUp() {
     replicationCoordinator()->alwaysAllowWrites(true);
 
     // Initialize sharding components as a shard server.
-    serverGlobalParams.clusterRole = ClusterRole::ShardServer;
+    getStaticServerParams().clusterRole = ClusterRole::ShardServer;
 
     _clusterId = OID::gen();
     ShardingState::get(getServiceContext())->setInitialized(_myShardName, _clusterId);

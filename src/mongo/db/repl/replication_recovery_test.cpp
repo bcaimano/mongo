@@ -182,7 +182,7 @@ private:
         // 1. Transaction prepare is not supported with logged tables in debug builds.
         // 2. Transactions cannot be assigned a log record if WT_CONN_LOG_DEBUG mode is not enabled.
         _stashedEnableMajorityReadConcern =
-            std::exchange(serverGlobalParams.enableMajorityReadConcern, true);
+            std::exchange(getStaticServerParams().enableMajorityReadConcern, true);
 
         auto service = getServiceContext();
         StorageInterface::set(service, std::make_unique<StorageInterfaceRecovery>());
@@ -219,7 +219,7 @@ private:
         _opCtx.reset(nullptr);
         _consistencyMarkers.reset();
 
-        serverGlobalParams.enableMajorityReadConcern = _stashedEnableMajorityReadConcern;
+        getStaticServerParams().enableMajorityReadConcern = _stashedEnableMajorityReadConcern;
 
         ServiceContextMongoDTest::tearDown();
         storageGlobalParams.readOnly = false;
@@ -1101,7 +1101,7 @@ DEATH_TEST_REGEX_F(ReplicationRecoveryTest,
     ASSERT_OK(getStorageInterface()->insertDocument(
         opCtx, oplogNs, {prepareOp.toBSON(), Timestamp(2, 0)}, 1));
 
-    serverGlobalParams.enableMajorityReadConcern = false;
+    getStaticServerParams().enableMajorityReadConcern = false;
 
     recovery.recoverFromOplog(opCtx, boost::none);
 }

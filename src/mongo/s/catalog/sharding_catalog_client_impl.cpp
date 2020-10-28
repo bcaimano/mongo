@@ -483,7 +483,7 @@ StatusWith<std::vector<ChunkType>> ShardingCatalogClientImpl::getChunks(
     boost::optional<int> limit,
     OpTime* opTime,
     repl::ReadConcernLevel readConcern) {
-    invariant(serverGlobalParams.clusterRole == ClusterRole::ConfigServer ||
+    invariant(getStaticServerParams().clusterRole == ClusterRole::ConfigServer ||
               readConcern == repl::ReadConcernLevel::kMajorityReadConcern);
 
     // Convert boost::optional<int> to boost::optional<long long>.
@@ -681,7 +681,7 @@ Status ShardingCatalogClientImpl::applyChunkOpsDeprecated(OperationContext* opCt
                                                           const ChunkVersion& lastChunkVersion,
                                                           const WriteConcernOptions& writeConcern,
                                                           repl::ReadConcernLevel readConcern) {
-    invariant(serverGlobalParams.clusterRole == ClusterRole::ConfigServer ||
+    invariant(getStaticServerParams().clusterRole == ClusterRole::ConfigServer ||
               (readConcern == repl::ReadConcernLevel::kMajorityReadConcern &&
                writeConcern.wMode == WriteConcernOptions::kMajority));
     BSONObj cmd =

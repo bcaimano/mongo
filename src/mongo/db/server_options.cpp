@@ -30,19 +30,45 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/db/server_options.h"
+#include "mongo/util/thread_context.h"
 
 namespace mongo {
 
+namespace {
 /**
  * This struct represents global configuration data for the server.  These options get set from
  * the command line and are used inline in the code.  Note that much shared code uses this
  * struct, which is why it is here in its own file rather than in the same file as the code that
  * sets it via the command line, which would pull in more dependencies.
  */
-ServerGlobalParams serverGlobalParams;
+auto getServerParams = ThreadContext::declareDecoration<std::shared_ptr<ServerGlobalParams>>();
+
+auto threadConstructorAction = ThreadContext::ConstructorActionRegisterer(
+    "ServerGlobalParams", [](ThreadContext* threadContext) {
+        auto parentThreadContext = threadContext->getParent();
+        if (!parentThreadContext) {
+            // The main thread gets a new ServerGlobalParams. It probably shouldn't, but I don't
+            // feel like tracking down the spots where it is used before init.
+            getServerParams(threadContext) = std::make_shared<ServerGlobalParams>();
+            return;
+        }
+
+        // Each thread starts with its parent's params
+        auto serverParams = getServerParams(parentThreadContext.get());
+        getServerParams(threadContext) = std::move(serverParams);
+    });
+}  // namespace
+
+ServerGlobalParams& getStaticServerParams() {
+    auto threadContext = ThreadContext::get();
+    auto serverParams = getServerParams(threadContext.get());
+    invariant(serverParams);
+    return *serverParams;
+}
 
 std::string ServerGlobalParams::getPortSettingHelpText() {
-    return str::stream() << "Specify port number - " << serverGlobalParams.port << " by default";
+    return str::stream() << "Specify port number - " << getStaticServerParams().port
+                         << " by default";
 }
 
 }  // namespace mongo

@@ -43,14 +43,14 @@ namespace mongo {
 namespace {
 ServiceContext::ConstructorActionRegisterer loadTimeZoneDB{
     "LoadTimeZoneDB", [](ServiceContext* service) {
-        if (!serverGlobalParams.timeZoneInfoPath.empty()) {
+        if (!getStaticServerParams().timeZoneInfoPath.empty()) {
             std::unique_ptr<timelib_tzdb, TimeZoneDatabase::TimeZoneDBDeleter> timeZoneDatabase(
-                timelib_zoneinfo(const_cast<char*>(serverGlobalParams.timeZoneInfoPath.c_str())),
+                timelib_zoneinfo(const_cast<char*>(getStaticServerParams().timeZoneInfoPath.c_str())),
                 TimeZoneDatabase::TimeZoneDBDeleter());
             if (!timeZoneDatabase) {
                 uasserted(ErrorCodes::FailedToParse,
                           str::stream() << "failed to load time zone database from path \""
-                                        << serverGlobalParams.timeZoneInfoPath << "\"");
+                                        << getStaticServerParams().timeZoneInfoPath << "\"");
             }
             TimeZoneDatabase::set(service,
                                   std::make_unique<TimeZoneDatabase>(std::move(timeZoneDatabase)));

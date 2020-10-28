@@ -106,7 +106,7 @@ bool handlePreValidationMongoShellOptions(const moe::Environment& params,
 Status storeMongoShellOptions(const moe::Environment& params,
                               const std::vector<std::string>& args) {
     if (params.count("quiet")) {
-        mongo::serverGlobalParams.quiet.store(true);
+        mongo::getStaticServerParams().quiet.store(true);
     }
 
     if (params.count("ipv6")) {
@@ -121,14 +121,14 @@ Status storeMongoShellOptions(const moe::Environment& params,
     logv2::LogManager::global().getGlobalSettings().setMinimumLoggedSeverity(
         mongo::logv2::LogComponent::kDefault, minimumLoggedSeveity);
 
-    // `objcheck` option is part of `serverGlobalParams` to avoid making common parts depend upon
+    // `objcheck` option is part of `getStaticServerParams()` to avoid making common parts depend upon
     // the client options.  The option is set to false in clients by default.
     if (params.count("objcheck")) {
-        serverGlobalParams.objcheck = true;
+        getStaticServerParams().objcheck = true;
     } else if (params.count("noobjcheck")) {
-        serverGlobalParams.objcheck = false;
+        getStaticServerParams().objcheck = false;
     } else {
-        serverGlobalParams.objcheck = false;
+        getStaticServerParams().objcheck = false;
     }
 
     if (params.count("port")) {

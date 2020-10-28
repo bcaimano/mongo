@@ -119,7 +119,7 @@ Status TransportLayerManager::addAndStartTransportLayer(std::unique_ptr<Transpor
 }
 
 std::unique_ptr<TransportLayer> TransportLayerManager::makeAndStartDefaultEgressTransportLayer() {
-    transport::TransportLayerASIO::Options opts(&serverGlobalParams);
+    transport::TransportLayerASIO::Options opts(&getStaticServerParams());
     opts.mode = transport::TransportLayerASIO::Options::kEgress;
     opts.ipList.clear();
 

@@ -494,7 +494,7 @@ bool runCreateIndexesWithCoordinator(OperationContext* opCtx,
             !opCtx->inMultiDocumentTransaction() || !ns.isSystem());
 
     auto specs = uassertStatusOK(
-        parseAndValidateIndexSpecs(opCtx, ns, cmdObj, serverGlobalParams.featureCompatibility));
+        parseAndValidateIndexSpecs(opCtx, ns, cmdObj, getStaticServerParams().featureCompatibility));
     auto replCoord = repl::ReplicationCoordinator::get(opCtx);
     auto indexBuildsCoord = IndexBuildsCoordinator::get(opCtx);
     // Two phase index builds are designed to improve the availability of indexes in a replica set.

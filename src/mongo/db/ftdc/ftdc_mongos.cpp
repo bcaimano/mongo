@@ -107,14 +107,14 @@ void startMongoSFTDC() {
     auto directory = getFTDCDirectoryPathParameter();
 
     if (directory.empty()) {
-        if (serverGlobalParams.logpath.empty()) {
+        if (getStaticServerParams().logpath.empty()) {
             LOGV2_WARNING(23911,
                           "FTDC is disabled because neither '--logpath' nor set parameter "
                           "'diagnosticDataCollectionDirectoryPath' are specified.");
             startMode = FTDCStartMode::kSkipStart;
         } else {
             directory = boost::filesystem::absolute(
-                FTDCUtil::getMongoSPath(serverGlobalParams.logpath), serverGlobalParams.cwd);
+                FTDCUtil::getMongoSPath(getStaticServerParams().logpath), getStaticServerParams().cwd);
 
             // Note: If the computed FTDC directory conflicts with an existing file, then FTDC will
             // warn about the conflict, and not startup. It will not terminate MongoS in this

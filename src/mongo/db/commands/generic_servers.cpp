@@ -163,8 +163,8 @@ public:
                      const std::string&,
                      const BSONObj& cmdObj,
                      BSONObjBuilder& result) {
-        result.append("argv", serverGlobalParams.argvArray);
-        result.append("parsed", serverGlobalParams.parsedOpts);
+        result.append("argv", getStaticServerParams().argvArray);
+        result.append("parsed", getStaticServerParams().parsedOpts);
         return true;
     }
 
@@ -193,7 +193,7 @@ public:
                      const std::string& ns,
                      const BSONObj& cmdObj,
                      BSONObjBuilder& result) {
-        bool didRotate = logv2::rotateLogs(serverGlobalParams.logRenameOnRotate);
+        bool didRotate = logv2::rotateLogs(getStaticServerParams().logRenameOnRotate);
         if (didRotate)
             logProcessDetailsForLogRotate(opCtx->getServiceContext());
         return didRotate;

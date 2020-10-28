@@ -103,7 +103,7 @@ public:
              BSONObjBuilder& result) {
         uassert(ErrorCodes::IllegalOperation,
                 "_configsvrEnableSharding can only be run on config servers",
-                serverGlobalParams.clusterRole == ClusterRole::ConfigServer);
+                getStaticServerParams().clusterRole == ClusterRole::ConfigServer);
         uassert(ErrorCodes::InvalidOptions,
                 str::stream()
                     << "_configsvrEnableSharding must be called with majority writeConcern, got "

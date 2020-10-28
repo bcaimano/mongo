@@ -1317,7 +1317,7 @@ bool MigrationDestinationManager::_applyMigrateOp(OperationContext* opCtx,
     // Deleted documents
     if (xfer["deleted"].isABSONObj()) {
         boost::optional<RemoveSaver> rs;
-        if (serverGlobalParams.moveParanoia) {
+        if (getStaticServerParams().moveParanoia) {
             rs.emplace("moveChunk", _nss.ns(), "removedDuring");
         }
 

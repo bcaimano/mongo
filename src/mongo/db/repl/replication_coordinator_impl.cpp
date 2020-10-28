@@ -330,7 +330,7 @@ ReplicationCoordinatorImpl::ReplicationCoordinatorImpl(
 
     // If this is a config server, then we set the periodic no-op interval to 1 second. This is to
     // ensure that the config server will not unduly hold up change streams running on the cluster.
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         periodicNoopIntervalSecs.store(1);
     }
 
@@ -603,7 +603,7 @@ void ReplicationCoordinatorImpl::_finishLoadLocalConfig(
     }
     LOGV2_DEBUG(4280509, 1, "Local configuration validated for startup");
 
-    if (serverGlobalParams.enableMajorityReadConcern && localConfig.getNumMembers() == 3 &&
+    if (getStaticServerParams().enableMajorityReadConcern && localConfig.getNumMembers() == 3 &&
         localConfig.getNumDataBearingMembers() == 2) {
         LOGV2_OPTIONS(21315, {logv2::LogTag::kStartupWarnings}, "");
         LOGV2_OPTIONS(
@@ -1411,7 +1411,7 @@ void ReplicationCoordinatorImpl::_setMyLastAppliedOpTimeAndWallTime(
     // If we are lagged behind the commit optime, set a new stable timestamp here. When majority
     // read concern is disabled, the stable timestamp is set to lastApplied.
     if (opTime <= _topCoord->getLastCommittedOpTime() ||
-        !serverGlobalParams.enableMajorityReadConcern) {
+        !getStaticServerParams().enableMajorityReadConcern) {
         _setStableTimestampForStorage(lk);
     }
 }
@@ -1490,7 +1490,7 @@ Status ReplicationCoordinatorImpl::_validateReadConcern(OperationContext* opCtx,
                               << readConcern.toString()};
     }
 
-    if (readConcern.getArgsAtClusterTime() && !serverGlobalParams.enableMajorityReadConcern) {
+    if (readConcern.getArgsAtClusterTime() && !getStaticServerParams().enableMajorityReadConcern) {
         return {ErrorCodes::InvalidOptions,
                 "readConcern level 'snapshot' is not supported in sharded clusters when "
                 "enableMajorityReadConcern=false. See "
@@ -3002,7 +3002,7 @@ Status ReplicationCoordinatorImpl::processReplSetGetStatus(
     _topCoord->prepareStatusResponse(
         TopologyCoordinator::ReplSetStatusArgs{
             _replExecutor->now(),
-            static_cast<unsigned>(time(nullptr) - serverGlobalParams.started),
+            static_cast<unsigned>(time(nullptr) - getStaticServerParams().started),
             _getCurrentCommittedSnapshotOpTime_inlock(),
             initialSyncProgress,
             electionCandidateMetrics,
@@ -3180,7 +3180,7 @@ Status ReplicationCoordinatorImpl::processReplSetFreeze(int secs, BSONObjBuilder
 
 bool ReplicationCoordinatorImpl::_supportsAutomaticReconfig() const {
     // TODO SERVER-48545: Remove this when 5.0 becomes last-lts.
-    return serverGlobalParams.featureCompatibility.isGreaterThanOrEqualTo(
+    return getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
         ServerGlobalParams::FeatureCompatibility::Version::kVersion47);
 }
 
@@ -3810,7 +3810,7 @@ Status ReplicationCoordinatorImpl::processReplSetInitiate(OperationContext* opCt
     // When writing our first oplog entry below, disable advancement of the stable timestamp so that
     // we don't set it before setting our initial data timestamp. We will set it after we set our
     // initialDataTimestamp. This will ensure we trigger an initial stable checkpoint properly.
-    if (!serverGlobalParams.enableMajorityReadConcern) {
+    if (!getStaticServerParams().enableMajorityReadConcern) {
         _shouldSetStableTimestamp = false;
     }
 
@@ -3894,7 +3894,7 @@ Status ReplicationCoordinatorImpl::processReplSetInitiate(OperationContext* opCt
 
     // Set our stable timestamp for storage and re-enable stable timestamp advancement after we have
     // set our initial data timestamp.
-    if (!serverGlobalParams.enableMajorityReadConcern) {
+    if (!getStaticServerParams().enableMajorityReadConcern) {
         stdx::unique_lock<Latch> lk(_mutex);
         _shouldSetStableTimestamp = true;
         _setStableTimestampForStorage(lk);
@@ -4060,7 +4060,7 @@ ReplicationCoordinatorImpl::_updateMemberStateFromTopologyCoordinator(WithLock l
         // _canAcceptNonLocalWrites should already be set.
         invariant(!_readWriteAbility->canAcceptNonLocalWrites(lk));
 
-        serverGlobalParams.validateFeaturesAsPrimary.store(false);
+        getStaticServerParams().validateFeaturesAsPrimary.store(false);
         result = (newState.removed() || newState.rollback()) ? kActionRollbackOrRemoved
                                                              : kActionSteppedDown;
     } else {
@@ -4658,7 +4658,7 @@ WriteConcernOptions ReplicationCoordinatorImpl::getGetLastErrorDefault() {
 
 Status ReplicationCoordinatorImpl::checkReplEnabledForCommand(BSONObjBuilder* result) {
     if (!_settings.usingReplSets()) {
-        if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+        if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
             result->append("info", "configsvr");  // for shell prompt
         }
         return Status(ErrorCodes::NoReplicationEnabled, "not running with --replSet");
@@ -4860,7 +4860,7 @@ OpTime ReplicationCoordinatorImpl::_recalculateStableOpTime(WithLock lk) {
     // majority reads are disabled, the stable optime is not required to be majority committed.
     OpTime stableOpTime;
     auto maximumStableOpTime =
-        serverGlobalParams.enableMajorityReadConcern ? commitPoint : lastApplied;
+        getStaticServerParams().enableMajorityReadConcern ? commitPoint : lastApplied;
 
     // Make sure the stable optime does not surpass its maximum.
     stableOpTime = std::min(noOverlap, maximumStableOpTime);
@@ -4933,7 +4933,7 @@ void ReplicationCoordinatorImpl::_setStableTimestampForStorage(WithLock lk) {
 
     // Update committed snapshot and wake up any threads waiting on read concern or
     // write concern.
-    if (serverGlobalParams.enableMajorityReadConcern) {
+    if (getStaticServerParams().enableMajorityReadConcern) {
         // When majority read concern is enabled, the committed snapshot is set to the new
         // stable optime. The wall time of the committed snapshot is not used for anything so we can
         // create a fake one.
@@ -5018,7 +5018,7 @@ void ReplicationCoordinatorImpl::finishRecoveryIfEligible(OperationContext* opCt
     // initialDataTimestamp.
     auto initialTs = opCtx->getServiceContext()->getStorageEngine()->getInitialDataTimestamp();
     if (lastApplied.getTimestamp() < initialTs) {
-        invariant(!serverGlobalParams.enableMajorityReadConcern);
+        invariant(!getStaticServerParams().enableMajorityReadConcern);
         LOGV2_DEBUG(4851800,
                     2,
                     "We cannot transition to SECONDARY state because our 'lastApplied' optime is "

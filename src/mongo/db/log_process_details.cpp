@@ -84,7 +84,7 @@ void logProcessDetailsForLogRotate(ServiceContext* serviceContext) {
     LOGV2(20721,
           "Process Details",
           "pid"_attr = ProcessId::getCurrent(),
-          "port"_attr = serverGlobalParams.port,
+          "port"_attr = getStaticServerParams().port,
           "architecture"_attr = (is32bit() ? "32-bit" : "64-bit"),
           "host"_attr = getHostNameCached());
 

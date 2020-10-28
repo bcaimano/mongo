@@ -388,8 +388,8 @@ Future<void> VectorClockMongoD::_doWhileQueueNotEmptyOrError(ServiceContext* ser
 
 VectorClock::ComponentSet VectorClockMongoD::_gossipOutInternal() const {
     VectorClock::ComponentSet toGossip{Component::ClusterTime};
-    if (serverGlobalParams.clusterRole == ClusterRole::ShardServer ||
-        serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ShardServer ||
+        getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         toGossip.insert(Component::ConfigTime);
         toGossip.insert(Component::TopologyTime);
     }
@@ -398,7 +398,7 @@ VectorClock::ComponentSet VectorClockMongoD::_gossipOutInternal() const {
 
 VectorClock::ComponentSet VectorClockMongoD::_gossipInInternal() const {
     VectorClock::ComponentSet toGossip{Component::ClusterTime};
-    if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
         toGossip.insert(Component::ConfigTime);
         toGossip.insert(Component::TopologyTime);
     }
@@ -434,13 +434,13 @@ void VectorClockMongoD::_tickTo(Component component, LogicalTime newTime) {
     }
 
     if (component == Component::ConfigTime &&
-        serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+        getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         _advanceComponentTimeTo(component, std::move(newTime));
         return;
     }
 
     if (component == Component::TopologyTime &&
-        serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+        getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         _advanceComponentTimeTo(component, std::move(newTime));
         return;
     }

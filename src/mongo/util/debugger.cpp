@@ -78,7 +78,7 @@ void breakpoint() {
  * Assumptions:
  *  1) the debugging server binary is on your path
  *  2) You have run "handle SIGSTOP noprint" in gdb
- *  3) serverGlobalParams.port + 2000 is free
+ *  3) getStaticServerParams().port + 2000 is free
  */
 namespace {
 #ifndef _WIN32

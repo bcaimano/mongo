@@ -266,7 +266,7 @@ Status UpdateDriver::update(OperationContext* opCtx,
     invariant(!modifiedPaths || modifiedPaths->empty());
 
     if (_logOp && logOpRec) {
-        const auto& fcvState = serverGlobalParams.featureCompatibility;
+        const auto& fcvState = getStaticServerParams().featureCompatibility;
 
         // Updates may be run as part of the startup sequence, before the global FCV state has been
         // initialized. We conservatively do not permit the use of $v:2 oplog entries in these

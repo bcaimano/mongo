@@ -59,7 +59,7 @@ public:
         void typedRun(OperationContext* opCtx) {
             uassert(50876,
                     "Cannot run addShard on a node started without --shardsvr",
-                    serverGlobalParams.clusterRole == ClusterRole::ShardServer);
+                    getStaticServerParams().clusterRole == ClusterRole::ShardServer);
 
             auto addShardCmd = request();
             auto shardIdUpsertCmd =

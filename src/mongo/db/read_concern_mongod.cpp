@@ -138,11 +138,11 @@ Status makeNoopWriteIfNeeded(OperationContext* opCtx, LogicalTime clusterTime) {
     // it needs to be repeated with the later time.
     while (clusterTime > lastAppliedOpTime) {
         // standalone replica set, so there is no need to advance the OpLog on the primary.
-        if (serverGlobalParams.clusterRole == ClusterRole::None) {
+        if (getStaticServerParams().clusterRole == ClusterRole::None) {
             return Status::OK();
         }
 
-        bool isConfig = (serverGlobalParams.clusterRole == ClusterRole::ConfigServer);
+        bool isConfig = (getStaticServerParams().clusterRole == ClusterRole::ConfigServer);
 
         if (!isConfig && !ShardingState::get(opCtx)->enabled()) {
             return {ErrorCodes::ShardingStateNotInitialized,
@@ -305,7 +305,7 @@ Status waitForReadConcernImpl(OperationContext* opCtx,
             return {ErrorCodes::NotAReplicaSet,
                     "node needs to be a replica set member to use readConcern: snapshot"};
         }
-        if (!opCtx->inMultiDocumentTransaction() && !serverGlobalParams.enableMajorityReadConcern) {
+        if (!opCtx->inMultiDocumentTransaction() && !getStaticServerParams().enableMajorityReadConcern) {
             return {ErrorCodes::ReadConcernMajorityNotEnabled,
                     "read concern level snapshot is not supported when "
                     "enableMajorityReadConcern=false"};
@@ -412,7 +412,7 @@ Status waitForReadConcernImpl(OperationContext* opCtx,
             return Status::OK();
         }
 
-        const int debugLevel = serverGlobalParams.clusterRole == ClusterRole::ConfigServer ? 1 : 2;
+        const int debugLevel = getStaticServerParams().clusterRole == ClusterRole::ConfigServer ? 1 : 2;
 
         LOGV2_DEBUG(
             20991,

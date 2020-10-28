@@ -322,15 +322,15 @@ bool ShardingInitializationMongoD::initializeShardingAwarenessIfNeeded(Operation
     // In sharded readOnly mode, we ignore the shardIdentity document on disk and instead *require*
     // a shardIdentity document to be passed through --overrideShardIdentity
     if (storageGlobalParams.readOnly) {
-        if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+        if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
             uassert(ErrorCodes::InvalidOptions,
                     "If started with --shardsvr in queryableBackupMode, a shardIdentity document "
                     "must be provided through --overrideShardIdentity",
-                    !serverGlobalParams.overrideShardIdentity.isEmpty());
+                    !getStaticServerParams().overrideShardIdentity.isEmpty());
 
             auto overrideShardIdentity =
                 uassertStatusOK(ShardIdentityType::fromShardIdentityDocument(
-                    serverGlobalParams.overrideShardIdentity));
+                    getStaticServerParams().overrideShardIdentity));
 
             {
                 // Global lock is required to call initializeFromShardIdentity
@@ -345,8 +345,8 @@ bool ShardingInitializationMongoD::initializeShardingAwarenessIfNeeded(Operation
                     str::stream()
                         << "Not started with --shardsvr, but a shardIdentity document was provided "
                            "through --overrideShardIdentity: "
-                        << serverGlobalParams.overrideShardIdentity,
-                    serverGlobalParams.overrideShardIdentity.isEmpty());
+                        << getStaticServerParams().overrideShardIdentity,
+                    getStaticServerParams().overrideShardIdentity.isEmpty());
             return false;
         }
 
@@ -361,7 +361,7 @@ bool ShardingInitializationMongoD::initializeShardingAwarenessIfNeeded(Operation
                              "--shardsvr, manually updating the shardIdentity document in the "
                           << NamespaceString::kServerConfigurationNamespace.toString()
                           << " collection, and restarting the server with --shardsvr.",
-            serverGlobalParams.overrideShardIdentity.isEmpty());
+            getStaticServerParams().overrideShardIdentity.isEmpty());
 
     // Use the shardIdentity document on disk if one exists, but it is okay if no shardIdentity
     // document is available at all (sharding awareness will be initialized when a shardIdentity
@@ -375,7 +375,7 @@ bool ShardingInitializationMongoD::initializeShardingAwarenessIfNeeded(Operation
                                 shardIdentityBSON);
     }();
 
-    if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
         if (!foundShardIdentity) {
             LOGV2_WARNING(22074,
                           "Started with --shardsvr, but no shardIdentity document was found on "
@@ -418,7 +418,7 @@ bool ShardingInitializationMongoD::initializeShardingAwarenessIfNeeded(Operation
 
 void ShardingInitializationMongoD::initializeFromShardIdentity(
     OperationContext* opCtx, const ShardIdentityType& shardIdentity) {
-    invariant(serverGlobalParams.clusterRole == ClusterRole::ShardServer);
+    invariant(getStaticServerParams().clusterRole == ClusterRole::ShardServer);
     invariant(opCtx->lockState()->isLocked());
 
     uassertStatusOKWithContext(
@@ -540,7 +540,7 @@ void initializeGlobalShardingStateForMongoD(OperationContext* opCtx,
         std::make_unique<ShardFactory>(std::move(buildersMap), std::move(targeterFactory));
 
     auto const service = opCtx->getServiceContext();
-    if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
         if (storageGlobalParams.readOnly) {
             CatalogCacheLoader::set(service, std::make_unique<ReadOnlyCatalogCacheLoader>());
         } else {
@@ -589,7 +589,7 @@ void initializeGlobalShardingStateForMongoD(OperationContext* opCtx,
                                       1));
 
     auto const replCoord = repl::ReplicationCoordinator::get(service);
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer &&
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer &&
         replCoord->getMemberState().primary()) {
         LogicalTimeValidator::get(opCtx)->enableKeyGenerator(opCtx, true);
     }

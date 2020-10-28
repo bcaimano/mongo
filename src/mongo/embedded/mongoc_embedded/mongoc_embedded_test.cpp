@@ -282,7 +282,7 @@ int main(int argc, char** argv) {
 
     ::mongo::clearSignalMask();
     ::mongo::setupSynchronousSignalHandlers();
-    ::mongo::serverGlobalParams.noUnixSocket = true;
+    ::mongo::getStaticServerParams().noUnixSocket = true;
 
     // See comment by the same code block in mongo_embedded_test.cpp
     ret = mongo::runGlobalInitializers(std::vector<std::string>{});

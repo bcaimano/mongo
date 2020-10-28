@@ -176,7 +176,7 @@ StatusWith<int> deleteNextBatch(OperationContext* opCtx,
     deleteStageParams->isMulti = true;
     deleteStageParams->returnDeleted = true;
 
-    if (serverGlobalParams.moveParanoia) {
+    if (getStaticServerParams().moveParanoia) {
         deleteStageParams->removeSaver =
             std::make_unique<RemoveSaver>("moveChunk", nss.ns(), "cleaning");
     }

@@ -126,7 +126,7 @@ void ConfigServerTestFixture::_setUp(std::function<void()> onPreInitGlobalStateF
     replicationCoordinator()->alwaysAllowWrites(true);
 
     // Initialize sharding components as a config server.
-    serverGlobalParams.clusterRole = ClusterRole::ConfigServer;
+    getStaticServerParams().clusterRole = ClusterRole::ConfigServer;
 
     {
         // The catalog manager requires a special executor used for operations during addShard.

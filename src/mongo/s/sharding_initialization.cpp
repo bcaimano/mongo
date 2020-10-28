@@ -178,7 +178,7 @@ std::unique_ptr<executor::TaskExecutor> makeShardingTaskExecutor(
 
 std::string generateDistLockProcessId(OperationContext* opCtx) {
     return str::stream()
-        << HostAndPort(getHostName(), serverGlobalParams.port).toString() << ':'
+        << HostAndPort(getHostName(), getStaticServerParams().port).toString() << ':'
         << durationCount<Seconds>(
                opCtx->getServiceContext()->getPreciseClockSource()->now().toDurationSinceEpoch())
         << ':' << SecureRandom().nextInt64();
@@ -236,7 +236,7 @@ Status initializeGlobalShardingState(OperationContext* opCtx,
 }
 
 Status waitForShardRegistryReload(OperationContext* opCtx) {
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         return Status::OK();
     }
 
@@ -274,7 +274,7 @@ Status preCacheMongosRoutingInfo(OperationContext* opCtx) {
         return Status::OK();
     }
 
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         return Status::OK();
     }
 
@@ -306,7 +306,7 @@ Status preWarmConnectionPool(OperationContext* opCtx) {
         return Status::OK();
     }
 
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         return Status::OK();
     }
 

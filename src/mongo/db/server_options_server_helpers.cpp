@@ -75,10 +75,10 @@ Status setupBinaryName(const std::vector<std::string>& argv) {
     }
 
     // setup binary name
-    serverGlobalParams.binaryName = argv[0];
-    size_t i = serverGlobalParams.binaryName.rfind('/');
+    getStaticServerParams().binaryName = argv[0];
+    size_t i = getStaticServerParams().binaryName.rfind('/');
     if (i != string::npos) {
-        serverGlobalParams.binaryName = serverGlobalParams.binaryName.substr(i + 1);
+        getStaticServerParams().binaryName = getStaticServerParams().binaryName.substr(i + 1);
     }
     return Status::OK();
 }
@@ -91,7 +91,7 @@ Status setupCwd() {
         return Status(ErrorCodes::UnknownError,
                       "Cannot get current working directory: " + ec.message());
     }
-    serverGlobalParams.cwd = cwd.string();
+    getStaticServerParams().cwd = cwd.string();
     return Status::OK();
 }
 
@@ -102,13 +102,13 @@ Status setArgvArray(const std::vector<std::string>& argv) {
     for (size_t i = 0; i < censoredArgv.size(); i++) {
         b << censoredArgv[i];
     }
-    serverGlobalParams.argvArray = b.arr();
+    getStaticServerParams().argvArray = b.arr();
     return Status::OK();
 }
 
 Status setParsedOpts(const moe::Environment& params) {
-    serverGlobalParams.parsedOpts = params.toBSON();
-    cmdline_utils::censorBSONObj(&serverGlobalParams.parsedOpts);
+    getStaticServerParams().parsedOpts = params.toBSON();
+    cmdline_utils::censorBSONObj(&getStaticServerParams().parsedOpts);
     return Status::OK();
 }
 }  // namespace
@@ -116,13 +116,13 @@ Status setParsedOpts(const moe::Environment& params) {
 void printCommandLineOpts(std::ostream* os) {
     if (os) {
         *os << format(FMT_STRING("Options set by command line: {}"),
-                      tojson(serverGlobalParams.parsedOpts, ExtendedRelaxedV2_0_0, true))
+                      tojson(getStaticServerParams().parsedOpts, ExtendedRelaxedV2_0_0, true))
             << std::endl;
     } else {
         LOGV2(21951,
               "Options set by command line: {options}",
               "Options set by command line",
-              "options"_attr = serverGlobalParams.parsedOpts);
+              "options"_attr = getStaticServerParams().parsedOpts);
     }
 }
 
@@ -292,54 +292,54 @@ Status storeServerOptions(const moe::Environment& params) {
     }
 
     if (params.count("net.port")) {
-        serverGlobalParams.port = params["net.port"].as<int>();
+        getStaticServerParams().port = params["net.port"].as<int>();
     }
 
     if (params.count("net.ipv6") && params["net.ipv6"].as<bool>() == true) {
-        serverGlobalParams.enableIPv6 = true;
+        getStaticServerParams().enableIPv6 = true;
         enableIPv6();
     }
 
     if (params.count("net.listenBacklog")) {
-        serverGlobalParams.listenBacklog = params["net.listenBacklog"].as<int>();
+        getStaticServerParams().listenBacklog = params["net.listenBacklog"].as<int>();
     }
 
     if (params.count("net.transportLayer")) {
-        serverGlobalParams.transportLayer = params["net.transportLayer"].as<std::string>();
-        if (serverGlobalParams.transportLayer != "asio") {
+        getStaticServerParams().transportLayer = params["net.transportLayer"].as<std::string>();
+        if (getStaticServerParams().transportLayer != "asio") {
             return {ErrorCodes::BadValue, "Unsupported value for transportLayer. Must be \"asio\""};
         }
     }
 
     if (params.count("security.transitionToAuth")) {
-        serverGlobalParams.transitionToAuth = params["security.transitionToAuth"].as<bool>();
+        getStaticServerParams().transitionToAuth = params["security.transitionToAuth"].as<bool>();
     }
 
     if (params.count("security.clusterAuthMode")) {
         std::string clusterAuthMode = params["security.clusterAuthMode"].as<std::string>();
 
         if (clusterAuthMode == "keyFile") {
-            serverGlobalParams.clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_keyFile);
+            getStaticServerParams().clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_keyFile);
         } else if (clusterAuthMode == "sendKeyFile") {
-            serverGlobalParams.clusterAuthMode.store(
+            getStaticServerParams().clusterAuthMode.store(
                 ServerGlobalParams::ClusterAuthMode_sendKeyFile);
         } else if (clusterAuthMode == "sendX509") {
-            serverGlobalParams.clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_sendX509);
+            getStaticServerParams().clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_sendX509);
         } else if (clusterAuthMode == "x509") {
-            serverGlobalParams.clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_x509);
+            getStaticServerParams().clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_x509);
         } else {
             return Status(ErrorCodes::BadValue,
                           "unsupported value for clusterAuthMode " + clusterAuthMode);
         }
-        serverGlobalParams.authState = ServerGlobalParams::AuthState::kEnabled;
+        getStaticServerParams().authState = ServerGlobalParams::AuthState::kEnabled;
     } else {
-        serverGlobalParams.clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_undefined);
+        getStaticServerParams().clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_undefined);
     }
 
     if (params.count("net.maxIncomingConnections")) {
-        serverGlobalParams.maxConns = params["net.maxIncomingConnections"].as<int>();
+        getStaticServerParams().maxConns = params["net.maxIncomingConnections"].as<int>();
 
-        if (serverGlobalParams.maxConns < 5) {
+        if (getStaticServerParams().maxConns < 5) {
             return Status(ErrorCodes::BadValue, "maxConns has to be at least 5");
         }
     }
@@ -349,93 +349,93 @@ Status storeServerOptions(const moe::Environment& params) {
         for (const auto& range : ranges) {
             auto swr = CIDR::parse(range);
             if (!swr.isOK()) {
-                serverGlobalParams.maxConnsOverride.push_back(range);
+                getStaticServerParams().maxConnsOverride.push_back(range);
             } else {
-                serverGlobalParams.maxConnsOverride.push_back(std::move(swr.getValue()));
+                getStaticServerParams().maxConnsOverride.push_back(std::move(swr.getValue()));
             }
         }
     }
 
     if (params.count("net.reservedAdminThreads")) {
-        serverGlobalParams.reservedAdminThreads = params["net.reservedAdminThreads"].as<int>();
+        getStaticServerParams().reservedAdminThreads = params["net.reservedAdminThreads"].as<int>();
     }
 
     if (params.count("net.wireObjectCheck")) {
-        serverGlobalParams.objcheck = params["net.wireObjectCheck"].as<bool>();
+        getStaticServerParams().objcheck = params["net.wireObjectCheck"].as<bool>();
     }
 
     if (params.count("net.bindIp")) {
         std::string bind_ip = params["net.bindIp"].as<std::string>();
         if (bind_ip == "*") {
-            serverGlobalParams.bind_ips.emplace_back("0.0.0.0");
+            getStaticServerParams().bind_ips.emplace_back("0.0.0.0");
             if (params.count("net.ipv6") && params["net.ipv6"].as<bool>()) {
-                serverGlobalParams.bind_ips.emplace_back("::");
+                getStaticServerParams().bind_ips.emplace_back("::");
             }
         } else {
-            boost::split(serverGlobalParams.bind_ips,
+            boost::split(getStaticServerParams().bind_ips,
                          bind_ip,
                          [](char c) { return c == ','; },
                          boost::token_compress_on);
         }
     }
 
-    for (auto& ip : serverGlobalParams.bind_ips) {
+    for (auto& ip : getStaticServerParams().bind_ips) {
         boost::algorithm::trim(ip);
     }
 
 #ifndef _WIN32
     if (params.count("net.unixDomainSocket.pathPrefix")) {
-        serverGlobalParams.socket = params["net.unixDomainSocket.pathPrefix"].as<string>();
+        getStaticServerParams().socket = params["net.unixDomainSocket.pathPrefix"].as<string>();
     }
 
     if (params.count("net.unixDomainSocket.enabled")) {
-        serverGlobalParams.noUnixSocket = !params["net.unixDomainSocket.enabled"].as<bool>();
+        getStaticServerParams().noUnixSocket = !params["net.unixDomainSocket.enabled"].as<bool>();
     }
     if (params.count("net.unixDomainSocket.filePermissions")) {
-        serverGlobalParams.unixSocketPermissions =
+        getStaticServerParams().unixSocketPermissions =
             params["net.unixDomainSocket.filePermissions"].as<int>();
     }
 
     if ((params.count("processManagement.fork") &&
          params["processManagement.fork"].as<bool>() == true) &&
         (!params.count("shutdown") || params["shutdown"].as<bool>() == false)) {
-        serverGlobalParams.doFork = true;
+        getStaticServerParams().doFork = true;
     }
 #endif  // _WIN32
 
-    if (serverGlobalParams.doFork && serverGlobalParams.logpath.empty() &&
-        !serverGlobalParams.logWithSyslog) {
+    if (getStaticServerParams().doFork && getStaticServerParams().logpath.empty() &&
+        !getStaticServerParams().logWithSyslog) {
         return Status(ErrorCodes::BadValue, "--fork has to be used with --logpath or --syslog");
     }
 
     if (params.count("security.keyFile")) {
-        serverGlobalParams.keyFile =
+        getStaticServerParams().keyFile =
             boost::filesystem::absolute(params["security.keyFile"].as<string>()).generic_string();
-        serverGlobalParams.authState = ServerGlobalParams::AuthState::kEnabled;
+        getStaticServerParams().authState = ServerGlobalParams::AuthState::kEnabled;
     }
 
-    if (serverGlobalParams.transitionToAuth ||
+    if (getStaticServerParams().transitionToAuth ||
         (params.count("security.authorization") &&
          params["security.authorization"].as<std::string>() == "disabled")) {
-        serverGlobalParams.authState = ServerGlobalParams::AuthState::kDisabled;
+        getStaticServerParams().authState = ServerGlobalParams::AuthState::kDisabled;
     } else if (params.count("security.authorization") &&
                params["security.authorization"].as<std::string>() == "enabled") {
-        serverGlobalParams.authState = ServerGlobalParams::AuthState::kEnabled;
+        getStaticServerParams().authState = ServerGlobalParams::AuthState::kEnabled;
     }
 
     if (params.count("processManagement.pidFilePath")) {
-        serverGlobalParams.pidFile = params["processManagement.pidFilePath"].as<string>();
+        getStaticServerParams().pidFile = params["processManagement.pidFilePath"].as<string>();
     }
 
     if (params.count("processManagement.timeZoneInfo")) {
-        serverGlobalParams.timeZoneInfoPath = params["processManagement.timeZoneInfo"].as<string>();
+        getStaticServerParams().timeZoneInfoPath = params["processManagement.timeZoneInfo"].as<string>();
     }
 
     if (!params.count("security.clusterAuthMode") && params.count("security.keyFile")) {
-        serverGlobalParams.clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_keyFile);
+        getStaticServerParams().clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_keyFile);
     }
-    int clusterAuthMode = serverGlobalParams.clusterAuthMode.load();
-    if (serverGlobalParams.transitionToAuth &&
+    int clusterAuthMode = getStaticServerParams().clusterAuthMode.load();
+    if (getStaticServerParams().transitionToAuth &&
         (clusterAuthMode != ServerGlobalParams::ClusterAuthMode_keyFile &&
          clusterAuthMode != ServerGlobalParams::ClusterAuthMode_x509)) {
         return Status(ErrorCodes::BadValue,

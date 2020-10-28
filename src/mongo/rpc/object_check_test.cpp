@@ -45,8 +45,8 @@ using namespace mongo;
 TEST(DataTypeValidated, BSONValidationEnabled) {
     using std::swap;
 
-    bool wasEnabled = serverGlobalParams.objcheck;
-    const auto setValidation = [&](bool enabled) { serverGlobalParams.objcheck = enabled; };
+    bool wasEnabled = getStaticServerParams().objcheck;
+    const auto setValidation = [&](bool enabled) { getStaticServerParams().objcheck = enabled; };
     ON_BLOCK_EXIT([=] { setValidation(wasEnabled); });
 
     using std::begin;

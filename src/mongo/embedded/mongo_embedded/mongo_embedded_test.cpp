@@ -686,7 +686,7 @@ int main(const int argc, const char* const* const argv) {
 
     ::mongo::clearSignalMask();
     ::mongo::setupSynchronousSignalHandlers();
-    ::mongo::serverGlobalParams.noUnixSocket = true;
+    ::mongo::getStaticServerParams().noUnixSocket = true;
 
     // Allocate an error descriptor for use in non-configured tests
     const auto status = makeStatusPtr();

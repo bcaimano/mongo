@@ -71,7 +71,7 @@ public:
 
         Response typedRun(OperationContext* opCtx) {
             if (!getTestCommandsEnabled() &&
-                serverGlobalParams.clusterRole != ClusterRole::ConfigServer) {
+                getStaticServerParams().clusterRole != ClusterRole::ConfigServer) {
                 uassertStatusOK(ShardingState::get(opCtx)->canAcceptShardedCommands());
             }
 
@@ -80,7 +80,7 @@ public:
             // entries
             uassert(ErrorCodes::ReadConcernMajorityNotEnabled,
                     "'prepareTransaction' is not supported with 'enableMajorityReadConcern=false'",
-                    serverGlobalParams.enableMajorityReadConcern);
+                    getStaticServerParams().enableMajorityReadConcern);
 
             // Replica sets with arbiters are able to continually accept majority writes without
             // actually being able to commit them (e.g. PSA with a downed secondary), which in turn
@@ -230,7 +230,7 @@ public:
 
         void typedRun(OperationContext* opCtx) {
             // Only config servers or initialized shard servers can act as transaction coordinators.
-            if (serverGlobalParams.clusterRole != ClusterRole::ConfigServer) {
+            if (getStaticServerParams().clusterRole != ClusterRole::ConfigServer) {
                 uassertStatusOK(ShardingState::get(opCtx)->canAcceptShardedCommands());
             }
 

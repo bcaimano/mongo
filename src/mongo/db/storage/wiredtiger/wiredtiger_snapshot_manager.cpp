@@ -67,7 +67,7 @@ void WiredTigerSnapshotManager::clearCommittedSnapshot() {
 }
 
 boost::optional<Timestamp> WiredTigerSnapshotManager::getMinSnapshotForNextCommittedRead() const {
-    if (!serverGlobalParams.enableMajorityReadConcern) {
+    if (!getStaticServerParams().enableMajorityReadConcern) {
         return boost::none;
     }
 

@@ -522,7 +522,7 @@ void DBClientBase::_auth(const BSONObj& params) {
 Status DBClientBase::authenticateInternalUser(auth::StepDownBehavior stepDownBehavior) {
     ScopedMetadataWriterRemover remover{this};
     if (!auth::isInternalAuthSet()) {
-        if (!serverGlobalParams.quiet.load()) {
+        if (!getStaticServerParams().quiet.load()) {
             LOGV2(20116, "ERROR: No authentication parameters set for internal user");
         }
         return {ErrorCodes::AuthenticationFailed,
@@ -545,7 +545,7 @@ Status DBClientBase::authenticateInternalUser(auth::StepDownBehavior stepDownBeh
         return status;
     }
 
-    if (!serverGlobalParams.quiet.load()) {
+    if (!getStaticServerParams().quiet.load()) {
         LOGV2(20117,
               "Can't authenticate to {connString} as internal user, error: {error}",
               "Can't authenticate as internal user",

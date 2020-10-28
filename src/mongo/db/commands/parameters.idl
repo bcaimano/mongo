@@ -29,7 +29,7 @@
 global:
   cpp_namespace: "mongo"
   cpp_includes:
-    # For serverGlobalParams
+    # For getStaticServerParams()
     - "mongo/db/server_options.h"
     # For DBException
     - "mongo/util/assert_util.h"
@@ -38,7 +38,7 @@ server_parameters:
   quiet:
     description: "Sets quiet logging mode"
     set_at: ["startup", "runtime"]
-    cpp_varname: "serverGlobalParams.quiet"
+    cpp_varname: "getStaticServerParams().quiet"
 
   traceExceptions:
     description: "Configures mongod to log full code stack traces for every database and socket C++ exception"

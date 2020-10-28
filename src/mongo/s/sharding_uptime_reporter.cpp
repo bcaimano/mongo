@@ -55,7 +55,7 @@ MONGO_FAIL_POINT_DEFINE(disableShardingUptimeReporterPeriodicThread);
 const Seconds kUptimeReportInterval(10);
 
 std::string constructInstanceIdString(const std::string& hostName) {
-    return str::stream() << hostName << ":" << serverGlobalParams.port;
+    return str::stream() << hostName << ":" << getStaticServerParams().port;
 }
 
 /**

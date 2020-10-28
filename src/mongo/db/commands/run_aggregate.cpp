@@ -418,7 +418,7 @@ void _adjustChangeStreamReadConcern(OperationContext* opCtx) {
 
         // Change streams are allowed to use the speculative majority read mechanism, if
         // the storage engine doesn't support majority reads directly.
-        if (!serverGlobalParams.enableMajorityReadConcern) {
+        if (!getStaticServerParams().enableMajorityReadConcern) {
             readConcernArgs.setMajorityReadMechanism(
                 repl::ReadConcernArgs::MajorityReadMechanism::kSpeculative);
         }

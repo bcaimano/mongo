@@ -968,7 +968,7 @@ Status TransportLayerASIO::setup() {
 
 #ifndef _WIN32
         if (addr.family() == AF_UNIX) {
-            if (::chmod(addr.toString().c_str(), serverGlobalParams.unixSocketPermissions) == -1) {
+            if (::chmod(addr.toString().c_str(), getStaticServerParams().unixSocketPermissions) == -1) {
                 LOGV2_ERROR(23026,
                             "Failed to chmod socket file {path} {error}",
                             "Failed to chmod socket file",
@@ -1020,7 +1020,7 @@ void TransportLayerASIO::_runListener() noexcept {
 
     for (auto& acceptor : _acceptors) {
         asio::error_code ec;
-        acceptor.second.listen(serverGlobalParams.listenBacklog, ec);
+        acceptor.second.listen(getStaticServerParams().listenBacklog, ec);
         if (ec) {
             LOGV2_FATAL(31339,
                         "Error listening for new connections on {listenAddress}: {error}",

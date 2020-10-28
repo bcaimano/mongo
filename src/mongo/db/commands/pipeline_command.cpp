@@ -118,7 +118,7 @@ public:
             return _liteParsedPipeline.supportsReadConcern(
                 level,
                 _aggregationRequest.getExplain(),
-                serverGlobalParams.enableMajorityReadConcern);
+                getStaticServerParams().enableMajorityReadConcern);
         }
 
         bool allowsSpeculativeMajorityReads() const override {

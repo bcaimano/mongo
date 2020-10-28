@@ -43,10 +43,10 @@ namespace mongo {
 
 bool initializeServerSecurityGlobalState(ServiceContext* service) {
 
-    int clusterAuthMode = serverGlobalParams.clusterAuthMode.load();
-    if (!serverGlobalParams.keyFile.empty() &&
+    int clusterAuthMode = getStaticServerParams().clusterAuthMode.load();
+    if (!getStaticServerParams().keyFile.empty() &&
         clusterAuthMode != ServerGlobalParams::ClusterAuthMode_x509) {
-        if (!setUpSecurityKey(serverGlobalParams.keyFile)) {
+        if (!setUpSecurityKey(getStaticServerParams().keyFile)) {
             // error message printed in setUpPrivateKey
             return false;
         }
@@ -55,7 +55,7 @@ bool initializeServerSecurityGlobalState(ServiceContext* service) {
     // Auto-enable auth unless we are in mixed auth/no-auth or clusterAuthMode was not provided.
     // clusterAuthMode defaults to "keyFile" if a --keyFile parameter is provided.
     if (clusterAuthMode != ServerGlobalParams::ClusterAuthMode_undefined &&
-        !serverGlobalParams.transitionToAuth) {
+        !getStaticServerParams().transitionToAuth) {
         AuthorizationManager::get(service)->setAuthEnabled(true);
     }
 

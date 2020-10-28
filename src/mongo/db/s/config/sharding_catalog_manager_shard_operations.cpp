@@ -340,7 +340,7 @@ StatusWith<ShardType> ShardingCatalogManager::_validateHostAsShard(
                                                 << "field when attempting to add "
                                                 << connectionString.toString() << " as a shard");
     }
-    const auto currentFcv = serverGlobalParams.featureCompatibility.getVersion();
+    const auto currentFcv = getStaticServerParams().featureCompatibility.getVersion();
     // (Generic FCV reference): These FCV checks should exist across LTS binary versions.
     if (currentFcv == FeatureCompatibilityParams::kLatest ||
         currentFcv == FeatureCompatibilityParams::kDowngradingFromLatestToLastContinuous ||
@@ -661,7 +661,7 @@ StatusWith<std::string> ShardingCatalogManager::addShard(
 
         // Get the target version that the newly added shard should be set to.
         const FeatureCompatibilityParams::Version setVersion = [] {
-            const auto currentFcv = serverGlobalParams.featureCompatibility.getVersion();
+            const auto currentFcv = getStaticServerParams().featureCompatibility.getVersion();
             // (Generic FCV reference): These FCV checks should exist across LTS binary versions.
             if (currentFcv == FeatureCompatibilityParams::kLatest ||
                 currentFcv == FeatureCompatibilityParams::kUpgradingFromLastContinuousToLatest ||
@@ -689,7 +689,7 @@ StatusWith<std::string> ShardingCatalogManager::addShard(
         setFcvCmd.setDbName(NamespaceString::kAdminDb);
         // TODO (SERVER-50954): Remove this FCV check once 4.4 is no longer the last LTS
         // version.
-        if (serverGlobalParams.featureCompatibility.isGreaterThanOrEqualTo(
+        if (getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
                 FeatureCompatibilityParams::Version::kVersion47)) {
             // fromConfigServer is a new parameter added to 4.8 with intention to be backported
             // to 4.7.

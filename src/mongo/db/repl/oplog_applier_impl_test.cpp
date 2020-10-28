@@ -875,7 +875,7 @@ protected:
         // 1. Transaction prepare is not supported with logged tables in debug builds.
         // 2. Transactions cannot be assigned a log record if WT_CONN_LOG_DEBUG mode is not enabled.
         _stashedEnableMajorityReadConcern =
-            std::exchange(serverGlobalParams.enableMajorityReadConcern, true);
+            std::exchange(getStaticServerParams().enableMajorityReadConcern, true);
 
         _prepareWithPrevOp = makeCommandOplogEntryWithSessionInfoAndStmtId(
             {Timestamp(Seconds(1), 3), 1LL},
@@ -938,7 +938,7 @@ protected:
     void tearDown() override {
         MultiOplogEntryOplogApplierImplTest::tearDown();
 
-        serverGlobalParams.enableMajorityReadConcern = _stashedEnableMajorityReadConcern;
+        getStaticServerParams().enableMajorityReadConcern = _stashedEnableMajorityReadConcern;
     }
 
 protected:
@@ -2335,7 +2335,7 @@ TEST_F(OplogApplierImplTest, DropDatabaseSucceedsInRecovering) {
 
 TEST_F(OplogApplierImplTest, LogSlowOpApplicationWhenSuccessful) {
     // This duration is greater than "slowMS", so the op would be considered slow.
-    auto applyDuration = serverGlobalParams.slowMS * 10;
+    auto applyDuration = getStaticServerParams().slowMS * 10;
     getServiceContext()->setFastClockSource(
         std::make_unique<AutoAdvancingClockSourceMock>(Milliseconds(applyDuration)));
 
@@ -2361,7 +2361,7 @@ TEST_F(OplogApplierImplTest, LogSlowOpApplicationWhenSuccessful) {
 
 TEST_F(OplogApplierImplTest, DoNotLogSlowOpApplicationWhenFailed) {
     // This duration is greater than "slowMS", so the op would be considered slow.
-    auto applyDuration = serverGlobalParams.slowMS * 10;
+    auto applyDuration = getStaticServerParams().slowMS * 10;
     getServiceContext()->setFastClockSource(
         std::make_unique<AutoAdvancingClockSourceMock>(Milliseconds(applyDuration)));
 
@@ -2385,7 +2385,7 @@ TEST_F(OplogApplierImplTest, DoNotLogSlowOpApplicationWhenFailed) {
 
 TEST_F(OplogApplierImplTest, DoNotLogNonSlowOpApplicationWhenSuccessful) {
     // This duration is below "slowMS", so the op would *not* be considered slow.
-    auto applyDuration = serverGlobalParams.slowMS / 10;
+    auto applyDuration = getStaticServerParams().slowMS / 10;
     getServiceContext()->setFastClockSource(
         std::make_unique<AutoAdvancingClockSourceMock>(Milliseconds(applyDuration)));
 

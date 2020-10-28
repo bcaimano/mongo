@@ -93,9 +93,9 @@ public:
 
         result.append("host", prettyHostName());
         result.append("version", VersionInfoInterface::instance().version());
-        result.append("process", serverGlobalParams.binaryName);
+        result.append("process", getStaticServerParams().binaryName);
         result.append("pid", ProcessId::getCurrent().asLongLong());
-        result.append("uptime", (double)(time(nullptr) - serverGlobalParams.started));
+        result.append("uptime", (double)(time(nullptr) - getStaticServerParams().started));
         auto uptime = clock->now() - _started;
         result.append("uptimeMillis", durationCount<Milliseconds>(uptime));
         result.append("uptimeEstimate", durationCount<Seconds>(uptime));

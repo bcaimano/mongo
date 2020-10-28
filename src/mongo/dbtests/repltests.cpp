@@ -230,7 +230,7 @@ protected:
             }
         }
         {
-            if (!serverGlobalParams.enableMajorityReadConcern) {
+            if (!getStaticServerParams().enableMajorityReadConcern) {
                 if (ops.size() > 0) {
                     if (auto tsElem = ops.front()["ts"]) {
                         _opCtx.getServiceContext()->getStorageEngine()->setOldestTimestamp(

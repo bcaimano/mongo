@@ -58,12 +58,12 @@ MONGO_INITIALIZER(ShouldAlwaysRecordTraffic)(InitializerContext*) {
     }
 
     if (gTrafficRecordingDirectory.empty()) {
-        if (serverGlobalParams.logpath.empty()) {
+        if (getStaticServerParams().logpath.empty()) {
             return Status(ErrorCodes::BadValue,
                           "invalid to set AlwaysRecordTraffic without a logpath or "
                           "trafficRecordingDirectory");
         } else {
-            gTrafficRecordingDirectory = serverGlobalParams.logpath;
+            gTrafficRecordingDirectory = getStaticServerParams().logpath;
         }
     }
 

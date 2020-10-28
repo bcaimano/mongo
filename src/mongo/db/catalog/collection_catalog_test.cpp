@@ -625,18 +625,18 @@ TEST_F(CollectionCatalogTest, DatabaseProfileLevel) {
     // Requesting a profile level that is not in the _databaseProfileLevel map should return the
     // default server-wide setting
     ASSERT_EQ(catalog.getDatabaseProfileSettings(testDBNameFirst).level,
-              serverGlobalParams.defaultProfile);
+              getStaticServerParams().defaultProfile);
     // Setting the default profile level should have not change the result.
     catalog.setDatabaseProfileSettings(testDBNameFirst,
-                                       {serverGlobalParams.defaultProfile, nullptr});
+                                       {getStaticServerParams().defaultProfile, nullptr});
     ASSERT_EQ(catalog.getDatabaseProfileSettings(testDBNameFirst).level,
-              serverGlobalParams.defaultProfile);
+              getStaticServerParams().defaultProfile);
 
     // Changing the profile level should make fetching it different.
     catalog.setDatabaseProfileSettings(testDBNameSecond,
-                                       {serverGlobalParams.defaultProfile + 1, nullptr});
+                                       {getStaticServerParams().defaultProfile + 1, nullptr});
     ASSERT_EQ(catalog.getDatabaseProfileSettings(testDBNameSecond).level,
-              serverGlobalParams.defaultProfile + 1);
+              getStaticServerParams().defaultProfile + 1);
 }
 
 TEST_F(CollectionCatalogTest, GetAllCollectionNamesAndGetAllDbNamesWithUncommittedCollections) {

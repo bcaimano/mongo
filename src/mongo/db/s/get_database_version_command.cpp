@@ -75,7 +75,7 @@ public:
         void run(OperationContext* opCtx, rpc::ReplyBuilderInterface* result) override {
             uassert(ErrorCodes::IllegalOperation,
                     str::stream() << definition()->getName() << " can only be run on shard servers",
-                    serverGlobalParams.clusterRole == ClusterRole::ShardServer);
+                    getStaticServerParams().clusterRole == ClusterRole::ShardServer);
             BSONObj versionObj;
             AutoGetDb autoDb(opCtx, _targetDb(), MODE_IS);
 

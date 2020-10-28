@@ -83,7 +83,7 @@ BSONObj AsyncDBClient::_buildIsMasterRequest(const std::string& appName,
         // commands are enabled. mongobridge uses this field to identify the process opening a
         // connection to it.
         StringBuilder sb;
-        sb << getHostNameCached() << ':' << serverGlobalParams.port;
+        sb << getHostNameCached() << ':' << getStaticServerParams().port;
         bob.append("hostInfo", sb.str());
     }
 

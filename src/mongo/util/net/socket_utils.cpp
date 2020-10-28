@@ -193,7 +193,7 @@ void setSocketKeepAliveParams(int sock,
 }
 
 std::string makeUnixSockPath(int port) {
-    return str::stream() << serverGlobalParams.socket << "/mongodb-" << port << ".sock";
+    return str::stream() << getStaticServerParams().socket << "/mongodb-" << port << ".sock";
 }
 
 // If an ip address is passed in, just return that.  If a hostname is passed
@@ -234,11 +234,11 @@ std::string getHostNameCached() {
 }
 
 std::string getHostNameCachedAndPort() {
-    return str::stream() << getHostNameCached() << ':' << serverGlobalParams.port;
+    return str::stream() << getHostNameCached() << ':' << getStaticServerParams().port;
 }
 
 std::string prettyHostName() {
-    return (serverGlobalParams.port == ServerGlobalParams::DefaultDBPort
+    return (getStaticServerParams().port == ServerGlobalParams::DefaultDBPort
                 ? getHostNameCached()
                 : getHostNameCachedAndPort());
 }

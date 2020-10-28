@@ -560,7 +560,7 @@ OpTime ReplicationCoordinatorExternalStateImpl::onTransitionToPrimary(OperationC
         }
     });
 
-    serverGlobalParams.validateFeaturesAsPrimary.store(true);
+    getStaticServerParams().validateFeaturesAsPrimary.store(true);
 
     return opTimeToReturn;
 }
@@ -770,7 +770,7 @@ void ReplicationCoordinatorExternalStateImpl::onStepDownHook() {
 }
 
 void ReplicationCoordinatorExternalStateImpl::_shardingOnStepDownHook() {
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         PeriodicShardedIndexConsistencyChecker::get(_service).onStepDown();
         TransactionCoordinatorService::get(_service)->onStepDown();
     } else if (ShardingState::get(_service)->enabled()) {
@@ -832,7 +832,7 @@ void ReplicationCoordinatorExternalStateImpl::_stopAsyncUpdatesOfAndClearOplogTr
 
 void ReplicationCoordinatorExternalStateImpl::_shardingOnTransitionToPrimaryHook(
     OperationContext* opCtx) {
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         Status status = ShardingCatalogManager::get(opCtx)->initializeConfigDatabaseIfNeeded(opCtx);
         if (!status.isOK() && status != ErrorCodes::AlreadyInitialized) {
             // If the node is shutting down or it lost quorum just as it was becoming primary, don't

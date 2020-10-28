@@ -49,7 +49,7 @@ const auto grid = ServiceContext::declareDecoration<Grid>();
 
 // TODO SERVER-50675: Remove this FVC function when 5.0 becomes last-lts.
 bool fcvGreaterThanOrEqualTo47() {
-    auto& fcv = serverGlobalParams.featureCompatibility;
+    auto& fcv = getStaticServerParams().featureCompatibility;
     return fcv.isVersionInitialized() &&
         fcv.isGreaterThanOrEqualTo(ServerGlobalParams::FeatureCompatibility::Version::kVersion47);
 }
@@ -153,7 +153,7 @@ ReadPreferenceSetting Grid::readPreferenceWithConfigTime(
 }
 
 repl::OpTime Grid::configOpTime() const {
-    invariant(serverGlobalParams.clusterRole != ClusterRole::ConfigServer);
+    invariant(getStaticServerParams().clusterRole != ClusterRole::ConfigServer);
 
     stdx::lock_guard<Latch> lk(_mutex);
     return _configOpTime;
@@ -181,7 +181,7 @@ boost::optional<repl::OpTime> Grid::advanceConfigOpTime(OperationContext* opCtx,
 }
 
 boost::optional<repl::OpTime> Grid::_advanceConfigOpTime(const repl::OpTime& opTime) {
-    invariant(serverGlobalParams.clusterRole != ClusterRole::ConfigServer);
+    invariant(getStaticServerParams().clusterRole != ClusterRole::ConfigServer);
     stdx::lock_guard<Latch> lk(_mutex);
     if (_configOpTime < opTime) {
         repl::OpTime prev = _configOpTime;

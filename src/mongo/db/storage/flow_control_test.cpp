@@ -53,7 +53,7 @@ public:
         // to satisfy the tests requirements, we forcefully set 'enableMajorityReadConcern' to true
         // for these tests.
         _stashedEnableMajorityReadConcern =
-            std::exchange(serverGlobalParams.enableMajorityReadConcern, true);
+            std::exchange(getStaticServerParams().enableMajorityReadConcern, true);
 
         auto replCoord = std::make_unique<repl::ReplicationCoordinatorMock>(getServiceContext());
         auto replCoordPtr = replCoord.get();
@@ -74,7 +74,7 @@ public:
     void tearDown() {
         ServiceContextMongoDTest::tearDown();
 
-        serverGlobalParams.enableMajorityReadConcern = _stashedEnableMajorityReadConcern;
+        getStaticServerParams().enableMajorityReadConcern = _stashedEnableMajorityReadConcern;
     }
 
     std::unique_ptr<FlowControl> flowControl;

@@ -104,9 +104,9 @@ TEST(OperationLatencyHistogram, CheckBucketCountsAndTotalLatencySlowBuckets) {
         }
     }
 
-    auto orig = serverGlobalParams.slowMS;
-    serverGlobalParams.slowMS = 100;
-    auto g1 = makeGuard([orig] { serverGlobalParams.slowMS = orig; });
+    auto orig = getStaticServerParams().slowMS;
+    getStaticServerParams().slowMS = 100;
+    auto g1 = makeGuard([orig] { getStaticServerParams().slowMS = orig; });
 
     // The additional +1 because of the first boundary.
     uint64_t expectedSum = 3 * std::accumulate(kLowerBounds.begin(), kLowerBounds.end(), 0ULL) + 1;

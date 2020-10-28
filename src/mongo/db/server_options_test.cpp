@@ -445,9 +445,9 @@ TEST(SetupOptions, Default) {
 
     ASSERT_OK(::mongo::setupServerOptions(argv));
 
-    ASSERT_EQUALS(::mongo::serverGlobalParams.binaryName, "binaryname");
-    ASSERT_FALSE(::mongo::serverGlobalParams.cwd.empty());
-    ASSERT_EQUALS(::mongo::serverGlobalParams.argvArray.nFields(), static_cast<int>(argv.size()));
+    ASSERT_EQUALS(::mongo::getStaticServerParams().binaryName, "binaryname");
+    ASSERT_FALSE(::mongo::getStaticServerParams().cwd.empty());
+    ASSERT_EQUALS(::mongo::getStaticServerParams().argvArray.nFields(), static_cast<int>(argv.size()));
 }
 
 TEST(SetupOptions, RelativeBinaryPath) {
@@ -456,9 +456,9 @@ TEST(SetupOptions, RelativeBinaryPath) {
 
     ASSERT_OK(::mongo::setupServerOptions(argv));
 
-    ASSERT_EQUALS(::mongo::serverGlobalParams.binaryName, "binaryname");
-    ASSERT_FALSE(::mongo::serverGlobalParams.cwd.empty());
-    ASSERT_EQUALS(::mongo::serverGlobalParams.argvArray.nFields(), static_cast<int>(argv.size()));
+    ASSERT_EQUALS(::mongo::getStaticServerParams().binaryName, "binaryname");
+    ASSERT_FALSE(::mongo::getStaticServerParams().cwd.empty());
+    ASSERT_EQUALS(::mongo::getStaticServerParams().argvArray.nFields(), static_cast<int>(argv.size()));
 }
 
 TEST(SetupOptions, AbsoluteBinaryPath) {
@@ -467,9 +467,9 @@ TEST(SetupOptions, AbsoluteBinaryPath) {
 
     ASSERT_OK(::mongo::setupServerOptions(argv));
 
-    ASSERT_EQUALS(::mongo::serverGlobalParams.binaryName, "binaryname");
-    ASSERT_FALSE(::mongo::serverGlobalParams.cwd.empty());
-    ASSERT_EQUALS(::mongo::serverGlobalParams.argvArray.nFields(), static_cast<int>(argv.size()));
+    ASSERT_EQUALS(::mongo::getStaticServerParams().binaryName, "binaryname");
+    ASSERT_FALSE(::mongo::getStaticServerParams().cwd.empty());
+    ASSERT_EQUALS(::mongo::getStaticServerParams().argvArray.nFields(), static_cast<int>(argv.size()));
 }
 
 TEST(SetupOptions, EmptyBinaryName) {
@@ -478,9 +478,9 @@ TEST(SetupOptions, EmptyBinaryName) {
 
     ASSERT_OK(::mongo::setupServerOptions(argv));
 
-    ASSERT_EQUALS(::mongo::serverGlobalParams.binaryName, "");
-    ASSERT_FALSE(::mongo::serverGlobalParams.cwd.empty());
-    ASSERT_EQUALS(::mongo::serverGlobalParams.argvArray.nFields(), static_cast<int>(argv.size()));
+    ASSERT_EQUALS(::mongo::getStaticServerParams().binaryName, "");
+    ASSERT_FALSE(::mongo::getStaticServerParams().cwd.empty());
+    ASSERT_EQUALS(::mongo::getStaticServerParams().argvArray.nFields(), static_cast<int>(argv.size()));
 }
 
 TEST(SetupOptions, MissingBinaryName) {
@@ -508,7 +508,7 @@ TEST(SetupOptions, SlowMsCommandLineParamParsesSuccessfully) {
     ASSERT_OK(::mongo::setupServerOptions(argv));
     ASSERT_OK(::mongo::storeServerOptions(environment));
 
-    ASSERT_EQ(::mongo::serverGlobalParams.slowMS, 300);
+    ASSERT_EQ(::mongo::getStaticServerParams().slowMS, 300);
 }
 
 TEST(SetupOptions, SlowMsParamInitializedSuccessfullyFromINIConfigFile) {
@@ -533,7 +533,7 @@ TEST(SetupOptions, SlowMsParamInitializedSuccessfullyFromINIConfigFile) {
     ASSERT_OK(::mongo::setupServerOptions(argv));
     ASSERT_OK(::mongo::storeServerOptions(environment));
 
-    ASSERT_EQ(::mongo::serverGlobalParams.slowMS, 300);
+    ASSERT_EQ(::mongo::getStaticServerParams().slowMS, 300);
 }
 
 TEST(SetupOptions, SlowMsParamInitializedSuccessfullyFromYAMLConfigFile) {
@@ -560,7 +560,7 @@ TEST(SetupOptions, SlowMsParamInitializedSuccessfullyFromYAMLConfigFile) {
     ASSERT_OK(::mongo::setupServerOptions(argv));
     ASSERT_OK(::mongo::storeServerOptions(environment));
 
-    ASSERT_EQ(::mongo::serverGlobalParams.slowMS, 300);
+    ASSERT_EQ(::mongo::getStaticServerParams().slowMS, 300);
 }
 
 TEST(SetupOptions, NonNumericSlowMsCommandLineOptionFailsToParse) {
@@ -616,7 +616,7 @@ TEST(SetupOptions, SampleRateCommandLineParamParsesSuccessfully) {
     ASSERT_OK(::mongo::setupServerOptions(argv));
     ASSERT_OK(::mongo::storeServerOptions(environment));
 
-    ASSERT_EQ(::mongo::serverGlobalParams.sampleRate, 0.5);
+    ASSERT_EQ(::mongo::getStaticServerParams().sampleRate, 0.5);
 }
 
 TEST(SetupOptions, SampleRateParamInitializedSuccessfullyFromINIConfigFile) {
@@ -641,7 +641,7 @@ TEST(SetupOptions, SampleRateParamInitializedSuccessfullyFromINIConfigFile) {
     ASSERT_OK(::mongo::setupServerOptions(argv));
     ASSERT_OK(::mongo::storeServerOptions(environment));
 
-    ASSERT_EQ(::mongo::serverGlobalParams.sampleRate, 0.5);
+    ASSERT_EQ(::mongo::getStaticServerParams().sampleRate, 0.5);
 }
 
 TEST(SetupOptions, SampleRateParamInitializedSuccessfullyFromYAMLConfigFile) {
@@ -668,7 +668,7 @@ TEST(SetupOptions, SampleRateParamInitializedSuccessfullyFromYAMLConfigFile) {
     ASSERT_OK(::mongo::setupServerOptions(argv));
     ASSERT_OK(::mongo::storeServerOptions(environment));
 
-    ASSERT_EQ(::mongo::serverGlobalParams.sampleRate, 0.5);
+    ASSERT_EQ(::mongo::getStaticServerParams().sampleRate, 0.5);
 }
 
 TEST(SetupOptions, NonNumericSampleRateCommandLineOptionFailsToParse) {
@@ -763,11 +763,11 @@ TEST(SetupOptions, DeepCwd) {
     Status res = ::mongo::setupServerOptions(argv);
 
     ASSERT_OK(res);
-    ASSERT_FALSE(::mongo::serverGlobalParams.cwd.empty());
-    ASSERT_EQUALS(::mongo::serverGlobalParams.cwd, deepCwd.native())
-        << "serverGlobalParams.cwd is " << ::mongo::serverGlobalParams.cwd.size()
+    ASSERT_FALSE(::mongo::getStaticServerParams().cwd.empty());
+    ASSERT_EQUALS(::mongo::getStaticServerParams().cwd, deepCwd.native())
+        << "getStaticServerParams().cwd is " << ::mongo::getStaticServerParams().cwd.size()
         << " bytes long and deepCwd is " << deepCwd.size() << " bytes long.";
-    ASSERT_EQUALS(::mongo::serverGlobalParams.argvArray.nFields(), static_cast<int>(argv.size()));
+    ASSERT_EQUALS(::mongo::getStaticServerParams().argvArray.nFields(), static_cast<int>(argv.size()));
 }
 
 TEST(SetupOptions, UnlinkedCwd) {

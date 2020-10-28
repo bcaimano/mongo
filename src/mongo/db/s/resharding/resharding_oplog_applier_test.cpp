@@ -92,7 +92,7 @@ public:
     void setUp() override {
         ShardingMongodTestFixture::setUp();
 
-        serverGlobalParams.clusterRole = ClusterRole::ShardServer;
+        getStaticServerParams().clusterRole = ClusterRole::ShardServer;
 
         auto mockNetwork = std::make_unique<executor::NetworkInterfaceMock>();
         _executor = executor::makeThreadPoolTestExecutor(std::move(mockNetwork));

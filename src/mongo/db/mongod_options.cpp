@@ -374,7 +374,7 @@ Status storeMongodOptions(const moe::Environment& params) {
             // cwd to "/"
             // fork only exists on *nix
             // so '/' is safe
-            storageGlobalParams.dbpath = serverGlobalParams.cwd + "/" + storageGlobalParams.dbpath;
+            storageGlobalParams.dbpath = getStaticServerParams().cwd + "/" + storageGlobalParams.dbpath;
         }
     }
 #ifdef _WIN32
@@ -389,11 +389,11 @@ Status storeMongodOptions(const moe::Environment& params) {
     if (params.count("operationProfiling.mode")) {
         std::string profilingMode = params["operationProfiling.mode"].as<std::string>();
         if (profilingMode == "off") {
-            serverGlobalParams.defaultProfile = 0;
+            getStaticServerParams().defaultProfile = 0;
         } else if (profilingMode == "slowOp") {
-            serverGlobalParams.defaultProfile = 1;
+            getStaticServerParams().defaultProfile = 1;
         } else if (profilingMode == "all") {
-            serverGlobalParams.defaultProfile = 2;
+            getStaticServerParams().defaultProfile = 2;
         } else {
             StringBuilder sb;
             sb << "Bad value for operationProfiling.mode: " << profilingMode
@@ -429,7 +429,7 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("cpu")) {
-        serverGlobalParams.cpu = params["cpu"].as<bool>();
+        getStaticServerParams().cpu = params["cpu"].as<bool>();
     }
 
     if (params.count("storage.journal.enabled")) {
@@ -515,10 +515,10 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("replication.enableMajorityReadConcern")) {
-        serverGlobalParams.enableMajorityReadConcern =
+        getStaticServerParams().enableMajorityReadConcern =
             params["replication.enableMajorityReadConcern"].as<bool>();
 
-        if (!serverGlobalParams.enableMajorityReadConcern) {
+        if (!getStaticServerParams().enableMajorityReadConcern) {
             // Lock-free reads are not supported with enableMajorityReadConcern=false, so we disable
             // them. If the user tries to explicitly enable lock-free reads by specifying
             // disableLockFreeReads=false, log a warning so that the user knows these are not
@@ -579,9 +579,9 @@ Status storeMongodOptions(const moe::Environment& params) {
         if (params.count("sharding.clusterRole")) {
             std::string clusterRole = params["sharding.clusterRole"].as<std::string>();
             if (clusterRole == "configsvr") {
-                serverGlobalParams.port = ServerGlobalParams::ConfigServerPort;
+                getStaticServerParams().port = ServerGlobalParams::ConfigServerPort;
             } else if (clusterRole == "shardsvr") {
-                serverGlobalParams.port = ServerGlobalParams::ShardServerPort;
+                getStaticServerParams().port = ServerGlobalParams::ShardServerPort;
             } else {
                 StringBuilder sb;
                 sb << "Bad value for sharding.clusterRole: " << clusterRole
@@ -590,14 +590,14 @@ Status storeMongodOptions(const moe::Environment& params) {
             }
         }
     } else {
-        if (serverGlobalParams.port < 0 || serverGlobalParams.port > 65535) {
+        if (getStaticServerParams().port < 0 || getStaticServerParams().port > 65535) {
             return Status(ErrorCodes::BadValue, "bad --port number");
         }
     }
     if (params.count("sharding.clusterRole")) {
         auto clusterRoleParam = params["sharding.clusterRole"].as<std::string>();
         if (clusterRoleParam == "configsvr") {
-            serverGlobalParams.clusterRole = ClusterRole::ConfigServer;
+            getStaticServerParams().clusterRole = ClusterRole::ConfigServer;
 
             if (params.count("replication.enableMajorityReadConcern") &&
                 !params["replication.enableMajorityReadConcern"].as<bool>()) {
@@ -605,7 +605,7 @@ Status storeMongodOptions(const moe::Environment& params) {
                               "Ignoring read concern override as config server requires majority "
                               "read concern");
             }
-            serverGlobalParams.enableMajorityReadConcern = true;
+            getStaticServerParams().enableMajorityReadConcern = true;
 
             // If we haven't explicitly specified a journal option, default journaling to true for
             // the config server role
@@ -617,19 +617,19 @@ Status storeMongodOptions(const moe::Environment& params) {
                 storageGlobalParams.dbpath = storageGlobalParams.kDefaultConfigDbPath;
             }
         } else if (clusterRoleParam == "shardsvr") {
-            serverGlobalParams.clusterRole = ClusterRole::ShardServer;
+            getStaticServerParams().clusterRole = ClusterRole::ShardServer;
         }
     }
 
     if (params.count("sharding.archiveMovedChunks")) {
-        serverGlobalParams.moveParanoia = params["sharding.archiveMovedChunks"].as<bool>();
+        getStaticServerParams().moveParanoia = params["sharding.archiveMovedChunks"].as<bool>();
     }
 
     if (params.count("sharding._overrideShardIdentity")) {
         auto docAsString = params["sharding._overrideShardIdentity"].as<std::string>();
 
         try {
-            serverGlobalParams.overrideShardIdentity = fromjson(docAsString);
+            getStaticServerParams().overrideShardIdentity = fromjson(docAsString);
         } catch (const DBException& exception) {
             return exception.toStatus(
                 "Error encountered while parsing _overrideShardIdentity JSON document");

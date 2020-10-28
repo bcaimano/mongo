@@ -726,7 +726,7 @@ CollectionCatalog::ProfileSettings CollectionCatalog::getDatabaseProfileSettings
         return it->second;
     }
 
-    return {serverGlobalParams.defaultProfile, ProfileFilter::getDefault()};
+    return {getStaticServerParams().defaultProfile, ProfileFilter::getDefault()};
 }
 
 void CollectionCatalog::clearDatabaseProfileSettings(StringData dbName) {

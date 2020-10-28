@@ -434,7 +434,7 @@ list<intrusive_ptr<DocumentSource>> buildPipeline(const intrusive_ptr<Expression
     }
 
     // Obtain the current FCV and use it to create the DocumentSourceChangeStreamTransform stage.
-    const auto fcv = serverGlobalParams.featureCompatibility.getVersion();
+    const auto fcv = getStaticServerParams().featureCompatibility.getVersion();
     stages.push_back(
         DocumentSourceChangeStreamTransform::create(expCtx, fcv, elem.embeddedObject()));
 

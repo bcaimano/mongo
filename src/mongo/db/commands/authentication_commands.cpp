@@ -104,7 +104,7 @@ Status _authenticateX509(OperationContext* opCtx, const UserName& user, const BS
             if (!status.isOK()) {
                 return status;
             }
-            int clusterAuthMode = serverGlobalParams.clusterAuthMode.load();
+            int clusterAuthMode = getStaticServerParams().clusterAuthMode.load();
             if (clusterAuthMode == ServerGlobalParams::ClusterAuthMode_undefined ||
                 clusterAuthMode == ServerGlobalParams::ClusterAuthMode_keyFile) {
                 return Status(ErrorCodes::AuthenticationFailed,
@@ -268,7 +268,7 @@ bool CmdAuthenticate::run(OperationContext* opCtx,
                           const BSONObj& cmdObj,
                           BSONObjBuilder& result) {
     CommandHelpers::handleMarkKillOnClientDisconnect(opCtx);
-    if (!serverGlobalParams.quiet.load()) {
+    if (!getStaticServerParams().quiet.load()) {
         mutablebson::Document cmdToLog(cmdObj, mutablebson::Document::kInPlaceDisabled);
         LOGV2(20427,
               "Authenticate db: {db} {command}",
@@ -304,7 +304,7 @@ bool CmdAuthenticate::run(OperationContext* opCtx,
         uassertStatusOK(_authenticate(opCtx, mechanism, user, cmdObj));
         audit::logAuthentication(opCtx->getClient(), mechanism, user, ErrorCodes::OK);
 
-        if (!serverGlobalParams.quiet.load()) {
+        if (!getStaticServerParams().quiet.load()) {
             LOGV2(20429,
                   "Successfully authenticated as principal {user} on {db} from client {client}",
                   "Successfully authenticated",
@@ -322,7 +322,7 @@ bool CmdAuthenticate::run(OperationContext* opCtx,
         auto status = ex.toStatus();
         auto const client = opCtx->getClient();
         audit::logAuthentication(client, mechanism, user, status.code());
-        if (!serverGlobalParams.quiet.load()) {
+        if (!getStaticServerParams().quiet.load()) {
             LOGV2(20428,
                   "Failed to authenticate",
                   "user"_attr = user,

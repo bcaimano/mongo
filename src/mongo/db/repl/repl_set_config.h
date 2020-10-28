@@ -210,7 +210,7 @@ public:
 
     /**
      * Same as the generic parse() above except will default "configsvr" setting to the value
-     * of serverGlobalParams.configsvr.
+     * of getStaticServerParams().configsvr.
      * Sets term to kInitialTerm.
      * Sets replicaSetId to "newReplicaSetId", which must be set.
      */

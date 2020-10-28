@@ -51,7 +51,7 @@ namespace {
  */
 bool isNamespaceAlwaysUnsharded(const NamespaceString& nss) {
     // There should never be a case to mark as sharded collections which are on the config server
-    if (serverGlobalParams.clusterRole != ClusterRole::ShardServer)
+    if (getStaticServerParams().clusterRole != ClusterRole::ShardServer)
         return true;
 
     return nss.isNamespaceAlwaysUnsharded();

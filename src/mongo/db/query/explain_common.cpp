@@ -40,7 +40,7 @@ namespace mongo::explain_common {
 void generateServerInfo(BSONObjBuilder* out) {
     BSONObjBuilder serverBob(out->subobjStart("serverInfo"));
     out->append("host", getHostNameCached());
-    out->appendNumber("port", serverGlobalParams.port);
+    out->appendNumber("port", getStaticServerParams().port);
     auto&& vii = VersionInfoInterface::instance();
     out->append("version", vii.version());
     out->append("gitVersion", vii.gitVersion());

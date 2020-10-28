@@ -390,7 +390,7 @@ void DBClientCursor::dataReceived(const Message& reply, bool& retry, string& hos
 
     BufReader data(qr.data(), qr.dataLen());
     while (static_cast<int>(batch.objs.size()) < qr.getNReturned()) {
-        if (serverGlobalParams.objcheck) {
+        if (getStaticServerParams().objcheck) {
             batch.objs.push_back(data.read<Validated<BSONObj>>());
         } else {
             batch.objs.push_back(data.read<BSONObj>());

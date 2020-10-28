@@ -56,7 +56,7 @@ Status canonicalizeServerOptions(optionenvironment::Environment* params);
  * Sets up the global server state necessary to be able to store the server options, based on how
  * the server was started.
  *
- * For example, saves the current working directory in serverGlobalParams.cwd so that relative paths
+ * For example, saves the current working directory in getStaticServerParams().cwd so that relative paths
  * in server options can be interpreted correctly.
  */
 Status setupServerOptions(const std::vector<std::string>& args);
@@ -64,7 +64,7 @@ Status setupServerOptions(const std::vector<std::string>& args);
 /**
  * Store the given parsed params in global server state.
  *
- * For example, sets the serverGlobalParams.port variable based on the net.port config parameter.
+ * For example, sets the getStaticServerParams().port variable based on the net.port config parameter.
  */
 Status storeServerOptions(const optionenvironment::Environment& params);
 

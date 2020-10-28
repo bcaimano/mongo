@@ -284,7 +284,7 @@ protected:
     void setUp() override {
         ShardServerTestFixture::setUp();
 
-        serverGlobalParams.clusterRole = ClusterRole::ShardServer;
+        getStaticServerParams().clusterRole = ClusterRole::ShardServer;
 
         auto replCoord = repl::ReplicationCoordinator::get(operationContext());
         ASSERT_OK(replCoord->setFollowerMode(repl::MemberState::RS_PRIMARY));

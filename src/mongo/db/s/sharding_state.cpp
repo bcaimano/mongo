@@ -94,7 +94,7 @@ bool ShardingState::enabled() const {
 }
 
 Status ShardingState::canAcceptShardedCommands() const {
-    if (serverGlobalParams.clusterRole != ClusterRole::ShardServer) {
+    if (getStaticServerParams().clusterRole != ClusterRole::ShardServer) {
         return {ErrorCodes::NoShardingEnabled,
                 "Cannot accept sharding commands if not started with --shardsvr"};
     } else if (!enabled()) {

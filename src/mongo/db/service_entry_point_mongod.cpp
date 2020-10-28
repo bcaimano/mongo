@@ -80,7 +80,7 @@ public:
         if (!rcStatus.isOK()) {
             if (ErrorCodes::isExceededTimeLimitError(rcStatus.code())) {
                 const int debugLevel =
-                    serverGlobalParams.clusterRole == ClusterRole::ConfigServer ? 0 : 2;
+                    getStaticServerParams().clusterRole == ClusterRole::ConfigServer ? 0 : 2;
                 LOGV2_DEBUG(21975,
                             debugLevel,
                             "Command on database {db} timed out waiting for read concern to be "
@@ -187,7 +187,7 @@ public:
         if (auto sce = e.extraInfo<StaleConfigInfo>()) {
             // A config server acting as a router may return a StaleConfig exception, but a config
             // server won't contain data for a sharded collection, so skip handling the exception.
-            if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+            if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
                 return;
             }
 
@@ -216,7 +216,7 @@ public:
     // Called from the error contexts where request may not be available.
     void appendReplyMetadataOnError(OperationContext* opCtx,
                                     BSONObjBuilder* metadataBob) const override {
-        const bool isConfig = serverGlobalParams.clusterRole == ClusterRole::ConfigServer;
+        const bool isConfig = getStaticServerParams().clusterRole == ClusterRole::ConfigServer;
         if (ShardingState::get(opCtx)->enabled() || isConfig) {
             auto lastCommittedOpTime =
                 repl::ReplicationCoordinator::get(opCtx)->getLastCommittedOpTime();
@@ -228,7 +228,7 @@ public:
                              const OpMsgRequest& request,
                              BSONObjBuilder* metadataBob) const override {
         const bool isShardingAware = ShardingState::get(opCtx)->enabled();
-        const bool isConfig = serverGlobalParams.clusterRole == ClusterRole::ConfigServer;
+        const bool isConfig = getStaticServerParams().clusterRole == ClusterRole::ConfigServer;
         auto const replCoord = repl::ReplicationCoordinator::get(opCtx);
         const bool isReplSet =
             replCoord->getReplicationMode() == repl::ReplicationCoordinator::modeReplSet;

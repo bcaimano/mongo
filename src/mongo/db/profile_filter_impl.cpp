@@ -80,7 +80,7 @@ MONGO_INITIALIZER_GENERAL(ProfileFilterDefault,
                           ())
 (InitializerContext*) {
     try {
-        if (auto expr = serverGlobalParams.defaultProfileFilter) {
+        if (auto expr = getStaticServerParams().defaultProfileFilter) {
             ProfileFilter::setDefault(std::make_shared<ProfileFilterImpl>(*expr));
         }
         return Status::OK();

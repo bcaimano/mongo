@@ -85,7 +85,7 @@ ServiceEntryPointImpl::ServiceEntryPointImpl(ServiceContext* svcCtx) : _svcCtx(s
 
     const auto supportedMax = [] {
 #ifdef _WIN32
-        return serverGlobalParams.maxConns;
+        return getStaticServerParams().maxConns;
 #else
         struct rlimit limit;
         verify(getrlimit(RLIMIT_NOFILE, &limit) == 0);
@@ -100,13 +100,13 @@ ServiceEntryPointImpl::ServiceEntryPointImpl(ServiceContext* svcCtx) : _svcCtx(s
                     "soft"_attr = limit.rlim_cur,
                     "conn"_attr = max);
 
-        return std::min(max, serverGlobalParams.maxConns);
+        return std::min(max, getStaticServerParams().maxConns);
 #endif
     }();
 
     // If we asked for more connections than supported, inform the user.
-    if (supportedMax < serverGlobalParams.maxConns &&
-        serverGlobalParams.maxConns != DEFAULT_MAX_CONN) {
+    if (supportedMax < getStaticServerParams().maxConns &&
+        getStaticServerParams().maxConns != DEFAULT_MAX_CONN) {
         LOGV2(22941,
               " --maxConns too high, can only handle {limit}",
               " --maxConns too high",
@@ -115,9 +115,9 @@ ServiceEntryPointImpl::ServiceEntryPointImpl(ServiceContext* svcCtx) : _svcCtx(s
 
     _maxNumConnections = supportedMax;
 
-    if (serverGlobalParams.reservedAdminThreads) {
+    if (getStaticServerParams().reservedAdminThreads) {
         _adminInternalPool = std::make_unique<transport::ServiceExecutorReserved>(
-            _svcCtx, "admin/internal connections", serverGlobalParams.reservedAdminThreads);
+            _svcCtx, "admin/internal connections", getStaticServerParams().reservedAdminThreads);
     }
 }
 
@@ -138,7 +138,7 @@ void ServiceEntryPointImpl::startSession(transport::SessionHandle session) {
 
     SSMListIterator ssmIt;
 
-    const bool quiet = serverGlobalParams.quiet.load();
+    const bool quiet = getStaticServerParams().quiet.load();
     size_t connectionCount;
     auto transportMode = _svcCtx->getServiceExecutor()->transportMode();
 
@@ -149,7 +149,7 @@ void ServiceEntryPointImpl::startSession(transport::SessionHandle session) {
         connectionCount = _sessions.size() + 1;
         if (connectionCount > _maxNumConnections) {
             usingMaxConnOverride =
-                shouldOverrideMaxConns(session, serverGlobalParams.maxConnsOverride);
+                shouldOverrideMaxConns(session, getStaticServerParams().maxConnsOverride);
         }
 
         if (connectionCount <= _maxNumConnections || usingMaxConnOverride) {

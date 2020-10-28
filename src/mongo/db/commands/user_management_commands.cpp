@@ -1910,7 +1910,7 @@ public:
              BSONObjBuilder& result) override {
         uassert(ErrorCodes::IllegalOperation,
                 "_getUserCacheGeneration can only be run on config servers",
-                serverGlobalParams.clusterRole == ClusterRole::ConfigServer);
+                getStaticServerParams().clusterRole == ClusterRole::ConfigServer);
         AuthorizationManager* authzManager = AuthorizationManager::get(opCtx->getServiceContext());
         result.append("cacheGeneration", authzManager->getCacheGeneration());
         return true;

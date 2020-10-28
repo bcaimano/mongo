@@ -304,7 +304,7 @@ void ReplicationCoordinatorImpl::_handleHeartbeatResponse(
                 // binaries to have on-disk repl config with 'newlyAdded' fields.
                 invariant(
                     _supportsAutomaticReconfig() ||
-                    serverGlobalParams.featureCompatibility.isGreaterThan(
+                    getStaticServerParams().featureCompatibility.isGreaterThan(
                         ServerGlobalParams::FeatureCompatibility::Version::kFullyDowngradedTo44));
 
                 const auto memId = mem->getId();

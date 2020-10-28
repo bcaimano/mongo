@@ -245,7 +245,7 @@ void logStartup(OperationContext* opCtx) {
     toLog.appendTimeT("startTime", time(nullptr));
     toLog.append("startTimeLocal", dateToCtimeString(Date_t::now()));
 
-    toLog.append("cmdLine", serverGlobalParams.parsedOpts);
+    toLog.append("cmdLine", getStaticServerParams().parsedOpts);
     toLog.append("pid", ProcessId::getCurrent().asLongLong());
 
 
@@ -312,9 +312,9 @@ void registerPrimaryOnlyServices(ServiceContext* serviceContext) {
     services.push_back(std::make_unique<TenantMigrationDonorService>(serviceContext));
     services.push_back(std::make_unique<repl::TenantMigrationRecipientService>(serviceContext));
 
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         services.push_back(std::make_unique<ReshardingCoordinatorService>(serviceContext));
-    } else if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+    } else if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
         services.push_back(std::make_unique<ReshardingDonorService>(serviceContext));
         services.push_back(std::make_unique<ReshardingRecipientService>(serviceContext));
     }
@@ -345,7 +345,7 @@ void startMongoD(ServiceContext* serviceContext) {
               "MongoDB starting : pid={pid} port={port} dbpath={dbPath} {architecture} host={host}",
               "MongoDB starting",
               "pid"_attr = pid.toNative(),
-              "port"_attr = serverGlobalParams.port,
+              "port"_attr = getStaticServerParams().port,
               "dbPath"_attr = boost::filesystem::path(storageGlobalParams.dbpath).generic_string(),
               "architecture"_attr = (is32bit ? "32-bit" : "64-bit"),
               "host"_attr = getHostNameCached());
@@ -374,7 +374,7 @@ void startMongoD(ServiceContext* serviceContext) {
 
     if (!storageGlobalParams.repair) {
         auto tl =
-            transport::TransportLayerManager::createWithConfig(&serverGlobalParams, serviceContext);
+            transport::TransportLayerManager::createWithConfig(&getStaticServerParams(), serviceContext);
         uassertStatusOK(tl->setup());
         serviceContext->setTransportLayer(std::move(tl));
     }
@@ -400,8 +400,8 @@ void startMongoD(ServiceContext* serviceContext) {
 
     // Warn if we detect configurations for multiple registered storage engines in the same
     // configuration file/environment.
-    if (serverGlobalParams.parsedOpts.hasField("storage")) {
-        BSONElement storageElement = serverGlobalParams.parsedOpts.getField("storage");
+    if (getStaticServerParams().parsedOpts.hasField("storage")) {
+        BSONElement storageElement = getStaticServerParams().parsedOpts.getField("storage");
         invariant(storageElement.isABSONObj());
         for (auto&& e : storageElement.Obj()) {
             // Ignore if field name under "storage" matches current storage engine.
@@ -423,7 +423,7 @@ void startMongoD(ServiceContext* serviceContext) {
 
     // Disallow running a storage engine that doesn't support capped collections with --profile
     if (!serviceContext->getStorageEngine()->supportsCappedCollections() &&
-        serverGlobalParams.defaultProfile != 0) {
+        getStaticServerParams().defaultProfile != 0) {
         LOGV2_ERROR(20534,
                     "Running {storageEngine} with profiling is not supported. Make sure you "
                     "are not using --profile",
@@ -443,7 +443,7 @@ void startMongoD(ServiceContext* serviceContext) {
         exitCleanly(EXIT_BADOPTIONS);
     }
 
-    logMongodStartupWarnings(storageGlobalParams, serverGlobalParams, serviceContext);
+    logMongodStartupWarnings(storageGlobalParams, getStaticServerParams(), serviceContext);
 
     {
         std::stringstream ss;
@@ -581,7 +581,7 @@ void startMongoD(ServiceContext* serviceContext) {
     }
 
     try {
-        if (serverGlobalParams.clusterRole != ClusterRole::ShardServer &&
+        if (getStaticServerParams().clusterRole != ClusterRole::ShardServer &&
             replSettings.usingReplSets()) {
             ReadWriteConcernDefaults::get(startupOpCtx.get()->getServiceContext())
                 .refreshIfNecessary(startupOpCtx.get());
@@ -634,14 +634,14 @@ void startMongoD(ServiceContext* serviceContext) {
                 TransactionParticipant::getOldestActiveTimestamp);
         }
 
-        if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+        if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
             // Note: For replica sets, ShardingStateRecovery happens on transition to primary.
             if (!replCoord->isReplEnabled()) {
                 if (ShardingState::get(startupOpCtx.get())->enabled()) {
                     uassertStatusOK(ShardingStateRecovery::recover(startupOpCtx.get()));
                 }
             }
-        } else if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+        } else if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
             initializeGlobalShardingStateForMongoD(startupOpCtx.get(),
                                                    ConnectionString::forLocal(),
                                                    kDistLockProcessIdForConfigServer);
@@ -681,7 +681,7 @@ void startMongoD(ServiceContext* serviceContext) {
         }
 
         if (replSettings.usingReplSets() || !gInternalValidateFeaturesAsPrimary) {
-            serverGlobalParams.validateFeaturesAsPrimary.store(false);
+            getStaticServerParams().validateFeaturesAsPrimary.store(false);
         }
     }
 
@@ -712,9 +712,9 @@ void startMongoD(ServiceContext* serviceContext) {
 
     // Set up the logical session cache
     LogicalSessionCacheServer kind = LogicalSessionCacheServer::kStandalone;
-    if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
         kind = LogicalSessionCacheServer::kSharded;
-    } else if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    } else if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         kind = LogicalSessionCacheServer::kConfigServer;
     } else if (replSettings.usingReplSets()) {
         kind = LogicalSessionCacheServer::kReplicaSet;
@@ -737,7 +737,7 @@ void startMongoD(ServiceContext* serviceContext) {
 
 #if defined(_WIN32)
 ExitCode initService() {
-    return initAndListen(getGlobalServiceContext(), serverGlobalParams.port);
+    return initAndListen(getGlobalServiceContext(), getStaticServerParams().port);
 }
 #endif
 
@@ -836,7 +836,7 @@ void startupConfigActions(const std::vector<std::string>& args) {
 }
 
 void setUpCollectionShardingState(ServiceContext* serviceContext) {
-    if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
         CollectionShardingStateFactory::set(
             serviceContext, std::make_unique<CollectionShardingStateFactoryShard>(serviceContext));
     } else {
@@ -903,7 +903,7 @@ void setUpReplication(ServiceContext* serviceContext) {
 
     repl::TopologyCoordinator::Options topoCoordOptions;
     topoCoordOptions.maxSyncSourceLagSecs = Seconds(repl::maxSyncSourceLagSecs);
-    topoCoordOptions.clusterRole = serverGlobalParams.clusterRole;
+    topoCoordOptions.clusterRole = getStaticServerParams().clusterRole;
 
     auto replCoord = std::make_unique<repl::ReplicationCoordinatorImpl>(
         serviceContext,
@@ -917,7 +917,7 @@ void setUpReplication(ServiceContext* serviceContext) {
         SecureRandom().nextInt64());
     // Only create a ReplicaSetNodeExecutor if sharding is disabled and replication is enabled.
     // Note that sharding sets up its own executors for scheduling work to remote nodes.
-    if (serverGlobalParams.clusterRole == ClusterRole::None && replCoord->isReplEnabled())
+    if (getStaticServerParams().clusterRole == ClusterRole::None && replCoord->isReplEnabled())
         ReplicaSetNodeProcessInterface::setReplicaSetNodeExecutor(
             serviceContext, makeReplicaSetNodeExecutor(serviceContext));
 
@@ -933,10 +933,10 @@ void setUpReplication(ServiceContext* serviceContext) {
 
 void setUpObservers(ServiceContext* serviceContext) {
     auto opObserverRegistry = std::make_unique<OpObserverRegistry>();
-    if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
         opObserverRegistry->addObserver(std::make_unique<OpObserverShardingImpl>());
         opObserverRegistry->addObserver(std::make_unique<ShardServerOpObserver>());
-    } else if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    } else if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         opObserverRegistry->addObserver(std::make_unique<OpObserverImpl>());
         opObserverRegistry->addObserver(std::make_unique<ConfigServerOpObserver>());
         opObserverRegistry->addObserver(std::make_unique<ReshardingOpObserver>());
@@ -1016,8 +1016,8 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
     // TODO SERVER-49138: Remove this FCV check when 5.0 becomes last-lts.
     // We must FCV gate the Quiesce mode feature so that a 4.7+ node entering Quiesce mode in a
     // mixed 4.4/4.7+ replica set does not delay a 4.4 node from finding a valid sync source.
-    if (serverGlobalParams.featureCompatibility.isVersionInitialized() &&
-        serverGlobalParams.featureCompatibility.isGreaterThanOrEqualTo(
+    if (getStaticServerParams().featureCompatibility.isVersionInitialized() &&
+        getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
             ServerGlobalParams::FeatureCompatibility::Version::kVersion47)) {
         if (auto replCoord = repl::ReplicationCoordinator::get(serviceContext);
             replCoord && replCoord->enterQuiesceModeIfSecondary(shutdownTimeout)) {
@@ -1115,7 +1115,7 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         tenantMigrationDonorExecutor->join();
 
         // Terminate the index consistency check.
-        if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+        if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
             LOGV2_OPTIONS(4784904,
                           {LogComponent::kSharding},
                           "Shutting down the PeriodicShardedIndexConsistencyChecker");

@@ -90,7 +90,7 @@ Status finishAndLogApply(OperationContext* opCtx,
         if (shouldLogSlowOpWithSampling(opCtx,
                                         MONGO_LOGV2_DEFAULT_COMPONENT,
                                         Milliseconds(opDuration),
-                                        Milliseconds(serverGlobalParams.slowMS))
+                                        Milliseconds(getStaticServerParams().slowMS))
                 .first) {
 
             logv2::DynamicAttributes attrs;

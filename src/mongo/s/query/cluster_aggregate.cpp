@@ -223,7 +223,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
     };
 
     liteParsedPipeline.verifyIsSupported(
-        opCtx, isSharded, request.getExplain(), serverGlobalParams.enableMajorityReadConcern);
+        opCtx, isSharded, request.getExplain(), getStaticServerParams().enableMajorityReadConcern);
     auto hasChangeStream = liteParsedPipeline.hasChangeStream();
     auto involvedNamespaces = liteParsedPipeline.getInvolvedNamespaces();
 

@@ -41,7 +41,7 @@ namespace mongo {
 namespace {
 
 std::string clusterAuthModeFormat() {
-    switch (serverGlobalParams.clusterAuthMode.load()) {
+    switch (getStaticServerParams().clusterAuthMode.load()) {
         case ServerGlobalParams::ClusterAuthMode_keyFile:
             return "keyFile";
         case ServerGlobalParams::ClusterAuthMode_sendKeyFile:
@@ -89,7 +89,7 @@ Status ClusterAuthModeServerParameter::setFromString(const std::string& strMode)
     }
 
     auto mode = swMode.getValue();
-    auto oldMode = serverGlobalParams.clusterAuthMode.load();
+    auto oldMode = getStaticServerParams().clusterAuthMode.load();
     auto sslMode = sslGlobalParams.sslMode.load();
     if ((mode == ServerGlobalParams::ClusterAuthMode_sendX509) &&
         (oldMode == ServerGlobalParams::ClusterAuthMode_sendKeyFile)) {
@@ -98,13 +98,13 @@ Status ClusterAuthModeServerParameter::setFromString(const std::string& strMode)
                     "Illegal state transition for clusterAuthMode, need to enable SSL for outgoing "
                     "connections"};
         }
-        serverGlobalParams.clusterAuthMode.store(mode);
+        getStaticServerParams().clusterAuthMode.store(mode);
         auth::setInternalUserAuthParams(BSON(saslCommandMechanismFieldName
                                              << "MONGODB-X509" << saslCommandUserDBFieldName
                                              << "$external"));
     } else if ((mode == ServerGlobalParams::ClusterAuthMode_x509) &&
                (oldMode == ServerGlobalParams::ClusterAuthMode_sendX509)) {
-        serverGlobalParams.clusterAuthMode.store(mode);
+        getStaticServerParams().clusterAuthMode.store(mode);
     } else {
         return {ErrorCodes::BadValue,
                 str::stream() << "Illegal state transition for clusterAuthMode, change from "

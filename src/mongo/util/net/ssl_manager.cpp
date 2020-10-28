@@ -371,7 +371,7 @@ void SSLManagerCoordinator::rotate() {
     std::shared_ptr<SSLManagerInterface> manager =
         SSLManagerInterface::create(sslGlobalParams, isSSLServer);
 
-    int clusterAuthMode = serverGlobalParams.clusterAuthMode.load();
+    int clusterAuthMode = getStaticServerParams().clusterAuthMode.load();
     if (clusterAuthMode == ServerGlobalParams::ClusterAuthMode_x509 ||
         clusterAuthMode == ServerGlobalParams::ClusterAuthMode_sendX509) {
         auth::setInternalUserAuthParams(

@@ -173,7 +173,7 @@ LastStorageEngineShutdownState initializeStorageEngine(OperationContext* opCtx,
 
     guard.dismiss();
 
-    if (serverGlobalParams.enableMajorityReadConcern) {
+    if (getStaticServerParams().enableMajorityReadConcern) {
         uassert(4939200,
                 str::stream() << "Cannot initialize " << storageGlobalParams.engine
                               << " with 'enableMajorityReadConcern=true' "

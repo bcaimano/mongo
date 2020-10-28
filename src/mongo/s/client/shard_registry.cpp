@@ -59,8 +59,8 @@ const Seconds kRefreshPeriod(30);
  * topologyTime part of the cache's Time will stay fixed and not advance.
  */
 bool useActualTopologyTime() {
-    return serverGlobalParams.featureCompatibility.isVersionInitialized() &&
-        serverGlobalParams.featureCompatibility.isGreaterThanOrEqualTo(
+    return getStaticServerParams().featureCompatibility.isVersionInitialized() &&
+        getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
             ServerGlobalParams::FeatureCompatibility::Version::kVersion47);
 }
 
@@ -640,7 +640,7 @@ std::pair<ShardRegistryData, Timestamp> ShardRegistryData::createFromCatalogClie
 
     // ShardRemote requires a majority read. We can only allow a non-majority read if we are a
     // config server.
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer &&
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer &&
         !repl::ReadConcernArgs::get(opCtx).isEmpty()) {
         readConcern = repl::ReadConcernArgs::get(opCtx).getLevel();
     }

@@ -67,7 +67,7 @@ public:
             uassert(ErrorCodes::IllegalOperation,
                     str::stream() << ConfigsvrBalancerCollectionStatus::kCommandName
                                   << " can only be run on config servers",
-                    serverGlobalParams.clusterRole == ClusterRole::ConfigServer);
+                    getStaticServerParams().clusterRole == ClusterRole::ConfigServer);
 
             const NamespaceString& nss = ns();
 

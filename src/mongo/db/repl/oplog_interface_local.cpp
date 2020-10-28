@@ -103,7 +103,7 @@ std::unique_ptr<TransactionHistoryIteratorBase> OplogInterfaceLocal::makeTransac
 }
 
 HostAndPort OplogInterfaceLocal::hostAndPort() const {
-    return {getHostNameCached(), serverGlobalParams.port};
+    return {getHostNameCached(), getStaticServerParams().port};
 }
 
 }  // namespace repl

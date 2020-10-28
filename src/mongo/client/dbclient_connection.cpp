@@ -199,7 +199,7 @@ executor::RemoteCommandResponse initWireVersion(
         // commands are enabled. mongobridge uses this field to identify the process opening a
         // connection to it.
         StringBuilder sb;
-        sb << getHostName() << ':' << serverGlobalParams.port;
+        sb << getHostName() << ':' << getStaticServerParams().port;
         bob.append("hostInfo", sb.str());
     }
 

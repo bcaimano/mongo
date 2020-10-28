@@ -924,10 +924,10 @@ StatusWith<UniqueCertificateWithPrivateKey> readCertPEMFile(StringData fileName,
     if (isSSLServer) {
         // Generate a unique name for each key container
         // Use the the log file if possible
-        if (!serverGlobalParams.logpath.empty()) {
+        if (!getStaticServerParams().logpath.empty()) {
             static AtomicWord<int> counter{0};
             std::string keyContainerName = str::stream()
-                << serverGlobalParams.logpath << counter.fetchAndAdd(1);
+                << getStaticServerParams().logpath << counter.fetchAndAdd(1);
             wstr = toNativeString(keyContainerName.c_str());
         } else {
             auto us = UUID::gen().toString();

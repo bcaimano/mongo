@@ -1419,7 +1419,7 @@ void rollback_internal::syncFixUp(OperationContext* opCtx,
     // stable checkpoint could include the fixup write (since it is untimestamped) but not the write
     // being rolled back (if it is after the stable timestamp), leading to inconsistent state. An
     // unstable checkpoint will include both writes.
-    if (!serverGlobalParams.enableMajorityReadConcern) {
+    if (!getStaticServerParams().enableMajorityReadConcern) {
         LOGV2(21691,
               "Setting initialDataTimestamp to 0 so that we start taking unstable checkpoints");
         opCtx->getServiceContext()->getStorageEngine()->setInitialDataTimestamp(
@@ -1895,7 +1895,7 @@ void rollback_internal::syncFixUp(OperationContext* opCtx,
           "deletes"_attr = deletes,
           "updates"_attr = updates);
 
-    if (!serverGlobalParams.enableMajorityReadConcern) {
+    if (!getStaticServerParams().enableMajorityReadConcern) {
         // When majority read concern is disabled, the stable timestamp may be ahead of the common
         // point. Force the stable timestamp back to the common point, to allow writes after the
         // common point.
@@ -1961,7 +1961,7 @@ void rollback_internal::syncFixUp(OperationContext* opCtx,
         oplogCollection->cappedTruncateAfter(opCtx, fixUpInfo.commonPointOurDiskloc, false);
     }
 
-    if (!serverGlobalParams.enableMajorityReadConcern) {
+    if (!getStaticServerParams().enableMajorityReadConcern) {
         // If the server crashes and restarts before a stable checkpoint is taken, it will restart
         // from the unstable checkpoint taken at the end of rollback. To ensure replication recovery
         // replays all oplog after the common point, we set the appliedThrough to the common point.
@@ -2005,7 +2005,7 @@ void rollback_internal::syncFixUp(OperationContext* opCtx,
 
     // Force the config server to update its shard registry on next access. Otherwise it may have
     // the stale data that has been just rolled back.
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         if (auto shardRegistry = Grid::get(opCtx)->shardRegistry()) {
             shardRegistry->clearEntries();
         }

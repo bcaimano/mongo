@@ -278,7 +278,7 @@ void FeatureCompatibilityVersion::setIfCleanStartup(OperationContext* opCtx,
     // featureCompatibilityVersion is the downgrade version, so that it can be safely added to a
     // downgrade version cluster. The config server will run setFeatureCompatibilityVersion as part
     // of addShard.
-    const bool storeUpgradeVersion = serverGlobalParams.clusterRole != ClusterRole::ShardServer;
+    const bool storeUpgradeVersion = getStaticServerParams().clusterRole != ClusterRole::ShardServer;
 
     UnreplicatedWritesBlock unreplicatedWritesBlock(opCtx);
     NamespaceString nss(NamespaceString::kServerConfigurationNamespace);
@@ -320,9 +320,9 @@ bool FeatureCompatibilityVersion::isCleanStartUp() {
 
 void FeatureCompatibilityVersion::updateMinWireVersion() {
     WireSpec& wireSpec = WireSpec::instance();
-    const auto currentFcv = serverGlobalParams.featureCompatibility.getVersion();
+    const auto currentFcv = getStaticServerParams().featureCompatibility.getVersion();
     if (currentFcv == FCVParams::kLatest ||
-        (serverGlobalParams.featureCompatibility.isUpgradingOrDowngrading() &&
+        (getStaticServerParams().featureCompatibility.isUpgradingOrDowngrading() &&
          currentFcv != FCVParams::kUpgradingFromLastLTSToLastContinuous)) {
         // FCV == kLatest or FCV is upgrading/downgrading to or from kLatest.
         WireSpec::Specification newSpec = *wireSpec.get();
@@ -372,11 +372,11 @@ void FeatureCompatibilityVersion::initializeForStartup(OperationContext* opCtx) 
     }
 
     auto version = swVersion.getValue();
-    serverGlobalParams.mutableFeatureCompatibility.setVersion(version);
+    getStaticServerParams().mutableFeatureCompatibility.setVersion(version);
     FeatureCompatibilityVersion::updateMinWireVersion();
 
     // On startup, if the version is in an upgrading or downgrading state, print a warning.
-    if (serverGlobalParams.featureCompatibility.isUpgradingOrDowngrading()) {
+    if (getStaticServerParams().featureCompatibility.isUpgradingOrDowngrading()) {
         LOGV2_WARNING_OPTIONS(
             4978301,
             {logv2::LogTag::kStartupWarnings},
@@ -422,7 +422,7 @@ void FeatureCompatibilityVersion::fassertInitializedAfterStartup(OperationContex
     // featureCompatibilityVersion until a primary is chosen. For this case, we expect the in-memory
     // featureCompatibilityVersion parameter to still be uninitialized until after startup.
     if (isWriteableStorageEngine() && (!replSettings.usingReplSets() || nonLocalDatabases)) {
-        invariant(serverGlobalParams.featureCompatibility.isVersionInitialized());
+        invariant(getStaticServerParams().featureCompatibility.isVersionInitialized());
     }
 }
 
@@ -440,10 +440,10 @@ void FeatureCompatibilityVersionParameter::append(OperationContext* opCtx,
                                                   const std::string& name) {
     uassert(ErrorCodes::UnknownFeatureCompatibilityVersion,
             str::stream() << name << " is not yet known.",
-            serverGlobalParams.featureCompatibility.isVersionInitialized());
+            getStaticServerParams().featureCompatibility.isVersionInitialized());
 
     BSONObjBuilder featureCompatibilityVersionBuilder(b.subobjStart(name));
-    auto version = serverGlobalParams.featureCompatibility.getVersion();
+    auto version = getStaticServerParams().featureCompatibility.getVersion();
     FeatureCompatibilityVersionDocument fcvDoc = fcvTransitions.getFCVDocument(version);
     featureCompatibilityVersionBuilder.appendElements(fcvDoc.toBSON().removeField("_id"));
 }

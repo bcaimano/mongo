@@ -61,7 +61,7 @@ void doFuzzing(ConstDataRangeCursor fuzzedData) try {
     }
 
     // Make sure that we do BSON validation on all incoming messages
-    serverGlobalParams.objcheck = true;
+    getStaticServerParams().objcheck = true;
 
     auto sb = SharedBuffer::allocate(fuzzedData.length());
     memcpy(sb.get(), fuzzedData.data(), fuzzedData.length());

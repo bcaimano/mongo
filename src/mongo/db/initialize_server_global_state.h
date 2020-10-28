@@ -53,7 +53,7 @@ bool initializeServerGlobalState(ServiceContext* service,
                                  PidFileWrite pidWrite = PidFileWrite::kWrite);
 
 /**
- * Forks and detaches the server, on platforms that support it, if serverGlobalParams.doFork is
+ * Forks and detaches the server, on platforms that support it, if getStaticServerParams().doFork is
  * true.
  *
  * Call after processing the command line but before running mongo initializers.

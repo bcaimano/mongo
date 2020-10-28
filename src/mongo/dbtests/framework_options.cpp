@@ -133,7 +133,7 @@ Status storeTestFrameworkOptions(const moe::Environment& params,
     }
 
     if (params.count("replication.enableMajorityReadConcern")) {
-        serverGlobalParams.enableMajorityReadConcern =
+        getStaticServerParams().enableMajorityReadConcern =
             params["replication.enableMajorityReadConcern"].as<bool>();
     }
 

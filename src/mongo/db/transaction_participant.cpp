@@ -506,7 +506,7 @@ void TransactionParticipant::Participant::beginOrContinue(OperationContext* opCt
                 "Transactions are not allowed on shard servers when "
                 "writeConcernMajorityJournalDefault=false",
                 replCoord->getWriteConcernMajorityShouldJournal() ||
-                    serverGlobalParams.clusterRole != ClusterRole::ShardServer || !autocommit ||
+                    getStaticServerParams().clusterRole != ClusterRole::ShardServer || !autocommit ||
                     getTestCommandsEnabled());
     }
 
@@ -561,7 +561,7 @@ void TransactionParticipant::Participant::beginOrContinue(OperationContext* opCt
         uassert(ErrorCodes::ConflictingOperationInProgress,
                 "Only servers in a sharded cluster can start a new transaction at the active "
                 "transaction number",
-                serverGlobalParams.clusterRole != ClusterRole::None);
+                getStaticServerParams().clusterRole != ClusterRole::None);
 
         // The active transaction number can only be reused if:
         // 1. The transaction participant is in retryable write mode and has not yet executed a
@@ -2132,7 +2132,7 @@ void TransactionParticipant::Participant::_logSlowTransaction(
         if (shouldLogSlowOpWithSampling(opCtx,
                                         logv2::LogComponent::kTransaction,
                                         opDuration,
-                                        Milliseconds(serverGlobalParams.slowMS))
+                                        Milliseconds(getStaticServerParams().slowMS))
                 .first) {
             logv2::DynamicAttributes attr;
             _transactionInfoForLog(

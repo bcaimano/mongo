@@ -711,11 +711,11 @@ class ShardTxnParticipantRetryableWritesTest : public TransactionParticipantRetr
 protected:
     void setUp() final {
         TransactionParticipantRetryableWritesTest::setUp();
-        serverGlobalParams.clusterRole = ClusterRole::ShardServer;
+        getStaticServerParams().clusterRole = ClusterRole::ShardServer;
     }
 
     void tearDown() final {
-        serverGlobalParams.clusterRole = ClusterRole::None;
+        getStaticServerParams().clusterRole = ClusterRole::None;
         TransactionParticipantRetryableWritesTest::tearDown();
     }
 };

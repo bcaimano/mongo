@@ -253,10 +253,10 @@ void AsyncWorkScheduler::_notifyAllTasksComplete(WithLock wl) {
 }
 
 ShardId getLocalShardId(ServiceContext* service) {
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         return ShardRegistry::kConfigServerShardId;
     }
-    if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
         return ShardingState::get(service)->shardId();
     }
 

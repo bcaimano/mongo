@@ -45,7 +45,7 @@ configs:
   "replication.localPingThresholdMs":
     description: "ping time (in ms) for a node to be considered local (default 15ms)"
     short_name: "localThreshold"
-    cpp_varname: "serverGlobalParams.defaultLocalThresholdMillis"
+    cpp_varname: "getStaticServerParams().defaultLocalThresholdMillis"
     arg_vartype: Int
   "test":
     description: "just run unit tests"

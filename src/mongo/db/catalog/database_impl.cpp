@@ -632,7 +632,7 @@ Collection* DatabaseImpl::createCollection(OperationContext* opCtx,
 
     uassert(CannotImplicitlyCreateCollectionInfo(nss),
             "request doesn't allow collection to be created implicitly",
-            serverGlobalParams.clusterRole != ClusterRole::ShardServer ||
+            getStaticServerParams().clusterRole != ClusterRole::ShardServer ||
                 OperationShardingState::get(opCtx).allowImplicitCollectionCreation() ||
                 options.temp);
 
@@ -893,8 +893,8 @@ Status DatabaseImpl::userCreateNS(OperationContext* opCtx,
         // persisted in the catalog.
         // (Generic FCV reference): This FCV check should exist across LTS binary versions.
         ServerGlobalParams::FeatureCompatibility::Version fcv;
-        if (serverGlobalParams.validateFeaturesAsPrimary.load() &&
-            serverGlobalParams.featureCompatibility.isLessThan(
+        if (getStaticServerParams().validateFeaturesAsPrimary.load() &&
+            getStaticServerParams().featureCompatibility.isLessThan(
                 ServerGlobalParams::FeatureCompatibility::kLatest, &fcv)) {
             expCtx->maxFeatureCompatibilityVersion = fcv;
         }

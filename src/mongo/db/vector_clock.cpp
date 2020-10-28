@@ -166,8 +166,8 @@ public:
              BSONObjBuilder* out,
              LogicalTime time,
              Component component) const override {
-        if (serverGlobalParams.featureCompatibility.isVersionInitialized() &&
-            serverGlobalParams.featureCompatibility.isGreaterThanOrEqualTo(
+        if (getStaticServerParams().featureCompatibility.isVersionInitialized() &&
+            getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
                 ServerGlobalParams::FeatureCompatibility::Version::kUpgradingFrom44To47)) {
             return ActualFormat::out(service, opCtx, permitRefresh, out, time, component);
         }

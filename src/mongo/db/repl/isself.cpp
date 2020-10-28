@@ -175,15 +175,15 @@ bool isSelf(const HostAndPort& hostAndPort, ServiceContext* const ctx) {
     // Fastpath: check if the host&port in question is bound to one
     // of the interfaces on this machine.
     // No need for ip match if the ports do not match
-    if (hostAndPort.port() == serverGlobalParams.port) {
-        std::vector<std::string> myAddrs = serverGlobalParams.bind_ips;
+    if (hostAndPort.port() == getStaticServerParams().port) {
+        std::vector<std::string> myAddrs = getStaticServerParams().bind_ips;
 
         // If any of the bound addresses is the default route (0.0.0.0 on IPv4) it means we are
         // listening on all network interfaces and need to check against any of them.
         auto defaultRoute = false;
         if (myAddrs.empty() ||
             std::any_of(myAddrs.cbegin(), myAddrs.cend(), [](std::string const& addrStr) {
-                return HostAndPort(addrStr, serverGlobalParams.port).isDefaultRoute();
+                return HostAndPort(addrStr, getStaticServerParams().port).isDefaultRoute();
             })) {
             myAddrs = getBoundAddrs(IPv6Enabled());
             defaultRoute = true;

@@ -317,12 +317,12 @@ struct ServerGlobalParams {
     bool enableMajorityReadConcern = true;
 };
 
-extern ServerGlobalParams serverGlobalParams;
+ServerGlobalParams& getStaticServerParams();
 
 template <typename NameTrait>
 struct TraitNamedDomain {
     static bool peg() {
-        const auto& dsmd = serverGlobalParams.disabledSecureAllocatorDomains;
+        const auto& dsmd = getStaticServerParams().disabledSecureAllocatorDomains;
         const auto contains = [&](StringData dt) {
             return std::find(dsmd.begin(), dsmd.end(), dt) != dsmd.end();
         };

@@ -48,18 +48,18 @@ void ShardingEgressMetadataHookForMongod::_saveGLEStats(const BSONObj& metadata,
                                                         StringData hostString) {}
 
 repl::OpTime ShardingEgressMetadataHookForMongod::_getConfigServerOpTime() {
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         return repl::ReplicationCoordinator::get(_serviceContext)
             ->getCurrentCommittedSnapshotOpTime();
     }
 
-    invariant(serverGlobalParams.clusterRole == ClusterRole::ShardServer);
+    invariant(getStaticServerParams().clusterRole == ClusterRole::ShardServer);
     return Grid::get(_serviceContext)->configOpTime();
 }
 
 Status ShardingEgressMetadataHookForMongod::_advanceConfigOpTimeFromShard(
     OperationContext* opCtx, const ShardId& shardId, const BSONObj& metadataObj) {
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         return Status::OK();
     }
 

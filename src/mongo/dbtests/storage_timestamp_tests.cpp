@@ -3341,7 +3341,7 @@ public:
     void run() {
         // Only run on 'wiredTiger'. No other storage engines to-date support timestamp writes.
         if (!(mongo::storageGlobalParams.engine == "wiredTiger" &&
-              mongo::serverGlobalParams.enableMajorityReadConcern)) {
+              mongo::getStaticServerParams().enableMajorityReadConcern)) {
             return;
         }
 
@@ -4176,7 +4176,7 @@ public:
         // Only run on storage engines that support snapshot reads.
         auto storageEngine = cc().getServiceContext()->getStorageEngine();
         if (!storageEngine->supportsReadConcernSnapshot() ||
-            !mongo::serverGlobalParams.enableMajorityReadConcern) {
+            !mongo::getStaticServerParams().enableMajorityReadConcern) {
             LOGV2(22516,
                   "Skipping this test suite because storage engine {storageGlobalParams_engine} "
                   "does not support timestamp writes.",

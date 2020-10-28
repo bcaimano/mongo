@@ -290,8 +290,8 @@ void cleanupTask(const ShutdownTaskArgs& shutdownArgs) {
         // so that clients can re-route their operations.
         //
         // TODO SERVER-49138: Remove this FCV check when 5.0 becomes last-lts.
-        if (serverGlobalParams.featureCompatibility.isVersionInitialized() &&
-                serverGlobalParams.featureCompatibility.isGreaterThanOrEqualTo(
+        if (getStaticServerParams().featureCompatibility.isVersionInitialized() &&
+                getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
                     ServerGlobalParams::FeatureCompatibility::Version::kVersion47);
             auto mongosTopCoord = MongosTopologyCoordinator::get(opCtx)) {
             mongosTopCoord->enterQuiesceModeAndWait(opCtx, quiesceTime);
@@ -688,7 +688,7 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
     serviceContext->setServiceEntryPoint(std::make_unique<ServiceEntryPointMongos>(serviceContext));
 
     auto tl =
-        transport::TransportLayerManager::createWithConfig(&serverGlobalParams, serviceContext);
+        transport::TransportLayerManager::createWithConfig(&getStaticServerParams(), serviceContext);
     auto res = tl->setup();
     if (!res.isOK()) {
         LOGV2_ERROR(22856,
@@ -915,7 +915,7 @@ MONGO_INITIALIZER_WITH_PREREQUISITES(SetFeatureCompatibilityVersionLatest,
                                      ("EndStartupOptionStorage"))
 // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
 (InitializerContext* context) {
-    serverGlobalParams.mutableFeatureCompatibility.setVersion(
+    getStaticServerParams().mutableFeatureCompatibility.setVersion(
         ServerGlobalParams::FeatureCompatibility::kLatest);
     return Status::OK();
 }
@@ -974,7 +974,7 @@ ExitCode mongos_main(int argc, char* argv[]) {
     startupConfigActions(std::vector<std::string>(argv, argv + argc));
     cmdline_utils::censorArgvArray(argc, argv);
 
-    logCommonStartupWarnings(serverGlobalParams);
+    logCommonStartupWarnings(getStaticServerParams());
 
     try {
         if (!initializeServerGlobalState(service))

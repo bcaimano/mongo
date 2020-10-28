@@ -83,7 +83,7 @@ StatusWith<std::vector<KeysCollectionDocument>> KeysCollectionClientDirect::getN
     queryBuilder.append("purpose", purpose);
     queryBuilder.append("expiresAt", BSON("$gt" << newerThanThis.asTimestamp()));
 
-    auto readConcern = serverGlobalParams.enableMajorityReadConcern && useMajority
+    auto readConcern = getStaticServerParams().enableMajorityReadConcern && useMajority
         ? repl::ReadConcernLevel::kMajorityReadConcern
         : repl::ReadConcernLevel::kLocalReadConcern;
 

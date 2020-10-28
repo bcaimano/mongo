@@ -575,7 +575,7 @@ TEST_F(
     ReplCoordTest,
     NodeReturnsNoReplicationEnabledAndInfoConfigsvrWhenCheckReplEnabledForCommandWhileConfigsvr) {
     ReplSettings settings;
-    serverGlobalParams.clusterRole = ClusterRole::ConfigServer;
+    getStaticServerParams().clusterRole = ClusterRole::ConfigServer;
     init(settings);
     start();
 
@@ -584,7 +584,7 @@ TEST_F(
     Status status = getReplCoord()->checkReplEnabledForCommand(&result);
     ASSERT_EQUALS(status, ErrorCodes::NoReplicationEnabled);
     ASSERT_EQUALS(result.obj()["info"].String(), "configsvr");
-    serverGlobalParams.clusterRole = ClusterRole::None;
+    getStaticServerParams().clusterRole = ClusterRole::None;
 }
 
 TEST_F(
@@ -5638,10 +5638,10 @@ TEST_F(StableOpTimeTest, SetMyLastAppliedSetsStableOpTimeForStorageDisableMajori
      * enableMajorityReadConcern=false, even if the last committed optime is unset.
      */
 
-    const auto originalEnableMajorityReadConcern = serverGlobalParams.enableMajorityReadConcern;
-    serverGlobalParams.enableMajorityReadConcern = false;
+    const auto originalEnableMajorityReadConcern = getStaticServerParams().enableMajorityReadConcern;
+    getStaticServerParams().enableMajorityReadConcern = false;
     ON_BLOCK_EXIT(
-        [&] { serverGlobalParams.enableMajorityReadConcern = originalEnableMajorityReadConcern; });
+        [&] { getStaticServerParams().enableMajorityReadConcern = originalEnableMajorityReadConcern; });
 
     init("mySet/test1:1234,test2:1234,test3:1234");
     assertStartSuccess(BSON("_id"
@@ -5726,10 +5726,10 @@ TEST_F(StableOpTimeTest, AdvanceCommitPointSetsStableOpTimeForStorage) {
 TEST_F(StableOpTimeTest,
        AdvanceCommitPointDoesNotSetStableOpTimeForStorageInRollbackMajorityReadConcernOff) {
 
-    const auto originalEnableMajorityReadConcern = serverGlobalParams.enableMajorityReadConcern;
-    serverGlobalParams.enableMajorityReadConcern = false;
+    const auto originalEnableMajorityReadConcern = getStaticServerParams().enableMajorityReadConcern;
+    getStaticServerParams().enableMajorityReadConcern = false;
     ON_BLOCK_EXIT(
-        [&] { serverGlobalParams.enableMajorityReadConcern = originalEnableMajorityReadConcern; });
+        [&] { getStaticServerParams().enableMajorityReadConcern = originalEnableMajorityReadConcern; });
 
     init("mySet/test1:1234,test2:1234,test3:1234");
     assertStartSuccess(BSON("_id"

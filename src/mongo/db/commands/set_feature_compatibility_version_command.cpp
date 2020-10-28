@@ -187,7 +187,7 @@ public:
         const auto requestedVersion = request.getCommandParameter();
         const auto requestedVersionString = FCVP::serializeVersion(requestedVersion);
         FeatureCompatibilityParams::Version actualVersion =
-            serverGlobalParams.featureCompatibility.getVersion();
+            getStaticServerParams().featureCompatibility.getVersion();
         if (request.getDowngradeOnDiskChanges() &&
             (requestedVersion != FeatureCompatibilityParams::kLastContinuous ||
              actualVersion < requestedVersion)) {
@@ -228,7 +228,7 @@ public:
             if (failUpgrading.shouldFail())
                 return false;
 
-            if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+            if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
                 const auto shardingState = ShardingState::get(opCtx);
                 if (shardingState->enabled()) {
                     LOGV2(20500, "Upgrade: submitting orphaned ranges for cleanup");
@@ -237,7 +237,7 @@ public:
             }
 
             // Upgrade shards before config finishes its upgrade.
-            if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+            if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
                 uassertStatusOK(
                     ShardingCatalogManager::get(opCtx)->setFeatureCompatibilityVersionOnShards(
                         opCtx, CommandHelpers::appendMajorityWriteConcern(request.toBSON({}))));
@@ -247,7 +247,7 @@ public:
             // Completed transition to requestedVersion.
             FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
                 opCtx,
-                serverGlobalParams.featureCompatibility.getVersion(),
+                getStaticServerParams().featureCompatibility.getVersion(),
                 requestedVersion,
                 isFromConfigServer);
         } else {
@@ -293,17 +293,17 @@ public:
             if (failDowngrading.shouldFail())
                 return false;
 
-            if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
+            if (getStaticServerParams().clusterRole == ClusterRole::ShardServer) {
                 LOGV2(20502, "Downgrade: dropping config.rangeDeletions collection");
                 migrationutil::dropRangeDeletionsCollection(opCtx);
-            } else if (isReplSet || serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+            } else if (isReplSet || getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
                 // The default rwc document should only be deleted on plain replica sets and the
                 // config server replica set, not on shards or standalones.
                 deletePersistedDefaultRWConcernDocument(opCtx);
             }
 
             // Downgrade shards before config finishes its downgrade.
-            if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+            if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
                 uassertStatusOK(
                     ShardingCatalogManager::get(opCtx)->setFeatureCompatibilityVersionOnShards(
                         opCtx, CommandHelpers::appendMajorityWriteConcern(request.toBSON({}))));
@@ -313,7 +313,7 @@ public:
             // Completed transition to requestedVersion.
             FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
                 opCtx,
-                serverGlobalParams.featureCompatibility.getVersion(),
+                getStaticServerParams().featureCompatibility.getVersion(),
                 requestedVersion,
                 isFromConfigServer);
 

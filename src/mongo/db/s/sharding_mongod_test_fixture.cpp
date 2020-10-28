@@ -138,7 +138,7 @@ ShardingMongodTestFixture::ShardingMongodTestFixture() {
     // Set the highest FCV because otherwise it defaults to the lower FCV. This way we default to
     // testing this release's code, not backwards compatibility code.
     // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
-    serverGlobalParams.mutableFeatureCompatibility.setVersion(
+    getStaticServerParams().mutableFeatureCompatibility.setVersion(
         ServerGlobalParams::FeatureCompatibility::kLatest);
 }
 
@@ -202,7 +202,7 @@ std::unique_ptr<ShardRegistry> ShardingMongodTestFixture::makeShardRegistry(
                                           {ConnectionString::MASTER, std::move(masterBuilder)}};
 
     // Only config servers use ShardLocal for now.
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         ShardFactory::BuilderCallable localBuilder = [](const ShardId& shardId,
                                                         const ConnectionString& connStr) {
             return std::make_unique<ShardLocal>(shardId);
@@ -237,8 +237,8 @@ std::unique_ptr<BalancerConfiguration> ShardingMongodTestFixture::makeBalancerCo
 
 Status ShardingMongodTestFixture::initializeGlobalShardingStateForMongodForTest(
     const ConnectionString& configConnStr) {
-    invariant(serverGlobalParams.clusterRole == ClusterRole::ShardServer ||
-              serverGlobalParams.clusterRole == ClusterRole::ConfigServer);
+    invariant(getStaticServerParams().clusterRole == ClusterRole::ShardServer ||
+              getStaticServerParams().clusterRole == ClusterRole::ConfigServer);
 
     // Create and initialize each sharding component individually before moving them to the Grid
     // in order to control the order of initialization, since some components depend on others.

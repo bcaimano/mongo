@@ -60,10 +60,10 @@ protected:
 
     /**
      * Initializes sharding components according to the cluster role in
-     * serverGlobalParams.clusterRole and puts the components on the Grid, mimicking the
+     * getStaticServerParams().clusterRole and puts the components on the Grid, mimicking the
      * initialization done by an actual config or shard mongod server.
      *
-     * It is illegal to call this if serverGlobalParams.clusterRole is not ClusterRole::ShardServer
+     * It is illegal to call this if getStaticServerParams().clusterRole is not ClusterRole::ShardServer
      * or ClusterRole::ConfigServer.
      */
     Status initializeGlobalShardingStateForMongodForTest(const ConnectionString& configConnStr);

@@ -225,7 +225,7 @@ public:
              BSONObjBuilder& result) override {
         uassert(ErrorCodes::IllegalOperation,
                 "_configsvrShardCollection can only be run on config servers",
-                serverGlobalParams.clusterRole == ClusterRole::ConfigServer);
+                getStaticServerParams().clusterRole == ClusterRole::ConfigServer);
         uassert(ErrorCodes::InvalidOptions,
                 str::stream()
                     << "_configsvrShardCollection must be called with majority writeConcern, got "

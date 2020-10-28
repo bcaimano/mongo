@@ -104,13 +104,13 @@ Status setArgvArray(const std::vector<std::string>& argv) {
     for (size_t i = 0; i < censoredArgv.size(); i++) {
         b << censoredArgv[i];
     }
-    serverGlobalParams.argvArray = b.arr();
+    getStaticServerParams().argvArray = b.arr();
     return Status::OK();
 }
 
 Status setParsedOpts(const moe::Environment& params) {
-    serverGlobalParams.parsedOpts = params.toBSON();
-    cmdline_utils::censorBSONObj(&serverGlobalParams.parsedOpts);
+    getStaticServerParams().parsedOpts = params.toBSON();
+    cmdline_utils::censorBSONObj(&getStaticServerParams().parsedOpts);
     return Status::OK();
 }
 }  // namespace
@@ -295,12 +295,12 @@ Status storeBaseOptions(const moe::Environment& params) {
     }
 
     if (params.count("enableExperimentalStorageDetailsCmd")) {
-        serverGlobalParams.experimental.storageDetailsCmdEnabled =
+        getStaticServerParams().experimental.storageDetailsCmdEnabled =
             params["enableExperimentalStorageDetailsCmd"].as<bool>();
     }
 
     if (params.count("systemLog.quiet")) {
-        serverGlobalParams.quiet.store(params["systemLog.quiet"].as<bool>());
+        getStaticServerParams().quiet.store(params["systemLog.quiet"].as<bool>());
     }
 
     if (params.count("systemLog.traceAllExceptions")) {
@@ -310,10 +310,10 @@ Status storeBaseOptions(const moe::Environment& params) {
     if (params.count("systemLog.timeStampFormat")) {
         std::string formatterName = params["systemLog.timeStampFormat"].as<string>();
         if (formatterName == "iso8601-utc") {
-            serverGlobalParams.logTimestampFormat = logv2::LogTimestampFormat::kISO8601UTC;
+            getStaticServerParams().logTimestampFormat = logv2::LogTimestampFormat::kISO8601UTC;
             setDateFormatIsLocalTimezone(false);
         } else if (formatterName == "iso8601-local") {
-            serverGlobalParams.logTimestampFormat = logv2::LogTimestampFormat::kISO8601Local;
+            getStaticServerParams().logTimestampFormat = logv2::LogTimestampFormat::kISO8601Local;
             setDateFormatIsLocalTimezone(true);
         } else {
             StringBuilder sb;
@@ -327,7 +327,7 @@ Status storeBaseOptions(const moe::Environment& params) {
         std::string systemLogDestination = params["systemLog.destination"].as<std::string>();
         if (systemLogDestination == "file") {
             if (params.count("systemLog.path")) {
-                serverGlobalParams.logpath = params["systemLog.path"].as<std::string>();
+                getStaticServerParams().logpath = params["systemLog.path"].as<std::string>();
             } else {
                 return Status(ErrorCodes::BadValue,
                               "systemLog.path is required if systemLog.destination is to a "
@@ -339,7 +339,7 @@ Status storeBaseOptions(const moe::Environment& params) {
                               "Can only use systemLog.path if systemLog.destination is to a "
                               "file");
             }
-            serverGlobalParams.logWithSyslog = true;
+            getStaticServerParams().logWithSyslog = true;
         } else {
             StringBuilder sb;
             sb << "Bad value for systemLog.destination: " << systemLogDestination
@@ -362,7 +362,7 @@ Status storeBaseOptions(const moe::Environment& params) {
         for (unsigned long i = 0; i < facilitynamesLength && facilitynames[i].c_name != nullptr;
              i++) {
             if (!facility.compare(facilitynames[i].c_name)) {
-                serverGlobalParams.syslogFacility = facilitynames[i].c_val;
+                getStaticServerParams().syslogFacility = facilitynames[i].c_val;
                 set = true;
             }
         }
@@ -373,41 +373,41 @@ Status storeBaseOptions(const moe::Environment& params) {
             return Status(ErrorCodes::BadValue, sb.str());
         }
     } else {
-        serverGlobalParams.syslogFacility = LOG_USER;
+        getStaticServerParams().syslogFacility = LOG_USER;
     }
 #endif  // _WIN32
 
     if (params.count("systemLog.logAppend") && params["systemLog.logAppend"].as<bool>() == true) {
-        serverGlobalParams.logAppend = true;
+        getStaticServerParams().logAppend = true;
     }
 
     if (params.count("systemLog.logRotate")) {
         std::string logRotateParam = params["systemLog.logRotate"].as<string>();
         if (logRotateParam == "reopen") {
-            serverGlobalParams.logRenameOnRotate = false;
+            getStaticServerParams().logRenameOnRotate = false;
 
-            if (serverGlobalParams.logAppend == false) {
+            if (getStaticServerParams().logAppend == false) {
                 return Status(ErrorCodes::BadValue,
                               "logAppend must equal true if logRotate is set to reopen");
             }
         } else if (logRotateParam == "rename") {
-            serverGlobalParams.logRenameOnRotate = true;
+            getStaticServerParams().logRenameOnRotate = true;
         } else {
             return Status(ErrorCodes::BadValue,
                           "unsupported value for logRotate " + logRotateParam);
         }
     }
 
-    if (!serverGlobalParams.logpath.empty() && serverGlobalParams.logWithSyslog) {
+    if (!getStaticServerParams().logpath.empty() && getStaticServerParams().logWithSyslog) {
         return Status(ErrorCodes::BadValue, "Cant use both a logpath and syslog ");
     }
 
     if (params.count("processManagement.pidFilePath")) {
-        serverGlobalParams.pidFile = params["processManagement.pidFilePath"].as<string>();
+        getStaticServerParams().pidFile = params["processManagement.pidFilePath"].as<string>();
     }
 
     if (params.count("processManagement.timeZoneInfo")) {
-        serverGlobalParams.timeZoneInfoPath = params["processManagement.timeZoneInfo"].as<string>();
+        getStaticServerParams().timeZoneInfoPath = params["processManagement.timeZoneInfo"].as<string>();
     }
 
     if (params.count("setParameter")) {
@@ -441,16 +441,16 @@ Status storeBaseOptions(const moe::Environment& params) {
     }
 
     if (params.count("operationProfiling.slowOpThresholdMs")) {
-        serverGlobalParams.slowMS = params["operationProfiling.slowOpThresholdMs"].as<int>();
+        getStaticServerParams().slowMS = params["operationProfiling.slowOpThresholdMs"].as<int>();
     }
 
     if (params.count("operationProfiling.slowOpSampleRate")) {
-        serverGlobalParams.sampleRate = params["operationProfiling.slowOpSampleRate"].as<double>();
+        getStaticServerParams().sampleRate = params["operationProfiling.slowOpSampleRate"].as<double>();
     }
 
     if (params.count("operationProfiling.filter")) {
         try {
-            serverGlobalParams.defaultProfileFilter =
+            getStaticServerParams().defaultProfileFilter =
                 fromjson(params["operationProfiling.filter"].as<std::string>()).getOwned();
         } catch (AssertionException& e) {
             // Add more context to the error

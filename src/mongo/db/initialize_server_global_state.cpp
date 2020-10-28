@@ -70,9 +70,9 @@ static void croak(StringData prefix, int savedErr = errno) {
 }
 
 void signalForkSuccess() {
-    if (!serverGlobalParams.doFork)
+    if (!getStaticServerParams().doFork)
         return;
-    int* f = &serverGlobalParams.forkReadyFd;
+    int* f = &getStaticServerParams().forkReadyFd;
     if (*f == -1)
         return;
     while (true) {
@@ -175,10 +175,10 @@ static bool forkServer() {
 #if defined(_WIN32) || (defined(__APPLE__) && TARGET_OS_TV)
     return true;
 #else
-    if (!serverGlobalParams.doFork)
+    if (!getStaticServerParams().doFork)
         return true;
 
-    fassert(16447, !serverGlobalParams.logpath.empty() || serverGlobalParams.logWithSyslog);
+    fassert(16447, !getStaticServerParams().logpath.empty() || getStaticServerParams().logWithSyslog);
 
     std::cout.flush();
     std::cerr.flush();
@@ -256,7 +256,7 @@ static bool forkServer() {
     // In the <daemon> process (i.e. the server)
     if (close(readyPipe[0]) == -1)  // <daemon> does not read pipe
         croak("closing read side of pipe failed");
-    serverGlobalParams.forkReadyFd = readyPipe[1];
+    getStaticServerParams().forkReadyFd = readyPipe[1];
 
     std::cout << format(FMT_STRING("forked process: {}"), getpid()) << std::endl;
 
@@ -296,19 +296,19 @@ MONGO_INITIALIZER_GENERAL(ServerLogRedirection,
     lv2Config.maxAttributeSizeKB = &gMaxLogAttributeSizeKB;
     bool writeServerRestartedAfterLogConfig = false;
 
-    if (serverGlobalParams.logWithSyslog) {
+    if (getStaticServerParams().logWithSyslog) {
 #ifdef _WIN32
         return Status(ErrorCodes::InternalError,
                       "Syslog requested in Windows build; command line processor logic error");
 #else
         lv2Config.consoleEnabled = false;
         lv2Config.syslogEnabled = true;
-        lv2Config.syslogFacility = serverGlobalParams.syslogFacility;
+        lv2Config.syslogFacility = getStaticServerParams().syslogFacility;
 #endif  // defined(_WIN32)
-    } else if (!serverGlobalParams.logpath.empty()) {
-        fassert(16448, !serverGlobalParams.logWithSyslog);
+    } else if (!getStaticServerParams().logpath.empty()) {
+        fassert(16448, !getStaticServerParams().logWithSyslog);
         std::string absoluteLogpath =
-            boost::filesystem::absolute(serverGlobalParams.logpath, serverGlobalParams.cwd)
+            boost::filesystem::absolute(getStaticServerParams().logpath, getStaticServerParams().cwd)
                 .string();
 
         bool exists;
@@ -328,7 +328,7 @@ MONGO_INITIALIZER_GENERAL(ServerLogRedirection,
                                             << "\" should name a file, not a directory.");
             }
 
-            if (!serverGlobalParams.logAppend && boost::filesystem::is_regular(absoluteLogpath)) {
+            if (!getStaticServerParams().logAppend && boost::filesystem::is_regular(absoluteLogpath)) {
                 std::string renameTarget = absoluteLogpath + "." + terseCurrentTimeForFilename();
                 boost::system::error_code ec;
                 boost::filesystem::rename(absoluteLogpath, renameTarget, ec);
@@ -352,19 +352,19 @@ MONGO_INITIALIZER_GENERAL(ServerLogRedirection,
         lv2Config.consoleEnabled = false;
         lv2Config.fileEnabled = true;
         lv2Config.filePath = absoluteLogpath;
-        lv2Config.fileRotationMode = serverGlobalParams.logRenameOnRotate
+        lv2Config.fileRotationMode = getStaticServerParams().logRenameOnRotate
             ? logv2::LogDomainGlobal::ConfigurationOptions::RotationMode::kRename
             : logv2::LogDomainGlobal::ConfigurationOptions::RotationMode::kReopen;
-        lv2Config.fileOpenMode = serverGlobalParams.logAppend
+        lv2Config.fileOpenMode = getStaticServerParams().logAppend
             ? logv2::LogDomainGlobal::ConfigurationOptions::OpenMode::kAppend
             : logv2::LogDomainGlobal::ConfigurationOptions::OpenMode::kTruncate;
 
-        if (serverGlobalParams.logAppend && exists) {
+        if (getStaticServerParams().logAppend && exists) {
             writeServerRestartedAfterLogConfig = true;
         }
     }
 
-    lv2Config.timestampFormat = serverGlobalParams.logTimestampFormat;
+    lv2Config.timestampFormat = getStaticServerParams().logTimestampFormat;
     Status result = lv2Manager.getGlobalDomainInternal().configure(lv2Config);
     if (result.isOK() && writeServerRestartedAfterLogConfig) {
         LOGV2(20698, "***** SERVER RESTARTED *****");
@@ -395,15 +395,15 @@ MONGO_INITIALIZER(RegisterShortCircuitExitHandler)(InitializerContext*) {
 
 bool initializeServerGlobalState(ServiceContext* service, PidFileWrite pidWrite) {
 #ifndef _WIN32
-    if (!serverGlobalParams.noUnixSocket &&
-        !boost::filesystem::is_directory(serverGlobalParams.socket)) {
-        std::cout << serverGlobalParams.socket << " must be a directory" << std::endl;
+    if (!getStaticServerParams().noUnixSocket &&
+        !boost::filesystem::is_directory(getStaticServerParams().socket)) {
+        std::cout << getStaticServerParams().socket << " must be a directory" << std::endl;
         return false;
     }
 #endif
 
-    if (!serverGlobalParams.pidFile.empty() && pidWrite == PidFileWrite::kWrite) {
-        if (!writePidFile(serverGlobalParams.pidFile)) {
+    if (!getStaticServerParams().pidFile.empty() && pidWrite == PidFileWrite::kWrite) {
+        if (!writePidFile(getStaticServerParams().pidFile)) {
             // error message logged in writePidFile
             return false;
         }

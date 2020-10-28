@@ -218,8 +218,8 @@ private:
 
 namespace {
 HostAndPort someHostAndPortForMe() {
-    const auto& addrs = serverGlobalParams.bind_ips;
-    const auto& bind_port = serverGlobalParams.port;
+    const auto& addrs = getStaticServerParams().bind_ips;
+    const auto& bind_port = getStaticServerParams().port;
     const auto& af = IPv6Enabled() ? AF_UNSPEC : AF_INET;
     bool localhost_only = true;
 
@@ -252,7 +252,7 @@ HostAndPort someHostAndPortForMe() {
     std::string h = getHostName();
     verify(!h.empty());
     verify(h != "localhost");
-    return HostAndPort(h, serverGlobalParams.port);
+    return HostAndPort(h, getStaticServerParams().port);
 }
 
 void parseReplSetSeedList(ReplicationCoordinatorExternalState* externalState,

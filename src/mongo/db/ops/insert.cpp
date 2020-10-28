@@ -175,8 +175,8 @@ StatusWith<BSONObj> fixDocumentForInsert(ServiceContext* service, const BSONObj&
 Status userAllowedWriteNS(const NamespaceString& ns) {
     // TODO (SERVER-49545): Remove the FCV check when 5.0 becomes last-lts.
     if (ns.isSystemDotProfile() ||
-        (ns.isSystemDotViews() && serverGlobalParams.featureCompatibility.isVersionInitialized() &&
-         serverGlobalParams.featureCompatibility.isGreaterThanOrEqualTo(
+        (ns.isSystemDotViews() && getStaticServerParams().featureCompatibility.isVersionInitialized() &&
+         getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
              ServerGlobalParams::FeatureCompatibility::Version::kVersion47)) ||
         (ns.isOplog() &&
          repl::ReplicationCoordinator::get(getGlobalServiceContext())->isReplEnabled())) {
@@ -195,7 +195,7 @@ Status userAllowedCreateNS(const NamespaceString& ns) {
                       str::stream() << "Invalid collection name: " << ns.coll());
     }
 
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer && !ns.isOnInternalDb()) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer && !ns.isOnInternalDb()) {
         return Status(ErrorCodes::InvalidNamespace,
                       str::stream()
                           << "Can't create user databases on a --configsvr instance " << ns);

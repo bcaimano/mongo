@@ -140,7 +140,7 @@ public:
              const BSONObj& cmdObj,
              BSONObjBuilder& result) {
         // disallow dropping the config database
-        if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer &&
+        if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer &&
             (dbname == NamespaceString::kConfigDb)) {
             uasserted(ErrorCodes::IllegalOperation,
                       "Cannot drop 'config' database if mongod started "
@@ -386,7 +386,7 @@ public:
 
             // Perform index spec validation.
             idIndexSpec = uassertStatusOK(index_key_validate::validateIndexSpec(
-                opCtx, idIndexSpec, serverGlobalParams.featureCompatibility));
+                opCtx, idIndexSpec, getStaticServerParams().featureCompatibility));
             uassertStatusOK(index_key_validate::validateIdIndexSpec(idIndexSpec));
 
             // Validate or fill in _id index collation.

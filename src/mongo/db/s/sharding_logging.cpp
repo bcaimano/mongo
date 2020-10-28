@@ -101,7 +101,7 @@ Status ShardingLogging::logChangeChecked(OperationContext* opCtx,
                                          const StringData ns,
                                          const BSONObj& detail,
                                          const WriteConcernOptions& writeConcern) {
-    invariant(serverGlobalParams.clusterRole == ClusterRole::ConfigServer ||
+    invariant(getStaticServerParams().clusterRole == ClusterRole::ConfigServer ||
               writeConcern.wMode == WriteConcernOptions::kMajority);
     if (_changeLogCollectionCreated.load() == 0) {
         Status result = _createCappedConfigCollection(
@@ -128,14 +128,14 @@ Status ShardingLogging::_log(OperationContext* opCtx,
                              const WriteConcernOptions& writeConcern) {
     Date_t now = Grid::get(opCtx)->getNetwork()->now();
     const std::string serverName = str::stream()
-        << Grid::get(opCtx)->getNetwork()->getHostName() << ":" << serverGlobalParams.port;
+        << Grid::get(opCtx)->getNetwork()->getHostName() << ":" << getStaticServerParams().port;
     const std::string changeId = str::stream()
         << serverName << "-" << now.toString() << "-" << OID::gen();
 
     ChangeLogType changeLog;
     changeLog.setChangeId(changeId);
     changeLog.setServer(serverName);
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         changeLog.setShard("config");
     } else {
         auto shardingState = ShardingState::get(opCtx);

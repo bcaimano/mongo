@@ -368,7 +368,7 @@ bool isIndexBuildResumable(OperationContext* opCtx,
 
     // This check may be unnecessary due to current criteria for resumable index build support in
     // storage engine.
-    if (!serverGlobalParams.enableMajorityReadConcern) {
+    if (!getStaticServerParams().enableMajorityReadConcern) {
         return false;
     }
 

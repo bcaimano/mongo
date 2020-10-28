@@ -1367,7 +1367,7 @@ void OpObserverImpl::onReplicationRollback(OperationContext* opCtx,
 
     // Force the config server to update its shard registry on next access. Otherwise it may have
     // the stale data that has been just rolled back.
-    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         if (auto shardRegistry = Grid::get(opCtx)->shardRegistry()) {
             shardRegistry->clearEntries();
         }

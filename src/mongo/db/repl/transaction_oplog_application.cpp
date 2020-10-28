@@ -504,7 +504,7 @@ Status applyPrepareTransaction(OperationContext* opCtx,
                                repl::OplogApplication::Mode mode) {
     switch (mode) {
         case repl::OplogApplication::Mode::kRecovering: {
-            if (!serverGlobalParams.enableMajorityReadConcern) {
+            if (!getStaticServerParams().enableMajorityReadConcern) {
                 LOGV2_ERROR(
                     21850,
                     "Cannot replay a prepared transaction when 'enableMajorityReadConcern' is "

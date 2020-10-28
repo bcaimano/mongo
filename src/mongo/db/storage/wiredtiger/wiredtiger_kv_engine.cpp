@@ -139,14 +139,14 @@ bool WiredTigerFileVersion::shouldDowngrade(bool readOnly,
         return false;
     }
 
-    if (!serverGlobalParams.featureCompatibility.isVersionInitialized()) {
+    if (!getStaticServerParams().featureCompatibility.isVersionInitialized()) {
         // If the FCV document hasn't been read, trust the WT compatibility. MongoD will
         // downgrade to the same compatibility it discovered on startup.
         return _startupVersion == StartupVersion::IS_44_FCV_42 ||
             _startupVersion == StartupVersion::IS_42;
     }
 
-    if (serverGlobalParams.featureCompatibility.isGreaterThan(
+    if (getStaticServerParams().featureCompatibility.isGreaterThan(
             ServerGlobalParams::FeatureCompatibility::Version::kFullyDowngradedTo44)) {
         // Only consider downgrading when FCV is set to kFullyDowngraded.
         // (This FCV gate must remain across binary version releases.)
@@ -172,7 +172,7 @@ bool WiredTigerFileVersion::shouldDowngrade(bool readOnly,
 }
 
 std::string WiredTigerFileVersion::getDowngradeString() {
-    if (!serverGlobalParams.featureCompatibility.isVersionInitialized()) {
+    if (!getStaticServerParams().featureCompatibility.isVersionInitialized()) {
         invariant(_startupVersion != StartupVersion::IS_44_FCV_44);
 
         switch (_startupVersion) {
@@ -322,7 +322,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
       _ephemeral(ephemeral),
       _inRepairMode(repair),
       _readOnly(readOnly),
-      _keepDataHistory(serverGlobalParams.enableMajorityReadConcern) {
+      _keepDataHistory(getStaticServerParams().enableMajorityReadConcern) {
     boost::filesystem::path journalPath = path;
     journalPath /= "journal";
     if (_durable) {
@@ -688,7 +688,7 @@ void WiredTigerKVEngine::cleanShutdown() {
     const Timestamp initialDataTimestamp = getInitialDataTimestamp();
     if (gTakeUnstableCheckpointOnShutdown) {
         closeConfig += "use_timestamp=false,";
-    } else if (!serverGlobalParams.enableMajorityReadConcern &&
+    } else if (!getStaticServerParams().enableMajorityReadConcern &&
                stableTimestamp < initialDataTimestamp) {
         // After a rollback via refetch, WT update chains for _id index keys can be logically
         // corrupt for read timestamps earlier than the `_initialDataTimestamp`. Because the stable

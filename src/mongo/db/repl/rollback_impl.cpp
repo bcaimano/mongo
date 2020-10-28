@@ -836,7 +836,7 @@ Status RollbackImpl::_processRollbackOp(OperationContext* opCtx, const OplogEntr
 
     if (opType == OpTypeEnum::kInsert) {
         auto idVal = oplogEntry.getObject().getStringField("_id");
-        if (serverGlobalParams.clusterRole == ClusterRole::ShardServer &&
+        if (getStaticServerParams().clusterRole == ClusterRole::ShardServer &&
             opNss == NamespaceString::kServerConfigurationNamespace &&
             idVal == ShardIdentityType::IdName) {
             // Check if the creation of the shard identity document is being rolled back.
@@ -845,7 +845,7 @@ Status RollbackImpl::_processRollbackOp(OperationContext* opCtx, const OplogEntr
                           "Shard identity document rollback detected. oplog op: {oplogEntry}",
                           "Shard identity document rollback detected",
                           "oplogEntry"_attr = redact(oplogEntry.toBSON()));
-        } else if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer &&
+        } else if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer &&
                    opNss == VersionType::ConfigNS) {
             // Check if the creation of the config server config version document is being rolled
             // back.

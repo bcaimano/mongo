@@ -879,13 +879,13 @@ TEST(ReplSetConfig, ConfigServerField) {
     ASSERT_FALSE(configBSON.hasField("configsvr"));
 
     // Configs in which configsvr is not the same as the --configsvr flag are invalid.
-    serverGlobalParams.clusterRole = ClusterRole::ConfigServer;
-    ON_BLOCK_EXIT([&] { serverGlobalParams.clusterRole = ClusterRole::None; });
+    getStaticServerParams().clusterRole = ClusterRole::ConfigServer;
+    ON_BLOCK_EXIT([&] { getStaticServerParams().clusterRole = ClusterRole::None; });
 
     ASSERT_OK(config.validate());
     ASSERT_EQUALS(ErrorCodes::BadValue, config2.validate());
 
-    serverGlobalParams.clusterRole = ClusterRole::None;
+    getStaticServerParams().clusterRole = ClusterRole::None;
     ASSERT_EQUALS(ErrorCodes::BadValue, config.validate());
     ASSERT_OK(config2.validate());
 }
@@ -1063,7 +1063,7 @@ TEST(ReplSetConfig, ToBSONWithoutNewlyAdded) {
 }
 
 TEST(ReplSetConfig, ConfigServerFieldDefaults) {
-    serverGlobalParams.clusterRole = ClusterRole::None;
+    getStaticServerParams().clusterRole = ClusterRole::None;
 
     ReplSetConfig config(
         ReplSetConfig::parse(BSON("_id"
@@ -1086,8 +1086,8 @@ TEST(ReplSetConfig, ConfigServerFieldDefaults) {
                                         OID::gen()));
     ASSERT_FALSE(config2.getConfigServer());
 
-    serverGlobalParams.clusterRole = ClusterRole::ConfigServer;
-    ON_BLOCK_EXIT([&] { serverGlobalParams.clusterRole = ClusterRole::None; });
+    getStaticServerParams().clusterRole = ClusterRole::ConfigServer;
+    ON_BLOCK_EXIT([&] { getStaticServerParams().clusterRole = ClusterRole::None; });
 
     ReplSetConfig config3;
     config3 = ReplSetConfig::parse(BSON("_id"
@@ -1576,8 +1576,8 @@ TEST(ReplSetConfig, CheckConfigServerCantHaveSlaveDelay) {
 }
 
 TEST(ReplSetConfig, CheckConfigServerMustHaveTrueForWriteConcernMajorityJournalDefault) {
-    serverGlobalParams.clusterRole = ClusterRole::ConfigServer;
-    ON_BLOCK_EXIT([&] { serverGlobalParams.clusterRole = ClusterRole::None; });
+    getStaticServerParams().clusterRole = ClusterRole::ConfigServer;
+    ON_BLOCK_EXIT([&] { getStaticServerParams().clusterRole = ClusterRole::None; });
     ReplSetConfig configA;
     configA = ReplSetConfig::parse(BSON("_id"
                                         << "rs0"

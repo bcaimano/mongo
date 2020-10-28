@@ -1119,7 +1119,7 @@ SetState::SetState(const MongoURI& uri,
       notifier(notifier),
       executor(executor),
       seedNodes(setUri.getServers().begin(), setUri.getServers().end()),
-      latencyThresholdMicros(serverGlobalParams.defaultLocalThresholdMillis * int64_t(1000)),
+      latencyThresholdMicros(getStaticServerParams().defaultLocalThresholdMillis * int64_t(1000)),
       rand(std::random_device()()),
       refreshPeriod(getDefaultRefreshPeriod()) {
     uassert(13642, "Replica set seed list can't be empty", !seedNodes.empty());

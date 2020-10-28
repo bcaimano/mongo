@@ -403,7 +403,7 @@ public:
         auto currentTopologyVersion = appendReplicationInfo(
             opCtx, &result, 0, useLegacyResponseFields(), clientTopologyVersion, maxAwaitTimeMS);
 
-        if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+        if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
             const int configServerModeNumber = 2;
             result.append("configsvr", configServerModeNumber);
         }

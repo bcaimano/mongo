@@ -156,11 +156,11 @@ namespace {
 // with a meaningful value will trigger failures as of SERVER-32630.
 // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
 void setUpFCV() {
-    serverGlobalParams.mutableFeatureCompatibility.setVersion(
+    getStaticServerParams().mutableFeatureCompatibility.setVersion(
         ServerGlobalParams::FeatureCompatibility::kLatest);
 }
 void tearDownFCV() {
-    serverGlobalParams.mutableFeatureCompatibility.reset();
+    getStaticServerParams().mutableFeatureCompatibility.reset();
 }
 
 struct TestSuiteEnvironment {

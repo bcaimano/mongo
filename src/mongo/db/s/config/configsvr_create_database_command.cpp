@@ -66,7 +66,7 @@ public:
         void typedRun(OperationContext* opCtx) {
             uassert(ErrorCodes::IllegalOperation,
                     "_configsvrCreateDatabase can only be run on config servers",
-                    serverGlobalParams.clusterRole == ClusterRole::ConfigServer);
+                    getStaticServerParams().clusterRole == ClusterRole::ConfigServer);
             uassert(ErrorCodes::InvalidOptions,
                     str::stream()
                         << "_configsvrCreateDatabase must be called with majority writeConcern",

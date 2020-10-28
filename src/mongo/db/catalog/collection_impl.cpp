@@ -235,7 +235,7 @@ Status validatePreImageRecording(OperationContext* opCtx, const NamespaceString&
                               << ns.db() << " database"};
     }
 
-    if (serverGlobalParams.clusterRole != ClusterRole::None) {
+    if (getStaticServerParams().clusterRole != ClusterRole::None) {
         return {ErrorCodes::InvalidOptions,
                 "recordPreImages collection option is not supported on shards or config servers"};
     }
@@ -441,8 +441,8 @@ Status CollectionImpl::checkValidation(OperationContext* opCtx, const BSONObj& d
 
     // TODO SERVER-50524: remove these FCV checks when 5.0 becomes last-lts in order to make sure
     // that an upgrade from 4.4 directly to the 5.0 LTS version is supported.
-    const auto isFCVAtLeast47 = serverGlobalParams.featureCompatibility.isVersionInitialized() &&
-        serverGlobalParams.featureCompatibility.isGreaterThanOrEqualTo(
+    const auto isFCVAtLeast47 = getStaticServerParams().featureCompatibility.isVersionInitialized() &&
+        getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
             ServerGlobalParams::FeatureCompatibility::Version::kVersion47);
     BSONObj generatedError;
     if (isFCVAtLeast47) {

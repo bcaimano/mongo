@@ -86,7 +86,7 @@ public:
 
         uassert(ErrorCodes::IllegalOperation,
                 str::stream() << getName() << " can only be run on config servers",
-                serverGlobalParams.clusterRole == ClusterRole::ConfigServer);
+                getStaticServerParams().clusterRole == ClusterRole::ConfigServer);
 
         _run(opCtx, &result);
 

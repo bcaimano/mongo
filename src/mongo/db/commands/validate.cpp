@@ -168,7 +168,7 @@ public:
                           << " performed in standalone mode.");
         }
 
-        if (!serverGlobalParams.quiet.load()) {
+        if (!getStaticServerParams().quiet.load()) {
             LOGV2(20514,
                   "CMD: validate",
                   "namespace"_attr = nss,

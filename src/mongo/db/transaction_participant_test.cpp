@@ -1475,11 +1475,11 @@ class ShardTxnParticipantTest : public ShardedClusterParticipantTest {
 protected:
     void setUp() final {
         TxnParticipantTest::setUp();
-        serverGlobalParams.clusterRole = ClusterRole::ShardServer;
+        getStaticServerParams().clusterRole = ClusterRole::ShardServer;
     }
 
     void tearDown() final {
-        serverGlobalParams.clusterRole = ClusterRole::None;
+        getStaticServerParams().clusterRole = ClusterRole::None;
         TxnParticipantTest::tearDown();
     }
 };
@@ -1515,11 +1515,11 @@ class ConfigTxnParticipantTest : public ShardedClusterParticipantTest {
 protected:
     void setUp() final {
         TxnParticipantTest::setUp();
-        serverGlobalParams.clusterRole = ClusterRole::ConfigServer;
+        getStaticServerParams().clusterRole = ClusterRole::ConfigServer;
     }
 
     void tearDown() final {
-        serverGlobalParams.clusterRole = ClusterRole::None;
+        getStaticServerParams().clusterRole = ClusterRole::None;
         TxnParticipantTest::tearDown();
     }
 };
@@ -3583,17 +3583,17 @@ TEST_F(TransactionsMetricsTest, LogTransactionInfoAfterSlowCommit) {
     auto operation = repl::OplogEntry::makeInsertOperation(kNss, _uuid, BSON("TestValue" << 0));
     txnParticipant.addTransactionOperation(opCtx(), operation);
 
-    const auto originalSlowMS = serverGlobalParams.slowMS;
-    const auto originalSampleRate = serverGlobalParams.sampleRate;
+    const auto originalSlowMS = getStaticServerParams().slowMS;
+    const auto originalSampleRate = getStaticServerParams().sampleRate;
 
-    serverGlobalParams.slowMS = 10;
-    serverGlobalParams.sampleRate = 1;
+    getStaticServerParams().slowMS = 10;
+    getStaticServerParams().sampleRate = 1;
 
     ON_BLOCK_EXIT([originalSlowMS, originalSampleRate] {
-        // serverGlobalParams may have been modified prior to this test, so we set them back to
+        // getStaticServerParams() may have been modified prior to this test, so we set them back to
         // their default values.
-        serverGlobalParams.slowMS = originalSlowMS;
-        serverGlobalParams.sampleRate = originalSampleRate;
+        getStaticServerParams().slowMS = originalSlowMS;
+        getStaticServerParams().sampleRate = originalSampleRate;
     });
 
     tickSource->advance(Microseconds(11 * 1000));
@@ -3635,16 +3635,16 @@ TEST_F(TransactionsMetricsTest, LogPreparedTransactionInfoAfterSlowCommit) {
     const int metricValue = 1;
     setupAdditiveMetrics(metricValue, opCtx());
 
-    const auto originalSlowMS = serverGlobalParams.slowMS;
-    const auto originalSampleRate = serverGlobalParams.sampleRate;
+    const auto originalSlowMS = getStaticServerParams().slowMS;
+    const auto originalSampleRate = getStaticServerParams().sampleRate;
 
-    serverGlobalParams.slowMS = 10;
-    serverGlobalParams.sampleRate = 1;
+    getStaticServerParams().slowMS = 10;
+    getStaticServerParams().sampleRate = 1;
 
     // Reset the global parameters to their original values after this test exits.
     ON_BLOCK_EXIT([originalSlowMS, originalSampleRate] {
-        serverGlobalParams.slowMS = originalSlowMS;
-        serverGlobalParams.sampleRate = originalSampleRate;
+        getStaticServerParams().slowMS = originalSlowMS;
+        getStaticServerParams().sampleRate = originalSampleRate;
     });
 
     tickSource->advance(Microseconds(11 * 1000));
@@ -3685,16 +3685,16 @@ TEST_F(TransactionsMetricsTest, LogTransactionInfoAfterSlowAbort) {
 
     txnParticipant.unstashTransactionResources(opCtx(), "abortTransaction");
 
-    const auto originalSlowMS = serverGlobalParams.slowMS;
-    const auto originalSampleRate = serverGlobalParams.sampleRate;
+    const auto originalSlowMS = getStaticServerParams().slowMS;
+    const auto originalSampleRate = getStaticServerParams().sampleRate;
 
-    serverGlobalParams.slowMS = 10;
-    serverGlobalParams.sampleRate = 1;
+    getStaticServerParams().slowMS = 10;
+    getStaticServerParams().sampleRate = 1;
 
     // Reset the global parameters to their original values after this test exits.
     ON_BLOCK_EXIT([originalSlowMS, originalSampleRate] {
-        serverGlobalParams.slowMS = originalSlowMS;
-        serverGlobalParams.sampleRate = originalSampleRate;
+        getStaticServerParams().slowMS = originalSlowMS;
+        getStaticServerParams().sampleRate = originalSampleRate;
     });
 
     tickSource->advance(Microseconds(11 * 1000));
@@ -3745,16 +3745,16 @@ TEST_F(TransactionsMetricsTest, LogPreparedTransactionInfoAfterSlowAbort) {
     txnParticipant.unstashTransactionResources(opCtx(), "abortTransaction");
     txnParticipant.prepareTransaction(opCtx(), {});
 
-    const auto originalSlowMS = serverGlobalParams.slowMS;
-    const auto originalSampleRate = serverGlobalParams.sampleRate;
+    const auto originalSlowMS = getStaticServerParams().slowMS;
+    const auto originalSampleRate = getStaticServerParams().sampleRate;
 
-    serverGlobalParams.slowMS = 10;
-    serverGlobalParams.sampleRate = 1;
+    getStaticServerParams().slowMS = 10;
+    getStaticServerParams().sampleRate = 1;
 
     // Reset the global parameters to their original values after this test exits.
     ON_BLOCK_EXIT([originalSlowMS, originalSampleRate] {
-        serverGlobalParams.slowMS = originalSlowMS;
-        serverGlobalParams.sampleRate = originalSampleRate;
+        getStaticServerParams().slowMS = originalSlowMS;
+        getStaticServerParams().sampleRate = originalSampleRate;
     });
 
     tickSource->advance(Microseconds(11 * 1000));
@@ -3806,16 +3806,16 @@ TEST_F(TransactionsMetricsTest, LogTransactionInfoAfterExceptionInPrepare) {
 
     txnParticipant.unstashTransactionResources(opCtx(), "prepareTransaction");
 
-    const auto originalSlowMS = serverGlobalParams.slowMS;
-    const auto originalSampleRate = serverGlobalParams.sampleRate;
+    const auto originalSlowMS = getStaticServerParams().slowMS;
+    const auto originalSampleRate = getStaticServerParams().sampleRate;
 
-    serverGlobalParams.slowMS = 10;
-    serverGlobalParams.sampleRate = 1;
+    getStaticServerParams().slowMS = 10;
+    getStaticServerParams().sampleRate = 1;
 
     // Reset the global parameters to their original values after this test exits.
     ON_BLOCK_EXIT([originalSlowMS, originalSampleRate] {
-        serverGlobalParams.slowMS = originalSlowMS;
-        serverGlobalParams.sampleRate = originalSampleRate;
+        getStaticServerParams().slowMS = originalSlowMS;
+        getStaticServerParams().sampleRate = originalSampleRate;
     });
 
     tickSource->advance(Microseconds(11 * 1000));
@@ -3877,16 +3877,16 @@ TEST_F(TransactionsMetricsTest, LogTransactionInfoAfterSlowStashedAbort) {
     ASSERT(txnResourceStashLocker);
     const auto lockerInfo = txnResourceStashLocker->getLockerInfo(boost::none);
 
-    const auto originalSlowMS = serverGlobalParams.slowMS;
-    const auto originalSampleRate = serverGlobalParams.sampleRate;
+    const auto originalSlowMS = getStaticServerParams().slowMS;
+    const auto originalSampleRate = getStaticServerParams().sampleRate;
 
-    serverGlobalParams.slowMS = 10;
-    serverGlobalParams.sampleRate = 1;
+    getStaticServerParams().slowMS = 10;
+    getStaticServerParams().sampleRate = 1;
 
     // Reset the global parameters to their original values after this test exits.
     ON_BLOCK_EXIT([originalSlowMS, originalSampleRate] {
-        serverGlobalParams.slowMS = originalSlowMS;
-        serverGlobalParams.sampleRate = originalSampleRate;
+        getStaticServerParams().slowMS = originalSlowMS;
+        getStaticServerParams().sampleRate = originalSampleRate;
     });
 
     tickSource->advance(Microseconds(11 * 1000));
@@ -3903,20 +3903,20 @@ TEST_F(TransactionsMetricsTest, LogTransactionInfoZeroSampleRate) {
 
     auto sessionCheckout = checkOutSession();
 
-    const auto originalSlowMS = serverGlobalParams.slowMS;
-    const auto originalSampleRate = serverGlobalParams.sampleRate;
+    const auto originalSlowMS = getStaticServerParams().slowMS;
+    const auto originalSampleRate = getStaticServerParams().sampleRate;
 
-    serverGlobalParams.slowMS = 10;
+    getStaticServerParams().slowMS = 10;
     // Set the sample rate to 0 to never log this transaction.
-    serverGlobalParams.sampleRate = 0;
+    getStaticServerParams().sampleRate = 0;
 
     auto txnParticipant = TransactionParticipant::get(opCtx());
     txnParticipant.unstashTransactionResources(opCtx(), "commitTransaction");
 
     // Reset the global parameters to their original values after this test exits.
     ON_BLOCK_EXIT([originalSlowMS, originalSampleRate] {
-        serverGlobalParams.slowMS = originalSlowMS;
-        serverGlobalParams.sampleRate = originalSampleRate;
+        getStaticServerParams().slowMS = originalSlowMS;
+        getStaticServerParams().sampleRate = originalSampleRate;
     });
 
     tickSource->advance(Microseconds(11 * 1000));
@@ -3934,17 +3934,17 @@ TEST_F(TransactionsMetricsTest, LogTransactionInfoVerbosityInfo) {
 
     auto txnParticipant = TransactionParticipant::get(opCtx());
 
-    const auto originalSlowMS = serverGlobalParams.slowMS;
-    const auto originalSampleRate = serverGlobalParams.sampleRate;
+    const auto originalSlowMS = getStaticServerParams().slowMS;
+    const auto originalSampleRate = getStaticServerParams().sampleRate;
 
     // Set a high slow operation threshold to avoid the transaction being logged as slow.
-    serverGlobalParams.slowMS = 10000;
-    serverGlobalParams.sampleRate = 1;
+    getStaticServerParams().slowMS = 10000;
+    getStaticServerParams().sampleRate = 1;
 
     // Reset the global parameters to their original values after this test exits.
     ON_BLOCK_EXIT([originalSlowMS, originalSampleRate] {
-        serverGlobalParams.slowMS = originalSlowMS;
-        serverGlobalParams.sampleRate = originalSampleRate;
+        getStaticServerParams().slowMS = originalSlowMS;
+        getStaticServerParams().sampleRate = originalSampleRate;
     });
 
     // Set verbosity level of transaction components to info.
@@ -3972,17 +3972,17 @@ TEST_F(TransactionsMetricsTest, LogTransactionInfoVerbosityDebug) {
 
     txnParticipant.unstashTransactionResources(opCtx(), "commitTransaction");
 
-    const auto originalSlowMS = serverGlobalParams.slowMS;
-    const auto originalSampleRate = serverGlobalParams.sampleRate;
+    const auto originalSlowMS = getStaticServerParams().slowMS;
+    const auto originalSampleRate = getStaticServerParams().sampleRate;
 
     // Set a high slow operation threshold to avoid the transaction being logged as slow.
-    serverGlobalParams.slowMS = 10000;
-    serverGlobalParams.sampleRate = 1;
+    getStaticServerParams().slowMS = 10000;
+    getStaticServerParams().sampleRate = 1;
 
     // Reset the global parameters to their original values after this test exits.
     ON_BLOCK_EXIT([originalSlowMS, originalSampleRate] {
-        serverGlobalParams.slowMS = originalSlowMS;
-        serverGlobalParams.sampleRate = originalSampleRate;
+        getStaticServerParams().slowMS = originalSlowMS;
+        getStaticServerParams().sampleRate = originalSampleRate;
     });
 
     startCapturingLogMessages();

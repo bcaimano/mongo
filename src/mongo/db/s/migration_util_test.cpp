@@ -335,7 +335,7 @@ public:
         ShardingMongodTestFixture::setUp();
 
         replicationCoordinator()->alwaysAllowWrites(true);
-        serverGlobalParams.clusterRole = ClusterRole::ShardServer;
+        getStaticServerParams().clusterRole = ClusterRole::ShardServer;
 
         _clusterId = OID::gen();
         ShardingState::get(getServiceContext())->setInitialized(_myShardName, _clusterId);

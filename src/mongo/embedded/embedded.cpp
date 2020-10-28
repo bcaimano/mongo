@@ -217,7 +217,7 @@ ServiceContext* initialize(const char* yaml_config) {
                       {logv2::LogComponent::kControl},
                       "MongoDB starting",
                       "pid"_attr = pid.toNative(),
-                      "port"_attr = serverGlobalParams.port,
+                      "port"_attr = getStaticServerParams().port,
                       "dbpath"_attr =
                           boost::filesystem::path(storageGlobalParams.dbpath).generic_string(),
                       "architecture"_attr = (is32bit ? "32-bit" : "64-bit"));
@@ -244,8 +244,8 @@ ServiceContext* initialize(const char* yaml_config) {
 
     // Warn if we detect configurations for multiple registered storage engines in the same
     // configuration file/environment.
-    if (serverGlobalParams.parsedOpts.hasField("storage")) {
-        BSONElement storageElement = serverGlobalParams.parsedOpts.getField("storage");
+    if (getStaticServerParams().parsedOpts.hasField("storage")) {
+        BSONElement storageElement = getStaticServerParams().parsedOpts.getField("storage");
         invariant(storageElement.isABSONObj());
         for (auto&& e : storageElement.Obj()) {
             // Ignore if field name under "storage" matches current storage engine.

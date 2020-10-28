@@ -435,7 +435,7 @@ void TransactionCoordinator::_done(Status status) {
         (shouldLog(logv2::LogComponent::kTransaction, logv2::LogSeverity::Debug(1)) ||
          _transactionCoordinatorMetricsObserver->getSingleTransactionCoordinatorStats()
                  .getTwoPhaseCommitDuration(tickSource, tickSource->getTicks()) >
-             Milliseconds(serverGlobalParams.slowMS))) {
+             Milliseconds(getStaticServerParams().slowMS))) {
         _logSlowTwoPhaseCommit(*_decision);
     }
 

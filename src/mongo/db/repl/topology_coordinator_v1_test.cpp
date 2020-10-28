@@ -3650,8 +3650,8 @@ TEST_F(TopoCoordTest, DoNotGrantDryRunVoteWhenOpTimeIsStale) {
 }
 
 TEST_F(TopoCoordTest, NodeTransitionsToRemovedIfCSRSButHaveNoReadCommittedSupport) {
-    ON_BLOCK_EXIT([]() { serverGlobalParams.clusterRole = ClusterRole::None; });
-    serverGlobalParams.clusterRole = ClusterRole::ConfigServer;
+    ON_BLOCK_EXIT([]() { getStaticServerParams().clusterRole = ClusterRole::None; });
+    getStaticServerParams().clusterRole = ClusterRole::ConfigServer;
     TopologyCoordinator::Options options;
     options.clusterRole = ClusterRole::ConfigServer;
     setOptions(options);
@@ -3672,8 +3672,8 @@ TEST_F(TopoCoordTest, NodeTransitionsToRemovedIfCSRSButHaveNoReadCommittedSuppor
 }
 
 TEST_F(TopoCoordTest, NodeBecomesSecondaryAsNormalWhenReadCommittedSupportedAndCSRS) {
-    ON_BLOCK_EXIT([]() { serverGlobalParams.clusterRole = ClusterRole::None; });
-    serverGlobalParams.clusterRole = ClusterRole::ConfigServer;
+    ON_BLOCK_EXIT([]() { getStaticServerParams().clusterRole = ClusterRole::None; });
+    getStaticServerParams().clusterRole = ClusterRole::ConfigServer;
     TopologyCoordinator::Options options;
     options.clusterRole = ClusterRole::ConfigServer;
     setOptions(options);

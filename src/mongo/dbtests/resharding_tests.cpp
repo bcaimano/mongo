@@ -476,12 +476,12 @@ public:
         // Only run on storage engines that support snapshot reads.
         auto storageEngine = cc().getServiceContext()->getStorageEngine();
         if (!storageEngine->supportsReadConcernSnapshot() ||
-            !mongo::serverGlobalParams.enableMajorityReadConcern) {
+            !mongo::getStaticServerParams().enableMajorityReadConcern) {
             LOGV2(5123009,
                   "Skipping this test because the configuration does not support majority reads.",
                   "storageEngine"_attr = storageGlobalParams.engine,
                   "enableMajorityReadConcern"_attr =
-                      mongo::serverGlobalParams.enableMajorityReadConcern);
+                      mongo::getStaticServerParams().enableMajorityReadConcern);
             return true;
         }
         return false;

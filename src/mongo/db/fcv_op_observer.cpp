@@ -54,16 +54,16 @@ void FcvOpObserver::_setVersion(OperationContext* opCtx,
                                 ServerGlobalParams::FeatureCompatibility::Version newVersion) {
     boost::optional<FeatureCompatibilityParams::Version> prevVersion;
 
-    if (serverGlobalParams.featureCompatibility.isVersionInitialized()) {
-        prevVersion = serverGlobalParams.featureCompatibility.getVersion();
+    if (getStaticServerParams().featureCompatibility.isVersionInitialized()) {
+        prevVersion = getStaticServerParams().featureCompatibility.getVersion();
     }
-    serverGlobalParams.mutableFeatureCompatibility.setVersion(newVersion);
+    getStaticServerParams().mutableFeatureCompatibility.setVersion(newVersion);
     FeatureCompatibilityVersion::updateMinWireVersion();
 
     // (Generic FCV reference): This FCV check should exist across LTS binary versions.
-    if (serverGlobalParams.featureCompatibility.isGreaterThanOrEqualTo(
+    if (getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
             FeatureCompatibilityParams::kLatest) ||
-        serverGlobalParams.featureCompatibility.isUpgradingOrDowngrading()) {
+        getStaticServerParams().featureCompatibility.isUpgradingOrDowngrading()) {
         // minWireVersion == maxWireVersion on kLatest FCV or upgrading/downgrading FCV.
         // Close all incoming connections from internal clients with binary versions lower than
         // ours.
@@ -81,7 +81,7 @@ void FcvOpObserver::_setVersion(OperationContext* opCtx,
     // rather than waiting for the transactions to complete. FCV changes take the global S lock when
     // in the upgrading/downgrading state.
     // (Generic FCV reference): This FCV check should exist across LTS binary versions.
-    if (serverGlobalParams.featureCompatibility.isUpgradingOrDowngrading()) {
+    if (getStaticServerParams().featureCompatibility.isUpgradingOrDowngrading()) {
         SessionKiller::Matcher matcherAllSessions(
             KillAllSessionsByPatternSet{makeKillAllSessionsByPattern(opCtx)});
         killSessionsAbortUnpreparedTransactions(opCtx, matcherAllSessions);
@@ -120,8 +120,8 @@ void FcvOpObserver::_onInsertOrUpdate(OperationContext* opCtx, const BSONObj& do
     // changes.
     logv2::DynamicAttributes attrs;
     bool isDifferent = true;
-    if (serverGlobalParams.featureCompatibility.isVersionInitialized()) {
-        const auto currentVersion = serverGlobalParams.featureCompatibility.getVersion();
+    if (getStaticServerParams().featureCompatibility.isVersionInitialized()) {
+        const auto currentVersion = getStaticServerParams().featureCompatibility.getVersion();
         attrs.add("currentVersion", FeatureCompatibilityVersionParser::toString(currentVersion));
         isDifferent = currentVersion != newVersion;
     }
@@ -185,7 +185,7 @@ void FcvOpObserver::onReplicationRollback(OperationContext* opCtx,
     if (swFcv.isOK()) {
         const auto featureCompatibilityVersion = swFcv.getValue();
         auto swVersion = FeatureCompatibilityVersionParser::parse(featureCompatibilityVersion);
-        const auto memoryFcv = serverGlobalParams.featureCompatibility.getVersion();
+        const auto memoryFcv = getStaticServerParams().featureCompatibility.getVersion();
         if (swVersion.isOK() && (swVersion.getValue() != memoryFcv)) {
             auto diskFcv = swVersion.getValue();
             LOGV2(4675801,

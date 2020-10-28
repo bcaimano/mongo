@@ -84,7 +84,7 @@ namespace {
 
 bool gImplicitDisableTLS10 = false;
 
-// storeSSLServerOptions depends on serverGlobalParams.clusterAuthMode
+// storeSSLServerOptions depends on getStaticServerParams().clusterAuthMode
 // and IDL based storage actions, and therefore must run later.
 MONGO_STARTUP_OPTIONS_POST(SSLServerOptions)(InitializerContext*) {
     auto& params = moe::startupOptionsParsed;
@@ -198,7 +198,7 @@ MONGO_STARTUP_OPTIONS_POST(SSLServerOptions)(InitializerContext*) {
     }
 #endif
 
-    const int clusterAuthMode = serverGlobalParams.clusterAuthMode.load();
+    const int clusterAuthMode = getStaticServerParams().clusterAuthMode.load();
     if (sslGlobalParams.sslMode.load() != SSLParams::SSLMode_disabled) {
         bool usingCertifiateSelectors = params.count("net.tls.certificateSelector");
         if (sslGlobalParams.sslPEMKeyFile.size() == 0 && !usingCertifiateSelectors) {
@@ -247,7 +247,7 @@ MONGO_STARTUP_OPTIONS_POST(SSLServerOptions)(InitializerContext*) {
         // allowSSL and x509 is valid only when we are transitioning to auth.
         if (clusterAuthMode == ServerGlobalParams::ClusterAuthMode_sendX509 ||
             (clusterAuthMode == ServerGlobalParams::ClusterAuthMode_x509 &&
-             !serverGlobalParams.transitionToAuth)) {
+             !getStaticServerParams().transitionToAuth)) {
             return {ErrorCodes::BadValue,
                     "cannot have x.509 cluster authentication in allowTLS mode"};
         }

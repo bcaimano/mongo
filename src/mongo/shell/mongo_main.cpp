@@ -119,7 +119,7 @@ MONGO_INITIALIZER_WITH_PREREQUISITES(SetFeatureCompatibilityVersionLatest,
                                      ("EndStartupOptionSetup"))
 // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
 (InitializerContext* context) {
-    mongo::serverGlobalParams.mutableFeatureCompatibility.setVersion(
+    mongo::getStaticServerParams().mutableFeatureCompatibility.setVersion(
         ServerGlobalParams::FeatureCompatibility::kLatest);
     return Status::OK();
 }
@@ -737,7 +737,7 @@ int mongo_main(int argc, char* argv[]) {
 
         ErrorExtraInfo::invariantHaveAllParsers();
 
-        if (!mongo::serverGlobalParams.quiet.load())
+        if (!mongo::getStaticServerParams().quiet.load())
             std::cout << mongoShellVersion(VersionInfoInterface::instance()) << std::endl;
 
         auto consoleSink = boost::make_shared<boost::log::sinks::synchronous_sink<ShellBackend>>();
@@ -816,7 +816,7 @@ int mongo_main(int argc, char* argv[]) {
             }
 
             std::stringstream ss;
-            if (mongo::serverGlobalParams.quiet.load()) {
+            if (mongo::getStaticServerParams().quiet.load()) {
                 ss << "__quiet = true;" << std::endl;
             }
 
@@ -846,7 +846,7 @@ int mongo_main(int argc, char* argv[]) {
         std::unique_ptr<mongo::Scope> scope(mongo::getGlobalScriptEngine()->newScope());
         shellMainScope = scope.get();
 
-        if (shellGlobalParams.runShell && !mongo::serverGlobalParams.quiet.load())
+        if (shellGlobalParams.runShell && !mongo::getStaticServerParams().quiet.load())
             std::cout << "type \"help\" for help" << std::endl;
 
         // Load and execute /etc/mongorc.js before starting shell
@@ -971,7 +971,7 @@ int mongo_main(int argc, char* argv[]) {
                 f.open(rcLocation.c_str(), false);  // Create empty .mongorc.js file
             }
 
-            if (!shellGlobalParams.nodb && !mongo::serverGlobalParams.quiet.load() &&
+            if (!shellGlobalParams.nodb && !mongo::getStaticServerParams().quiet.load() &&
                 isatty(fileno(stdin))) {
                 scope->exec("shellHelper( 'show', 'startupWarnings' )",
                             "(shellwarnings)",
@@ -1028,7 +1028,7 @@ int mongo_main(int argc, char* argv[]) {
                 }
 
                 if (!linePtr || (strlen(linePtr) == 4 && strstr(linePtr, "exit"))) {
-                    if (!mongo::serverGlobalParams.quiet.load())
+                    if (!mongo::getStaticServerParams().quiet.load())
                         std::cout << "bye" << std::endl;
                     if (line)
                         free(line);

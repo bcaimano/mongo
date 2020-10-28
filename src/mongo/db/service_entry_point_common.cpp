@@ -340,8 +340,8 @@ StatusWith<repl::ReadConcernArgs> _extractReadConcern(OperationContext* opCtx,
                 "received command without explicit readConcern on an internalClient connection {}"_format(
                     redact(cmdObj.toString())),
                 readConcernArgs.isSpecified());
-        } else if (serverGlobalParams.clusterRole == ClusterRole::ShardServer ||
-                   serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+        } else if (getStaticServerParams().clusterRole == ClusterRole::ShardServer ||
+                   getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
             if (!readConcernArgs.isSpecified()) {
                 // TODO: Disabled until after SERVER-44539, to avoid log spam.
                 // LOGV2(21954, "Missing readConcern on {command}", "Missing readConcern "
@@ -424,7 +424,7 @@ StatusWith<repl::ReadConcernArgs> _extractReadConcern(OperationContext* opCtx,
     // read mechanism appropriately i.e. we utilize "speculative" read behavior.
     if (readConcernArgs.getLevel() == repl::ReadConcernLevel::kMajorityReadConcern &&
         invocation->allowsSpeculativeMajorityReads() &&
-        !serverGlobalParams.enableMajorityReadConcern) {
+        !getStaticServerParams().enableMajorityReadConcern) {
         readConcernArgs.setMajorityReadMechanism(
             repl::ReadConcernArgs::MajorityReadMechanism::kSpeculative);
     }
@@ -730,8 +730,8 @@ void invokeWithSessionCheckedOut(OperationContext* opCtx,
     txnParticipant.stashTransactionResources(opCtx);
     guard.dismiss();
 
-    if (serverGlobalParams.clusterRole == ClusterRole::ShardServer ||
-        serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+    if (getStaticServerParams().clusterRole == ClusterRole::ShardServer ||
+        getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
         auto txnResponseMetadata = txnParticipant.getResponseMetadata();
         auto bodyBuilder = replyBuilder->getBodyBuilder();
         txnResponseMetadata.serialize(&bodyBuilder);
@@ -808,8 +808,8 @@ bool runCommandImpl(OperationContext* opCtx,
                         "received command without explicit writeConcern on an internalClient connection {}"_format(
                             redact(request.body.toString())),
                         request.body.hasField(WriteConcernOptions::kWriteConcernField));
-                } else if (serverGlobalParams.clusterRole == ClusterRole::ShardServer ||
-                           serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+                } else if (getStaticServerParams().clusterRole == ClusterRole::ShardServer ||
+                           getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
                     if (!request.body.hasField(WriteConcernOptions::kWriteConcernField)) {
                         // TODO: Disabled until after SERVER-44539, to avoid log spam.
                         // LOGV2(21959, "Missing writeConcern on {command}", "Missing "
@@ -1050,8 +1050,8 @@ void execCommandDatabase(OperationContext* opCtx,
             opCtx, dbname, command->collectsResourceConsumptionMetrics());
 
         const auto allowTransactionsOnConfigDatabase =
-            (serverGlobalParams.clusterRole == ClusterRole::ConfigServer ||
-             serverGlobalParams.clusterRole == ClusterRole::ShardServer);
+            (getStaticServerParams().clusterRole == ClusterRole::ConfigServer ||
+             getStaticServerParams().clusterRole == ClusterRole::ShardServer);
 
         validateSessionOptions(sessionOptions,
                                command->getName(),

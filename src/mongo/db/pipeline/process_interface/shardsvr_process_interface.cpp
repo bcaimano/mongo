@@ -82,7 +82,7 @@ std::pair<std::vector<FieldPath>, bool>
 ShardServerProcessInterface::collectDocumentKeyFieldsForHostedCollection(OperationContext* opCtx,
                                                                          const NamespaceString& nss,
                                                                          UUID uuid) const {
-    invariant(serverGlobalParams.clusterRole == ClusterRole::ShardServer);
+    invariant(getStaticServerParams().clusterRole == ClusterRole::ShardServer);
 
     auto* const catalogCache = Grid::get(opCtx)->catalogCache();
     auto swCM = catalogCache->getCollectionRoutingInfo(opCtx, nss);

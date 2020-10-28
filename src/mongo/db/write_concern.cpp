@@ -103,8 +103,8 @@ StatusWith<WriteConcernOptions> extractWriteConcern(OperationContext* opCtx,
         writeConcern = ([&]() {
             // WriteConcern defaults can only be applied on regular replica set members.  Operations
             // received by shard and config servers should always have WC explicitly specified.
-            if (serverGlobalParams.clusterRole != ClusterRole::ShardServer &&
-                serverGlobalParams.clusterRole != ClusterRole::ConfigServer &&
+            if (getStaticServerParams().clusterRole != ClusterRole::ShardServer &&
+                getStaticServerParams().clusterRole != ClusterRole::ConfigServer &&
                 repl::ReplicationCoordinator::get(opCtx)->isReplEnabled() &&
                 (!opCtx->inMultiDocumentTransaction() ||
                  isTransactionCommand(cmdObj.firstElementFieldName())) &&
@@ -170,7 +170,7 @@ StatusWith<WriteConcernOptions> extractWriteConcern(OperationContext* opCtx,
         }
     }
 
-    if (writeConcern.usedDefault && serverGlobalParams.clusterRole == ClusterRole::ConfigServer &&
+    if (writeConcern.usedDefault && getStaticServerParams().clusterRole == ClusterRole::ConfigServer &&
         !opCtx->getClient()->isInDirectClient() &&
         (opCtx->getClient()->session() &&
          (opCtx->getClient()->session()->getTags() & transport::Session::kInternalClient))) {
