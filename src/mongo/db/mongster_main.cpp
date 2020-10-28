@@ -27,31 +27,40 @@
  *    it in the license file.
  */
 
-#pragma once
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kControl
+
+#include "mongo/platform/basic.h"
+
+#include "mongo/db/mongster_main.h"
 
 #include "mongo/db/main_initializer.h"
-#include "mongo/db/service_context.h"
+#include "mongo/db/mongod_main.h"
+#include "mongo/stdx/thread.h"
 #include "mongo/util/exit.h"
 
 namespace mongo {
 
-class MongoDService {
-public:
-    MongoDService(const MainInitializer& mainInit);
-    ~MongoDService() = default;
+int mongster_main(int argc, char* argv[]) {
+    auto mainInit = MainInitializer(argc, argv);
+    mainInit.begin();
 
-    void start();
-    void stop(const ShutdownTaskArgs& args);
+    auto mongod1 = MongoDService(mainInit);
+    registerShutdownTask([&](const ShutdownTaskArgs& shutdownArgs) { mongod1.stop(shutdownArgs); });
 
-    const auto& serviceContext() {
-        return _serviceContext;
-    }
+    auto mongod2 = MongoDService(mainInit);
+    registerShutdownTask([&](const ShutdownTaskArgs& shutdownArgs) { mongod2.stop(shutdownArgs); });
 
-private:
-    ServiceContext::UniqueServiceContext _serviceContext;
-};
+    mainInit.finish();
 
-int mongster_main(int argc, char* argv[]);
-int mongod_main(int argc, char* argv[]);
+    auto thread1 = stdx::thread([&] { mongod1.start(); });
+    auto thread2 = stdx::thread([&] { mongod2.start(); });
 
+    auto ec = waitForShutdown();
+    exitCleanly(ec);
+
+    thread1.join();
+    thread2.join();
+
+    return 0;
+}
 }  // namespace mongo

@@ -2221,6 +2221,34 @@ env.Program(
     ],
 )
 
+env.Program(
+    target="mongster",
+    source=[
+        'mongster.cpp',
+        'mongster_main.cpp',
+    ],
+    LIBDEPS=[
+        # NOTE: Do not add new libdeps (public or private) here unless
+        # required by the linker to satisfy symbol dependencies from
+        # the files listed above in `sources`. If you need to add a
+        # library to inject a static or mongo initializer to mongod,
+        # please add that library as a private libdep of
+        # mongod_initializers.
+        '$BUILD_DIR/mongo/base',
+        'mongod_main',
+    ],
+    AIB_COMPONENT="mongster",
+    AIB_COMPONENTS_EXTRA=[
+        "core",
+        "default",
+        "dist",
+        "dist-test",
+        "servers",
+        "integration-tests",
+    ],
+)
+
+
 envWithAsio = env.Clone()
 envWithAsio.InjectThirdParty(libraries=['asio'])
 

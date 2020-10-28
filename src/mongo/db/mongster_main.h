@@ -29,29 +29,8 @@
 
 #pragma once
 
-#include "mongo/db/main_initializer.h"
-#include "mongo/db/service_context.h"
-#include "mongo/util/exit.h"
-
 namespace mongo {
 
-class MongoDService {
-public:
-    MongoDService(const MainInitializer& mainInit);
-    ~MongoDService() = default;
-
-    void start();
-    void stop(const ShutdownTaskArgs& args);
-
-    const auto& serviceContext() {
-        return _serviceContext;
-    }
-
-private:
-    ServiceContext::UniqueServiceContext _serviceContext;
-};
-
 int mongster_main(int argc, char* argv[]);
-int mongod_main(int argc, char* argv[]);
 
 }  // namespace mongo

@@ -27,31 +27,23 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/platform/basic.h"
 
-#include "mongo/db/main_initializer.h"
-#include "mongo/db/service_context.h"
-#include "mongo/util/exit.h"
+#include "mongo/db/mongster_main.h"
+#include "mongo/util/quick_exit.h"
+#include "mongo/util/text.h"
 
-namespace mongo {
-
-class MongoDService {
-public:
-    MongoDService(const MainInitializer& mainInit);
-    ~MongoDService() = default;
-
-    void start();
-    void stop(const ShutdownTaskArgs& args);
-
-    const auto& serviceContext() {
-        return _serviceContext;
-    }
-
-private:
-    ServiceContext::UniqueServiceContext _serviceContext;
-};
-
-int mongster_main(int argc, char* argv[]);
-int mongod_main(int argc, char* argv[]);
-
-}  // namespace mongo
+#if defined(_WIN32)
+// In Windows, wmain() is an alternate entry point for main(), and receives the same parameters
+// as main() but encoded in Windows Unicode (UTF-16); "wide" 16-bit wchar_t characters.  The
+// WindowsCommandLine object converts these wide character strings to a UTF-8 coded equivalent
+// and makes them available through the argv() and envp() members.  This enables mongoDbMain()
+// to process UTF-8 encoded arguments and environment variables without regard to platform.
+int wmain(int argc, wchar_t* argvW[]) {
+    mongo::quickExit(mongo::mongster_main(argc, mongo::WindowsCommandLine(argc, argvW).argv()));
+}
+#else
+int main(int argc, char* argv[]) {
+    mongo::quickExit(mongo::mongster_main(argc, argv));
+}
+#endif
