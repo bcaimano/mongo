@@ -38,7 +38,7 @@ server_parameters:
   quiet:
     description: "Sets quiet logging mode"
     set_at: ["startup", "runtime"]
-    cpp_varname: "getStaticServerParams().quiet"
+    cpp_varname: gBeQuiet
 
   traceExceptions:
     description: "Configures mongod to log full code stack traces for every database and socket C++ exception"

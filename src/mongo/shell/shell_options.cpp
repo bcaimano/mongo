@@ -106,7 +106,7 @@ bool handlePreValidationMongoShellOptions(const moe::Environment& params,
 Status storeMongoShellOptions(const moe::Environment& params,
                               const std::vector<std::string>& args) {
     if (params.count("quiet")) {
-        mongo::getStaticServerParams().quiet.store(true);
+        mongo::gBeQuiet.store(true);
     }
 
     if (params.count("ipv6")) {

@@ -29,6 +29,7 @@
 
 #include "mongo/platform/basic.h"
 
+#include "mongo/db/commands/parameters_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/util/thread_context.h"
 
@@ -75,6 +76,16 @@ const FeatureCompatibility& getFeatureCompatibility() {
 
 void setFeatureCompatibility(FeatureCompatibility::Version version) {
     featureCompatibility.setVersion(version);
+}
+
+AtomicWord<bool> gBeQuiet;
+
+bool shouldBeQuiet() {
+    return gBeQuiet.loadRelaxed();
+}
+
+void setBeQuiet(bool beQuiet) {
+    gBeQuiet.store(beQuiet);
 }
 
 std::string ServerGlobalParams::getPortSettingHelpText() {

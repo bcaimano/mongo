@@ -281,7 +281,7 @@ Status dropCollection(OperationContext* opCtx,
                       const NamespaceString& collectionName,
                       BSONObjBuilder& result,
                       DropCollectionSystemCollectionMode systemCollectionMode) {
-    if (!getStaticServerParams().quiet.load()) {
+    if (!shouldBeQuiet()) {
         LOGV2(518070, "CMD: drop {namespace}", "CMD: drop", "namespace"_attr = collectionName);
     }
 
@@ -322,7 +322,7 @@ Status dropCollectionForApplyOps(OperationContext* opCtx,
                                  const NamespaceString& collectionName,
                                  const repl::OpTime& dropOpTime,
                                  DropCollectionSystemCollectionMode systemCollectionMode) {
-    if (!getStaticServerParams().quiet.load()) {
+    if (!shouldBeQuiet()) {
         LOGV2(20332, "CMD: drop {namespace}", "CMD: drop", "namespace"_attr = collectionName);
     }
 

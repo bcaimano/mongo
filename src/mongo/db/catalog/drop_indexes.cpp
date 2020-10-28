@@ -337,7 +337,7 @@ Status dropIndexes(OperationContext* opCtx,
         return status;
     }
 
-    if (!getStaticServerParams().quiet.load()) {
+    if (!shouldBeQuiet()) {
         LOGV2(51806,
               "CMD: dropIndexes",
               "namespace"_attr = nss,
@@ -515,7 +515,7 @@ Status dropIndexesForApplyOps(OperationContext* opCtx,
             return status;
         }
 
-        if (!getStaticServerParams().quiet.load()) {
+        if (!shouldBeQuiet()) {
             LOGV2(20344,
                   "CMD: dropIndexes",
                   "namespace"_attr = nss,

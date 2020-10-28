@@ -69,7 +69,7 @@ Status setupBaseOptions(const std::vector<std::string>& args);
 /**
  * Store the given parsed params in global server state.
  *
- * For example, sets the getStaticServerParams().quiet variable based on the systemLog.quiet config
+ * For example, sets the shouldBeQuiet() variable based on the systemLog.quiet config
  * parameter.
  */
 Status storeBaseOptions(const moe::Environment& params);

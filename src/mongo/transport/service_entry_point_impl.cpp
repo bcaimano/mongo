@@ -138,7 +138,7 @@ void ServiceEntryPointImpl::startSession(transport::SessionHandle session) {
 
     SSMListIterator ssmIt;
 
-    const bool quiet = getStaticServerParams().quiet.load();
+    const bool quiet = shouldBeQuiet();
     size_t connectionCount;
     auto transportMode = _svcCtx->getServiceExecutor()->transportMode();
 

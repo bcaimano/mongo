@@ -63,7 +63,7 @@ struct ServerGlobalParams {
 
     int listenBacklog = 0;  // --listenBacklog, real default is SOMAXCONN
 
-    AtomicWord<bool> quiet{false};  // --quiet
+    bool quiet = false;  // --quiet
 
     ClusterRole clusterRole = ClusterRole::None;  // --configsvr/--shardsvr
 
@@ -311,8 +311,14 @@ private:
 };
 
 ServerGlobalParams& getStaticServerParams();
+
 const FeatureCompatibility& getFeatureCompatibility();
 void setFeatureCompatibility(FeatureCompatibility::Version version);
+
+extern AtomicWord<bool> gBeQuiet;
+inline bool shouldBeQuiet() {
+    return gBeQuiet.loadRelaxed();
+}
 
 template <typename NameTrait>
 struct TraitNamedDomain {

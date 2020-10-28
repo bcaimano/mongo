@@ -300,7 +300,7 @@ Status storeBaseOptions(const moe::Environment& params) {
     }
 
     if (params.count("systemLog.quiet")) {
-        getStaticServerParams().quiet.store(params["systemLog.quiet"].as<bool>());
+        gBeQuiet.store(params["systemLog.quiet"].as<bool>());
     }
 
     if (params.count("systemLog.traceAllExceptions")) {
@@ -407,7 +407,8 @@ Status storeBaseOptions(const moe::Environment& params) {
     }
 
     if (params.count("processManagement.timeZoneInfo")) {
-        getStaticServerParams().timeZoneInfoPath = params["processManagement.timeZoneInfo"].as<string>();
+        getStaticServerParams().timeZoneInfoPath =
+            params["processManagement.timeZoneInfo"].as<string>();
     }
 
     if (params.count("setParameter")) {
@@ -445,7 +446,8 @@ Status storeBaseOptions(const moe::Environment& params) {
     }
 
     if (params.count("operationProfiling.slowOpSampleRate")) {
-        getStaticServerParams().sampleRate = params["operationProfiling.slowOpSampleRate"].as<double>();
+        getStaticServerParams().sampleRate =
+            params["operationProfiling.slowOpSampleRate"].as<double>();
     }
 
     if (params.count("operationProfiling.filter")) {

@@ -737,7 +737,7 @@ int mongo_main(int argc, char* argv[]) {
 
         ErrorExtraInfo::invariantHaveAllParsers();
 
-        if (!mongo::getStaticServerParams().quiet.load())
+        if (!mongo::shouldBeQuiet())
             std::cout << mongoShellVersion(VersionInfoInterface::instance()) << std::endl;
 
         auto consoleSink = boost::make_shared<boost::log::sinks::synchronous_sink<ShellBackend>>();
@@ -816,7 +816,7 @@ int mongo_main(int argc, char* argv[]) {
             }
 
             std::stringstream ss;
-            if (mongo::getStaticServerParams().quiet.load()) {
+            if (mongo::shouldBeQuiet()) {
                 ss << "__quiet = true;" << std::endl;
             }
 
@@ -846,7 +846,7 @@ int mongo_main(int argc, char* argv[]) {
         std::unique_ptr<mongo::Scope> scope(mongo::getGlobalScriptEngine()->newScope());
         shellMainScope = scope.get();
 
-        if (shellGlobalParams.runShell && !mongo::getStaticServerParams().quiet.load())
+        if (shellGlobalParams.runShell && !mongo::shouldBeQuiet())
             std::cout << "type \"help\" for help" << std::endl;
 
         // Load and execute /etc/mongorc.js before starting shell
@@ -971,7 +971,7 @@ int mongo_main(int argc, char* argv[]) {
                 f.open(rcLocation.c_str(), false);  // Create empty .mongorc.js file
             }
 
-            if (!shellGlobalParams.nodb && !mongo::getStaticServerParams().quiet.load() &&
+            if (!shellGlobalParams.nodb && !mongo::shouldBeQuiet() &&
                 isatty(fileno(stdin))) {
                 scope->exec("shellHelper( 'show', 'startupWarnings' )",
                             "(shellwarnings)",
@@ -1028,7 +1028,7 @@ int mongo_main(int argc, char* argv[]) {
                 }
 
                 if (!linePtr || (strlen(linePtr) == 4 && strstr(linePtr, "exit"))) {
-                    if (!mongo::getStaticServerParams().quiet.load())
+                    if (!mongo::shouldBeQuiet())
                         std::cout << "bye" << std::endl;
                     if (line)
                         free(line);
