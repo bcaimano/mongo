@@ -319,21 +319,21 @@ Status storeServerOptions(const moe::Environment& params) {
         std::string clusterAuthMode = params["security.clusterAuthMode"].as<std::string>();
 
         if (clusterAuthMode == "keyFile") {
-            getStaticServerParams().clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_keyFile);
+            gClusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_keyFile);
         } else if (clusterAuthMode == "sendKeyFile") {
-            getStaticServerParams().clusterAuthMode.store(
+            gClusterAuthMode.store(
                 ServerGlobalParams::ClusterAuthMode_sendKeyFile);
         } else if (clusterAuthMode == "sendX509") {
-            getStaticServerParams().clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_sendX509);
+            gClusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_sendX509);
         } else if (clusterAuthMode == "x509") {
-            getStaticServerParams().clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_x509);
+            gClusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_x509);
         } else {
             return Status(ErrorCodes::BadValue,
                           "unsupported value for clusterAuthMode " + clusterAuthMode);
         }
         getStaticServerParams().authState = ServerGlobalParams::AuthState::kEnabled;
     } else {
-        getStaticServerParams().clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_undefined);
+        gClusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_undefined);
     }
 
     if (params.count("net.maxIncomingConnections")) {
@@ -432,9 +432,9 @@ Status storeServerOptions(const moe::Environment& params) {
     }
 
     if (!params.count("security.clusterAuthMode") && params.count("security.keyFile")) {
-        getStaticServerParams().clusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_keyFile);
+        gClusterAuthMode.store(ServerGlobalParams::ClusterAuthMode_keyFile);
     }
-    int clusterAuthMode = getStaticServerParams().clusterAuthMode.load();
+    int clusterAuthMode = gClusterAuthMode.load();
     if (getStaticServerParams().transitionToAuth &&
         (clusterAuthMode != ServerGlobalParams::ClusterAuthMode_keyFile &&
          clusterAuthMode != ServerGlobalParams::ClusterAuthMode_x509)) {

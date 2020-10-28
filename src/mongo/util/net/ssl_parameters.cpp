@@ -45,7 +45,7 @@ namespace mongo {
 namespace {
 
 std::string clusterAuthModeFormat() {
-    switch (getStaticServerParams().clusterAuthMode.load()) {
+    switch (gClusterAuthMode.load()) {
         case ServerGlobalParams::ClusterAuthMode_keyFile:
             return "keyFile";
         case ServerGlobalParams::ClusterAuthMode_sendKeyFile:

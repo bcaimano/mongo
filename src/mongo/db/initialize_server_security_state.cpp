@@ -43,7 +43,7 @@ namespace mongo {
 
 bool initializeServerSecurityGlobalState(ServiceContext* service) {
 
-    int clusterAuthMode = getStaticServerParams().clusterAuthMode.load();
+    int clusterAuthMode = gClusterAuthMode.load();
     if (!getStaticServerParams().keyFile.empty() &&
         clusterAuthMode != ServerGlobalParams::ClusterAuthMode_x509) {
         if (!setUpSecurityKey(getStaticServerParams().keyFile)) {

@@ -104,7 +104,7 @@ Status _authenticateX509(OperationContext* opCtx, const UserName& user, const BS
             if (!status.isOK()) {
                 return status;
             }
-            int clusterAuthMode = getStaticServerParams().clusterAuthMode.load();
+            int clusterAuthMode = gClusterAuthMode.load();
             if (clusterAuthMode == ServerGlobalParams::ClusterAuthMode_undefined ||
                 clusterAuthMode == ServerGlobalParams::ClusterAuthMode_keyFile) {
                 return Status(ErrorCodes::AuthenticationFailed,

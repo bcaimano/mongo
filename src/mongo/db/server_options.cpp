@@ -80,6 +80,8 @@ void setFeatureCompatibility(FeatureCompatibility::Version version) {
 
 AtomicWord<bool> gBeQuiet;
 
+AtomicWord<int> gClusterAuthMode;
+
 std::string ServerGlobalParams::getPortSettingHelpText() {
     return str::stream() << "Specify port number - " << getStaticServerParams().port
                          << " by default";

@@ -123,7 +123,6 @@ struct ServerGlobalParams {
     AuthState authState = AuthState::kUndefined;
 
     bool transitionToAuth = false;    // --transitionToAuth, mixed mode for rolling auth upgrade
-    AtomicWord<int> clusterAuthMode;  // --clusterAuthMode, the internal cluster auth mode
 
     enum ClusterAuthModes {
         ClusterAuthMode_undefined,
@@ -319,6 +318,8 @@ extern AtomicWord<bool> gBeQuiet;
 inline bool shouldBeQuiet() {
     return gBeQuiet.loadRelaxed();
 }
+
+extern AtomicWord<int> gClusterAuthMode;  // --clusterAuthMode, the internal cluster auth mode
 
 template <typename NameTrait>
 struct TraitNamedDomain {

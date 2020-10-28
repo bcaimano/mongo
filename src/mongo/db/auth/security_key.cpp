@@ -171,7 +171,7 @@ bool setUpSecurityKey(const string& filename) {
         internalSecurity.alternateCredentials = std::move(*credentials);
     }
 
-    int clusterAuthMode = getStaticServerParams().clusterAuthMode.load();
+    int clusterAuthMode = gClusterAuthMode.load();
     if (clusterAuthMode == ServerGlobalParams::ClusterAuthMode_keyFile ||
         clusterAuthMode == ServerGlobalParams::ClusterAuthMode_sendKeyFile) {
         auth::setInternalAuthKeys(keyStrings);
