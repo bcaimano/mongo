@@ -83,14 +83,6 @@ void setFeatureCompatibility(FeatureCompatibility::Version version) {
 
 AtomicWord<bool> gBeQuiet;
 
-bool shouldBeQuiet() {
-    return gBeQuiet.loadRelaxed();
-}
-
-void setBeQuiet(bool beQuiet) {
-    gBeQuiet.store(beQuiet);
-}
-
 std::string ServerGlobalParams::getPortSettingHelpText() {
     return str::stream() << "Specify port number - " << getStaticServerParams().port
                          << " by default";
