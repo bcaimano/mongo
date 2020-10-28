@@ -27,30 +27,52 @@
  *    it in the license file.
  */
 
-#pragma once
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kControl
 
 #include "mongo/db/main_initializer.h"
-#include "mongo/db/service_context.h"
-#include "mongo/util/exit.h"
+
+#include "mongo/base/init.h"
+#include "mongo/base/initializer.h"
+#include "mongo/base/status.h"
+#include "mongo/logv2/log.h"
+#include "mongo/util/cmdline_utils/censor_cmdline.h"
+#include "mongo/util/signal_handlers.h"
+#include "mongo/util/thread_context.h"
+#include "mongo/util/thread_safety_context.h"
+#include "mongo/util/time_support.h"
 
 namespace mongo {
 
-class MongoDService {
-public:
-    MongoDService(const MainInitializer& mainInit);
-    ~MongoDService() = default;
+void MainInitializer::begin() try {
+    ThreadContext::init();
+    ThreadSafetyContext::getThreadSafetyContext()->forbidMultiThreading();
 
-    void start();
-    void stop(const ShutdownTaskArgs& args);
+    setupSignalHandlers();
 
-    const auto& serviceContext() {
-        return _serviceContext;
-    }
+    srand(static_cast<unsigned>(curTimeMicros64()));
 
-private:
-    ServiceContext::UniqueServiceContext _serviceContext;
-};
+    uassertStatusOK(mongo::runGlobalInitializers(_args));
 
-int mongod_main(int argc, char* argv[]);
+    ErrorExtraInfo::invariantHaveAllParsers();
+} catch (const DBException& e) {
+    LOGV2_FATAL_OPTIONS(
+        20574,
+        logv2::LogOptions(logv2::LogComponent::kControl, logv2::FatalMode::kContinue),
+        "Error during global initialization: {error}",
+        "Error during global initialization",
+        "error"_attr = e);
+    throw;
+}
+
+void MainInitializer::finish() {
+    // There is no single-threaded guarantee beyond this point.
+    ThreadSafetyContext::getThreadSafetyContext()->allowMultiThreading();
+
+    // Per SERVER-7434, startSignalProcessingThread must run after any forks (i.e.
+    // initializeServerGlobalState) and before the creation of any other threads
+    startSignalProcessingThread();
+
+    cmdline_utils::censorArgvArray(_argc, _argv);
+}
 
 }  // namespace mongo

@@ -350,6 +350,7 @@ env.Library(
     source=[
         "initialize_server_global_state.cpp",
         env.Idlc("initialize_server_global_state.idl")[0],
+        "main_initializer.cpp",
         "server_options_init.cpp",
     ],
     LIBDEPS_PRIVATE=[

@@ -85,8 +85,8 @@
 #include "mongo/util/stacktrace.h"
 #include "mongo/util/str.h"
 #include "mongo/util/text.h"
-#include "mongo/util/version.h"
 #include "mongo/util/thread_context.h"
+#include "mongo/util/version.h"
 
 #ifdef _WIN32
 #include <io.h>

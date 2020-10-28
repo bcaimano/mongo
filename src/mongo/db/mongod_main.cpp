@@ -99,6 +99,7 @@
 #include "mongo/db/logical_session_cache_factory_mongod.h"
 #include "mongo/db/logical_time_metadata_hook.h"
 #include "mongo/db/logical_time_validator.h"
+#include "mongo/db/main_initializer.h"
 #include "mongo/db/mirror_maestro.h"
 #include "mongo/db/mongod_options.h"
 #include "mongo/db/namespace_string.h"
@@ -183,7 +184,6 @@
 #include "mongo/transport/transport_layer_manager.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/background.h"
-#include "mongo/util/cmdline_utils/censor_cmdline.h"
 #include "mongo/util/concurrency/idle_thread_block.h"
 #include "mongo/util/concurrency/thread_name.h"
 #include "mongo/util/exception_filter_win32.h"
@@ -205,7 +205,6 @@
 #include "mongo/util/signal_handlers.h"
 #include "mongo/util/stacktrace.h"
 #include "mongo/util/text.h"
-#include "mongo/util/thread_context.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/version.h"
 #include "mongo/watchdog/watchdog_mongod.h"
@@ -327,7 +326,7 @@ void registerPrimaryOnlyServices(ServiceContext* serviceContext) {
 
 MONGO_FAIL_POINT_DEFINE(shutdownAtStartup);
 
-ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
+void startMongoD(ServiceContext* serviceContext) {
     Client::initThread("initandlisten");
 
     serviceContext->setFastClockSource(FastClockSourceFactory::create(Milliseconds(10)));
@@ -376,14 +375,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
     if (!storageGlobalParams.repair) {
         auto tl =
             transport::TransportLayerManager::createWithConfig(&serverGlobalParams, serviceContext);
-        auto res = tl->setup();
-        if (!res.isOK()) {
-            LOGV2_ERROR(20568,
-                        "Error setting up listener: {error}",
-                        "Error setting up listener",
-                        "error"_attr = res);
-            return EXIT_NET_ERROR;
-        }
+        uassertStatusOK(tl->setup());
         serviceContext->setTransportLayer(std::move(tl));
     }
 
@@ -714,7 +706,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
             // Shutdown has already started before initialization is complete. Wait for the
             // shutdown task to complete and return.
             MONGO_IDLE_THREAD_BLOCK;
-            return waitForShutdown();
+            return;
         }
     }
 
@@ -736,79 +728,10 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
     // operation context anymore
     startupOpCtx.reset();
 
-    auto start = serviceContext->getServiceExecutor()->start();
-    if (!start.isOK()) {
-        LOGV2_ERROR(20570,
-                    "Error starting service executor: {error}",
-                    "Error starting service executor",
-                    "error"_attr = start);
-        return EXIT_NET_ERROR;
-    }
-
-    start = serviceContext->getServiceEntryPoint()->start();
-    if (!start.isOK()) {
-        LOGV2_ERROR(20571,
-                    "Error starting service entry point: {error}",
-                    "Error starting service entry point",
-                    "error"_attr = start);
-        return EXIT_NET_ERROR;
-    }
-
+    uassertStatusOK(serviceContext->getServiceExecutor()->start());
+    uassertStatusOK(serviceContext->getServiceEntryPoint()->start());
     if (!storageGlobalParams.repair) {
-        start = serviceContext->getTransportLayer()->start();
-        if (!start.isOK()) {
-            LOGV2_ERROR(20572,
-                        "Error starting listener: {error}",
-                        "Error starting listener",
-                        "error"_attr = start);
-            return EXIT_NET_ERROR;
-        }
-    }
-
-    serviceContext->notifyStartupComplete();
-
-#ifndef _WIN32
-    mongo::signalForkSuccess();
-#else
-    if (ntservice::shouldStartService()) {
-        ntservice::reportStatus(SERVICE_RUNNING);
-        LOGV2(20555, "Service running");
-    }
-#endif
-
-    if (MONGO_unlikely(shutdownAtStartup.shouldFail())) {
-        LOGV2(20556, "Starting clean exit via failpoint");
-        exitCleanly(EXIT_CLEAN);
-    }
-
-    MONGO_IDLE_THREAD_BLOCK;
-    return waitForShutdown();
-}
-
-ExitCode initAndListen(ServiceContext* service, int listenPort) {
-    try {
-        return _initAndListen(service, listenPort);
-    } catch (DBException& e) {
-        LOGV2_ERROR(20557,
-                    "Exception in initAndListen: {error}, terminating",
-                    "DBException in initAndListen, terminating",
-                    "error"_attr = e.toString());
-        return EXIT_UNCAUGHT;
-    } catch (std::exception& e) {
-        LOGV2_ERROR(20558,
-                    "Exception in initAndListen std::exception: {error}, terminating",
-                    "std::exception in initAndListen, terminating",
-                    "error"_attr = e.what());
-        return EXIT_UNCAUGHT;
-    } catch (int& n) {
-        LOGV2_ERROR(20559,
-                    "Exception in initAndListen int: {reason}, terminating",
-                    "Exception in initAndListen, terminating",
-                    "reason"_attr = n);
-        return EXIT_UNCAUGHT;
-    } catch (...) {
-        LOGV2_ERROR(20560, "Exception in initAndListen, terminating");
-        return EXIT_UNCAUGHT;
+        uassertStatusOK(serviceContext->getTransportLayer()->start());
     }
 }
 
@@ -1046,11 +969,6 @@ MONGO_INITIALIZER_GENERAL(setSSLManagerType, MONGO_NO_PREREQUISITES, ("SSLManage
 // NOTE: This function may be called at any time after registerShutdownTask is called below. It
 // must not depend on the prior execution of mongo initializers or the existence of threads.
 void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
-    // This client initiation pattern is only to be used here, with plans to eliminate this pattern
-    // down the line.
-    if (!haveClient())
-        Client::initThread(getThreadName());
-
     auto const client = Client::getCurrent();
     auto const serviceContext = client->getServiceContext();
 
@@ -1380,81 +1298,139 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
 
 }  // namespace
 
-int mongod_main(int argc, char* argv[]) {
-    ThreadContext::init();
-    ThreadSafetyContext::getThreadSafetyContext()->forbidMultiThreading();
+MongoDService::MongoDService(const MainInitializer& mainInit) try {
+    _serviceContext = ServiceContext::make();
 
-    registerShutdownTask(shutdownTask);
+    setUpCollectionShardingState(_serviceContext.get());
+    setUpCatalog(_serviceContext.get());
+    setUpReplication(_serviceContext.get());
+    setUpObservers(_serviceContext.get());
 
-    setupSignalHandlers();
+    _serviceContext->setServiceEntryPoint(
+        std::make_unique<ServiceEntryPointMongod>(_serviceContext.get()));
 
-    srand(static_cast<unsigned>(curTimeMicros64()));
+    startupConfigActions(mainInit.args());
 
-    Status status = mongo::runGlobalInitializers(std::vector<std::string>(argv, argv + argc));
-    if (!status.isOK()) {
-        LOGV2_FATAL_OPTIONS(
-            20574,
-            logv2::LogOptions(logv2::LogComponent::kControl, logv2::FatalMode::kContinue),
-            "Error during global initialization: {error}",
-            "Error during global initialization",
-            "error"_attr = status);
-        quickExit(EXIT_FAILURE);
-    }
-
-    auto* service = [] {
-        try {
-            auto serviceContextHolder = ServiceContext::make();
-            auto* serviceContext = serviceContextHolder.get();
-            setGlobalServiceContext(std::move(serviceContextHolder));
-
-            return serviceContext;
-        } catch (...) {
-            auto cause = exceptionToStatus();
-            LOGV2_FATAL_OPTIONS(
-                20575,
-                logv2::LogOptions(logv2::LogComponent::kControl, logv2::FatalMode::kContinue),
-                "Error creating service context: {error}",
-                "Error creating service context",
-                "error"_attr = redact(cause));
-            quickExit(EXIT_FAILURE);
-        }
-    }();
-
-    setUpCollectionShardingState(service);
-    setUpCatalog(service);
-    setUpReplication(service);
-    setUpObservers(service);
-    service->setServiceEntryPoint(std::make_unique<ServiceEntryPointMongod>(service));
-
-    ErrorExtraInfo::invariantHaveAllParsers();
-
-    startupConfigActions(std::vector<std::string>(argv, argv + argc));
-    cmdline_utils::censorArgvArray(argc, argv);
-
-    if (!initializeServerGlobalState(service))
+    if (!initializeServerGlobalState(_serviceContext.get()))
         quickExit(EXIT_FAILURE);
 
-    if (!initializeServerSecurityGlobalState(service))
+    if (!initializeServerSecurityGlobalState(_serviceContext.get()))
         quickExit(EXIT_FAILURE);
 
-    // There is no single-threaded guarantee beyond this point.
-    ThreadSafetyContext::getThreadSafetyContext()->allowMultiThreading();
+    ReadWriteConcernDefaults::create(_serviceContext.get(),
+                                     readWriteConcernDefaultsCacheLookupMongoD);
+} catch (...) {
+    auto cause = exceptionToStatus();
+    LOGV2_FATAL_OPTIONS(
+        20575,
+        logv2::LogOptions(logv2::LogComponent::kControl, logv2::FatalMode::kContinue),
+        "Error creating service context: {error}",
+        "Error creating service context",
+        "error"_attr = redact(cause));
+    throw;
+}
 
-    // Per SERVER-7434, startSignalProcessingThread must run after any forks (i.e.
-    // initializeServerGlobalState) and before the creation of any other threads
-    startSignalProcessingThread();
-
-    ReadWriteConcernDefaults::create(service, readWriteConcernDefaultsCacheLookupMongoD);
-
+void MongoDService::start() try {
 #if defined(_WIN32)
+    // TODO(cr) This probably needs to be somewhere else.
     if (ntservice::shouldStartService()) {
         ntservice::startService();
         // exits directly and so never reaches here either.
     }
 #endif
 
-    ExitCode exitCode = initAndListen(service, serverGlobalParams.port);
-    exitCleanly(exitCode);
+    auto serviceContext = _serviceContext;
+    setGlobalServiceContext(std::move(serviceContext));
+    startMongoD(_serviceContext.get());
+
+    _serviceContext->notifyStartupComplete();
+
+#ifndef _WIN32
+    mongo::signalForkSuccess();
+#else
+    if (ntservice::shouldStartService()) {
+        ntservice::reportStatus(SERVICE_RUNNING);
+        LOGV2(20555, "Service running");
+    }
+#endif
+
+    if (MONGO_unlikely(shutdownAtStartup.shouldFail())) {
+        LOGV2(20556, "Starting clean exit via failpoint");
+        exitCleanly(EXIT_CLEAN);
+    }
+
+    MONGO_IDLE_THREAD_BLOCK;
+} catch (DBException& e) {
+    LOGV2_ERROR(20557,
+                "Exception in initAndListen: {error}, terminating",
+                "DBException in initAndListen, terminating",
+                "error"_attr = e.toString());
+    throw;
+} catch (std::exception& e) {
+    LOGV2_ERROR(20558,
+                "Exception in initAndListen std::exception: {error}, terminating",
+                "std::exception in initAndListen, terminating",
+                "error"_attr = e.what());
+    throw;
+} catch (int& n) {
+    LOGV2_ERROR(20559,
+                "Exception in initAndListen int: {reason}, terminating",
+                "Exception in initAndListen, terminating",
+                "reason"_attr = n);
+    throw;
+} catch (...) {
+    LOGV2_ERROR(20560, "Exception in initAndListen, terminating");
+    throw;
+}
+
+void MongoDService::stop(const ShutdownTaskArgs& shutdownArgs) try {
+    auto serviceContext = _serviceContext;
+    setGlobalServiceContext(std::move(serviceContext));
+
+    auto tc = ThreadClient("shutdown", _serviceContext.get());
+
+    shutdownTask(shutdownArgs);
+    MONGO_IDLE_THREAD_BLOCK;
+} catch (DBException& e) {
+    LOGV2_ERROR(20557,
+                "Exception while stopping MongoDService: {error}, terminating",
+                "DBException while stopping MongoDService, terminating",
+                "error"_attr = e.toString());
+    throw;
+} catch (std::exception& e) {
+    LOGV2_ERROR(20558,
+                "Exception while stopping MongoDService std::exception: {error}, terminating",
+                "std::exception in initAndListen, terminating",
+                "error"_attr = e.what());
+    throw;
+} catch (int& n) {
+    LOGV2_ERROR(20559,
+                "Exception while stopping MongoDService int: {reason}, terminating",
+                "Exception while stopping MongoDService, terminating",
+                "reason"_attr = n);
+    throw;
+} catch (...) {
+    LOGV2_ERROR(20560, "Exception while stopping MongoDService, terminating");
+    throw;
+}
+
+int mongod_main(int argc, char* argv[]) {
+    auto mainInit = MainInitializer(argc, argv);
+    mainInit.begin();
+
+    auto mongod = MongoDService(mainInit);
+
+    registerShutdownTask([&](const ShutdownTaskArgs& shutdownArgs) { mongod.stop(shutdownArgs); });
+
+    mainInit.finish();
+
+    auto thread = stdx::thread([&] { mongod.start(); });
+
+    auto ec = waitForShutdown();
+    exitCleanly(ec);
+
+    thread.join();
+
     return 0;
 }
 
