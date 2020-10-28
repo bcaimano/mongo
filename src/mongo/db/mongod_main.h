@@ -31,6 +31,7 @@
 
 #include "mongo/db/main_initializer.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/server_options.h"
 #include "mongo/util/exit.h"
 
 namespace mongo {

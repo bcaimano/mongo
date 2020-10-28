@@ -57,16 +57,17 @@ int mongster_main(int argc, char* argv[]) {
         auto staticParams = getStaticServerParams();
         staticParams.port = 20001;
 
-        getStaticServerParams() = std::make_shared<ServerGlobalParams>(std::move(staticParams));
+        setStaticServerParams(std::move(staticParams));
 
         mongod1.start();
     });
+
     auto thread2 = stdx::thread([&] {
         // Modify the parameters for this MongoDService.
         auto staticParams = getStaticServerParams();
         staticParams.port = 20002;
 
-        getStaticServerParams() = std::make_shared<ServerGlobalParams>(std::move(staticParams));
+        setStaticServerParams(std::move(staticParams));
 
         mongod2.start();
     });

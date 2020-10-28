@@ -36,6 +36,8 @@
 namespace mongo {
 
 namespace {
+// TODO(cr) It probably makes more sense for this to be on the ServiceContext, but there is
+// a bit of an ordering mess there.
 /**
  * This struct represents global configuration data for the server.  These options get set from
  * the command line and are used inline in the code.  Note that much shared code uses this
@@ -68,6 +70,12 @@ ServerGlobalParams& getStaticServerParams() {
     auto serverParams = getServerParams(threadContext.get());
     invariant(serverParams);
     return *serverParams;
+}
+
+void setStaticServerParams(ServerGlobalParams&& params) {
+    auto threadContext = ThreadContext::get();
+    auto& serverParams = getServerParams(threadContext.get());
+    serverParams = std::make_shared<ServerGlobalParams>(std::forward<ServerGlobalParams>(params));
 }
 
 const FeatureCompatibility& getFeatureCompatibility() {

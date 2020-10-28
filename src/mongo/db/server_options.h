@@ -303,6 +303,7 @@ private:
 };
 
 ServerGlobalParams& getStaticServerParams();
+void setStaticServerParams(ServerGlobalParams&& params);
 
 const FeatureCompatibility& getFeatureCompatibility();
 void setFeatureCompatibility(FeatureCompatibility::Version version);

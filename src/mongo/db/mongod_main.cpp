@@ -367,10 +367,13 @@ void startMongoD(ServiceContext* serviceContext) {
     auto runner = makePeriodicRunner(serviceContext);
     serviceContext->setPeriodicRunner(std::move(runner));
 
+    /*
+     * This appears to block forever in mongster.
 #ifdef MONGO_CONFIG_SSL
     OCSPManager::start(serviceContext);
     CertificateExpirationMonitor::get()->start(serviceContext);
 #endif
+    */
 
     if (!storageGlobalParams.repair) {
         auto tl =
