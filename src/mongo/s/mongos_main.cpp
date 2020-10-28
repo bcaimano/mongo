@@ -290,9 +290,9 @@ void cleanupTask(const ShutdownTaskArgs& shutdownArgs) {
         // so that clients can re-route their operations.
         //
         // TODO SERVER-49138: Remove this FCV check when 5.0 becomes last-lts.
-        if (getStaticServerParams().featureCompatibility.isVersionInitialized() &&
-                getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
-                    ServerGlobalParams::FeatureCompatibility::Version::kVersion47);
+        if (getFeatureCompatibility().isVersionInitialized() &&
+                getFeatureCompatibility().isGreaterThanOrEqualTo(
+                    FeatureCompatibility::Version::kVersion47);
             auto mongosTopCoord = MongosTopologyCoordinator::get(opCtx)) {
             mongosTopCoord->enterQuiesceModeAndWait(opCtx, quiesceTime);
         }
@@ -915,8 +915,8 @@ MONGO_INITIALIZER_WITH_PREREQUISITES(SetFeatureCompatibilityVersionLatest,
                                      ("EndStartupOptionStorage"))
 // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
 (InitializerContext* context) {
-    getStaticServerParams().mutableFeatureCompatibility.setVersion(
-        ServerGlobalParams::FeatureCompatibility::kLatest);
+    setFeatureCompatibility(
+        FeatureCompatibility::kLatest);
     return Status::OK();
 }
 

@@ -45,7 +45,7 @@ public:
      */
     static boost::intrusive_ptr<DocumentSourceChangeStreamTransform> create(
         const boost::intrusive_ptr<ExpressionContext>&,
-        const ServerGlobalParams::FeatureCompatibility::Version&,
+        const FeatureCompatibility::Version&,
         BSONObj changeStreamSpec);
 
     Document applyTransformation(const Document& input);
@@ -69,7 +69,7 @@ protected:
 private:
     // This constructor is private, callers should use the 'create()' method above.
     DocumentSourceChangeStreamTransform(const boost::intrusive_ptr<ExpressionContext>&,
-                                        const ServerGlobalParams::FeatureCompatibility::Version&,
+                                        const FeatureCompatibility::Version&,
                                         BSONObj changeStreamSpec);
 
     struct DocumentKeyCacheEntry {
@@ -222,7 +222,7 @@ private:
     // '_fcv' is used to determine which version of the resume token to generate for each change.
     // This is a snapshot of what the feature compatibility version was at the time the stream was
     // opened or resumed.
-    ServerGlobalParams::FeatureCompatibility::Version _fcv;
+    FeatureCompatibility::Version _fcv;
 };
 
 }  // namespace mongo

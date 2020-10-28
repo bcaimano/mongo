@@ -39,7 +39,7 @@
 
 namespace mongo {
 
-using FeatureCompatibilityParams = ServerGlobalParams::FeatureCompatibility;
+using FeatureCompatibilityParams = FeatureCompatibility;
 
 constexpr StringData FeatureCompatibilityVersionParser::kParameterName;
 
@@ -146,7 +146,7 @@ StatusWith<FeatureCompatibilityParams::Version> FeatureCompatibilityVersionParse
             // For upgrading FCV, "targetVersion" must be kLatest or kLastContinuous and "version"
             // must be kLastContinuous or kLastLTS.
             if (targetVersion == FeatureCompatibilityParams::kLastLTS ||
-                version == ServerGlobalParams::FeatureCompatibility::kLatest) {
+                version == FeatureCompatibility::kLatest) {
                 return Status(ErrorCodes::Error(4926904),
                               str::stream()
                                   << "Invalid " << kParameterName << " document in "
@@ -168,7 +168,7 @@ StatusWith<FeatureCompatibilityParams::Version> FeatureCompatibilityVersionParse
                             << featureCompatibilityVersionDoc << ". See "
                             << feature_compatibility_version_documentation::kCompatibilityLink
                             << ".",
-                        version == ServerGlobalParams::FeatureCompatibility::kLastContinuous);
+                        version == FeatureCompatibility::kLastContinuous);
                 return FeatureCompatibilityParams::kUpgradingFromLastContinuousToLatest;
             }
         }

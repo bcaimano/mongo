@@ -441,9 +441,9 @@ Status CollectionImpl::checkValidation(OperationContext* opCtx, const BSONObj& d
 
     // TODO SERVER-50524: remove these FCV checks when 5.0 becomes last-lts in order to make sure
     // that an upgrade from 4.4 directly to the 5.0 LTS version is supported.
-    const auto isFCVAtLeast47 = getStaticServerParams().featureCompatibility.isVersionInitialized() &&
-        getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
-            ServerGlobalParams::FeatureCompatibility::Version::kVersion47);
+    const auto isFCVAtLeast47 = getFeatureCompatibility().isVersionInitialized() &&
+        getFeatureCompatibility().isGreaterThanOrEqualTo(
+            FeatureCompatibility::Version::kVersion47);
     BSONObj generatedError;
     if (isFCVAtLeast47) {
         generatedError = doc_validation_error::generateError(*validatorMatchExpr, document);
@@ -471,7 +471,7 @@ Collection::Validator CollectionImpl::parseValidator(
     OperationContext* opCtx,
     const BSONObj& validator,
     MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-    boost::optional<ServerGlobalParams::FeatureCompatibility::Version>
+    boost::optional<FeatureCompatibility::Version>
         maxFeatureCompatibilityVersion) const {
     if (MONGO_unlikely(allowSettingMalformedCollectionValidators.shouldFail())) {
         return {validator, nullptr, nullptr};

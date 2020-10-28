@@ -141,7 +141,7 @@ std::set<IndexVersion> IndexDescriptor::getSupportedIndexVersions() {
 
 Status IndexDescriptor::isIndexVersionAllowedForCreation(
     IndexVersion indexVersion,
-    const ServerGlobalParams::FeatureCompatibility& featureCompatibility,
+    const FeatureCompatibility& featureCompatibility,
     const BSONObj& indexSpec) {
     switch (indexVersion) {
         case IndexVersion::kV1:
@@ -176,8 +176,8 @@ IndexDescriptor::Comparison IndexDescriptor::compareIndexOptions(
 
     // The partialFilterExpression is only part of the index signature if FCV has been set to 4.7+.
     // TODO SERVER-47766: remove these FCV checks when 5.0 becomes last-lts.
-    auto isFCVAtLeast47 = getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
-        ServerGlobalParams::FeatureCompatibility::Version::kVersion47);
+    auto isFCVAtLeast47 = getFeatureCompatibility().isGreaterThanOrEqualTo(
+        FeatureCompatibility::Version::kVersion47);
 
     // If we have a partial filter expression and the other index doesn't, or vice-versa, then the
     // two indexes are not equivalent. We therefore return Comparison::kDifferent immediately.

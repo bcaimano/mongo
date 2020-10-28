@@ -49,14 +49,14 @@ namespace {
 // Used to keep track of which Accumulators are registered under which name.
 using ParserRegistration =
     std::pair<AccumulationStatement::Parser,
-              boost::optional<ServerGlobalParams::FeatureCompatibility::Version>>;
+              boost::optional<FeatureCompatibility::Version>>;
 static StringMap<ParserRegistration> parserMap;
 }  // namespace
 
 void AccumulationStatement::registerAccumulator(
     std::string name,
     AccumulationStatement::Parser parser,
-    boost::optional<ServerGlobalParams::FeatureCompatibility::Version> requiredMinVersion) {
+    boost::optional<FeatureCompatibility::Version> requiredMinVersion) {
     auto it = parserMap.find(name);
     massert(28722,
             str::stream() << "Duplicate accumulator (" << name << ") registered.",
@@ -66,7 +66,7 @@ void AccumulationStatement::registerAccumulator(
 
 AccumulationStatement::Parser& AccumulationStatement::getParser(
     StringData name,
-    boost::optional<ServerGlobalParams::FeatureCompatibility::Version> allowedMaxVersion) {
+    boost::optional<FeatureCompatibility::Version> allowedMaxVersion) {
     auto it = parserMap.find(name);
     uassert(
         15952, str::stream() << "unknown group operator '" << name << "'", it != parserMap.end());

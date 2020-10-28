@@ -71,7 +71,7 @@ public:
         bob.append("readOnly", storageGlobalParams.readOnly);
         bob.append("persistent", !engine->isEphemeral());
         bob.append("backupCursorOpen", backupCursorHooks->isBackupCursorOpen());
-        if (getStaticServerParams().featureCompatibility.isVersionInitialized()) {
+        if (getFeatureCompatibility().isVersionInitialized()) {
             bob.append("supportsResumableIndexBuilds", engine->supportsResumableIndexBuilds());
         }
 

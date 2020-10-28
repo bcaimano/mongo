@@ -119,8 +119,8 @@ MONGO_INITIALIZER_WITH_PREREQUISITES(SetFeatureCompatibilityVersionLatest,
                                      ("EndStartupOptionSetup"))
 // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
 (InitializerContext* context) {
-    mongo::getStaticServerParams().mutableFeatureCompatibility.setVersion(
-        ServerGlobalParams::FeatureCompatibility::kLatest);
+    mongo::setFeatureCompatibility(
+        FeatureCompatibility::kLatest);
     return Status::OK();
 }
 

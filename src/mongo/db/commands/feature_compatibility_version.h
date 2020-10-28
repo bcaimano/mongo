@@ -72,8 +72,8 @@ public:
      * if the request is from a config server.
      */
     static void validateSetFeatureCompatibilityVersionRequest(
-        ServerGlobalParams::FeatureCompatibility::Version fromVersion,
-        ServerGlobalParams::FeatureCompatibility::Version newVersion,
+        FeatureCompatibility::Version fromVersion,
+        FeatureCompatibility::Version newVersion,
         bool isFromConfigServer);
 
     /**
@@ -82,8 +82,8 @@ public:
      */
     static void updateFeatureCompatibilityVersionDocument(
         OperationContext* opCtx,
-        ServerGlobalParams::FeatureCompatibility::Version fromVersion,
-        ServerGlobalParams::FeatureCompatibility::Version newVersion,
+        FeatureCompatibility::Version fromVersion,
+        FeatureCompatibility::Version newVersion,
         bool isFromConfigServer);
 
     /**

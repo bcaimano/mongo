@@ -51,7 +51,7 @@ def is_primitive_scalar_type(cpp_type):
     # TODO (SERVER-50101): Remove 'FeatureCompatibility::Version' once IDL supports a commmand
     # cpp_type of C++ enum.
     return cpp_type in [
-        'bool', 'double', 'ServerGlobalParams::FeatureCompatibility::Version', 'std::int32_t',
+        'bool', 'double', 'FeatureCompatibility::Version', 'std::int32_t',
         'std::uint32_t', 'std::uint64_t', 'std::int64_t'
     ]
 
@@ -69,8 +69,8 @@ def get_primitive_scalar_type_default_value(cpp_type):
         return 'false'
     # TODO (SERVER-50101): Remove 'FeatureCompatibility::Version' once IDL supports a command
     # cpp_type of C++ enum.
-    if cpp_type == 'ServerGlobalParams::FeatureCompatibility::Version':
-        return 'ServerGlobalParams::FeatureCompatibility::Version::kUnsetDefault44Behavior'
+    if cpp_type == 'FeatureCompatibility::Version':
+        return 'FeatureCompatibility::Version::kUnsetDefault44Behavior'
     return '-1'
 
 

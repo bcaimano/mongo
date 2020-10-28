@@ -348,7 +348,7 @@ public:
     size_t subPipelineDepth = 0;
 
     // If set, this will disallow use of features introduced in versions above the provided version.
-    boost::optional<ServerGlobalParams::FeatureCompatibility::Version>
+    boost::optional<FeatureCompatibility::Version>
         maxFeatureCompatibilityVersion;
 
     // True if this ExpressionContext is used to parse a view definition pipeline.

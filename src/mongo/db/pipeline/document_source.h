@@ -361,7 +361,7 @@ public:
     static void registerParser(
         std::string name,
         Parser parser,
-        boost::optional<ServerGlobalParams::FeatureCompatibility::Version> requiredMinVersion);
+        boost::optional<FeatureCompatibility::Version> requiredMinVersion);
 
     /**
      * Returns true if the DocumentSource has a query.

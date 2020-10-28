@@ -108,7 +108,7 @@ intrusive_ptr<Expression> Expression::parseObject(ExpressionContext* const expCt
 namespace {
 struct ParserRegistration {
     Parser parser;
-    boost::optional<ServerGlobalParams::FeatureCompatibility::Version> requiredMinVersion;
+    boost::optional<FeatureCompatibility::Version> requiredMinVersion;
 };
 
 StringMap<ParserRegistration> parserMap;
@@ -117,7 +117,7 @@ StringMap<ParserRegistration> parserMap;
 void Expression::registerExpression(
     string key,
     Parser parser,
-    boost::optional<ServerGlobalParams::FeatureCompatibility::Version> requiredMinVersion) {
+    boost::optional<FeatureCompatibility::Version> requiredMinVersion) {
     auto op = parserMap.find(key);
     massert(17064,
             str::stream() << "Duplicate expression (" << key << ") registered.",

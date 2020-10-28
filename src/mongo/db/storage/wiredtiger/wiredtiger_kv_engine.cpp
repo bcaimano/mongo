@@ -139,15 +139,15 @@ bool WiredTigerFileVersion::shouldDowngrade(bool readOnly,
         return false;
     }
 
-    if (!getStaticServerParams().featureCompatibility.isVersionInitialized()) {
+    if (!getFeatureCompatibility().isVersionInitialized()) {
         // If the FCV document hasn't been read, trust the WT compatibility. MongoD will
         // downgrade to the same compatibility it discovered on startup.
         return _startupVersion == StartupVersion::IS_44_FCV_42 ||
             _startupVersion == StartupVersion::IS_42;
     }
 
-    if (getStaticServerParams().featureCompatibility.isGreaterThan(
-            ServerGlobalParams::FeatureCompatibility::Version::kFullyDowngradedTo44)) {
+    if (getFeatureCompatibility().isGreaterThan(
+            FeatureCompatibility::Version::kFullyDowngradedTo44)) {
         // Only consider downgrading when FCV is set to kFullyDowngraded.
         // (This FCV gate must remain across binary version releases.)
         return false;
@@ -172,7 +172,7 @@ bool WiredTigerFileVersion::shouldDowngrade(bool readOnly,
 }
 
 std::string WiredTigerFileVersion::getDowngradeString() {
-    if (!getStaticServerParams().featureCompatibility.isVersionInitialized()) {
+    if (!getFeatureCompatibility().isVersionInitialized()) {
         invariant(_startupVersion != StartupVersion::IS_44_FCV_44);
 
         switch (_startupVersion) {

@@ -155,156 +155,6 @@ struct ServerGlobalParams {
     // True if the current binary version is an LTS Version.
     static constexpr bool kIsLTSBinaryVersion = false;
 
-    struct FeatureCompatibility {
-        /**
-         * The combination of the fields (version, targetVersion, previousVersion) in the
-         * featureCompatibilityVersion document in the server configuration collection
-         * (admin.system.version) are represented by this enum and determine this node's behavior.
-         *
-         * Features can be gated for specific versions, or ranges of versions above or below some
-         * minimum or maximum version, respectively.
-         *
-         * While upgrading from version X to Y or downgrading from Y to X, the server supports the
-         * features of the older of the two versions.
-         *
-         * For versions X and Y, the legal enums and featureCompatibilityVersion documents are:
-         *
-         * kFullyDowngradedToX
-         * (X, Unset, Unset): Only version X features are available, and new and existing storage
-         *                    engine entries use the X format
-         *
-         * kUpgradingFromXToY
-         * (X, Y, Unset): Only version X features are available, but new storage engine entries
-         *                use the Y format, and existing entries may have either the X or
-         *                Y format
-         *
-         * kVersionX
-         * (X, Unset, Unset): X features are available, and new and existing storage engine
-         *                    entries use the X format
-         *
-         * kDowngradingFromXToY
-         * (Y, Y, X): Only Y features are available and new storage engine entries use the
-         *            Y format, but existing entries may have either the Y or X format
-         *
-         * kUnsetDefault44Behavior
-         * (Unset, Unset, Unset): This is the case on startup before the fCV document is loaded into
-         *                        memory. isVersionInitialized() will return false, and getVersion()
-         *                        will return the default (kUnsetDefault44Behavior).
-         *
-         */
-        enum class Version {
-            // The order of these enums matter: sort by (version, targetVersion, previousVersion).
-            kInvalid,
-            kUnsetDefault44Behavior,
-            kFullyDowngradedTo44,    // { version: 4.4 }
-            kDowngradingFrom47To44,  // { version: 4.4, targetVersion: 4.4, previousVersion: 4.7 }
-            kDowngradingFrom48To44,  // { version: 4.4, targetVersion: 4.4, previousVersion: 4.8 }
-            kDowngradingFrom49To44,  // { version: 4.4, targetVersion: 4.4, previousVersion: 4.9 }
-            kUpgradingFrom44To47,    // { version: 4.4, targetVersion: 4.7 }
-            kUpgradingFrom44To48,    // { version: 4.4, targetVersion: 4.8 }
-            kUpgradingFrom44To49,    // { version: 4.4, targetVersion: 4.9 }
-            kVersion47,              // { version: 4.7 }
-            kDowngradingFrom48To47,  // { version: 4.7, targetVersion: 4.7, previousVersion: 4.8 }
-            kUpgradingFrom47To48,    // { version: 4.7, targetVersion: 4.8 }
-            kVersion48,              // { version: 4.8 }
-            kDowngradingFrom49To48,  // { version: 4.8, targetVersion: 4.8, previousVersion: 4.9 }
-            kUpgradingFrom48To49,    // { version: 4.8, targetVersion: 4.9 }
-            kVersion49,              // { version: 4.9 }
-        };
-
-        // These constants should only be used for generic FCV references. Generic references are
-        // FCV references that are expected to exist across LTS binary versions.
-        static constexpr Version kLatest = Version::kVersion49;
-        static constexpr Version kLastContinuous = Version::kVersion48;
-        static constexpr Version kLastLTS = Version::kFullyDowngradedTo44;
-
-        // These constants should only be used for generic FCV references. Generic references are
-        // FCV references that are expected to exist across LTS binary versions.
-        // NOTE: DO NOT USE THEM FOR REGULAR FCV CHECKS.
-        static constexpr Version kUpgradingFromLastLTSToLatest = Version::kUpgradingFrom44To49;
-        static constexpr Version kUpgradingFromLastContinuousToLatest =
-            Version::kUpgradingFrom48To49;
-        static constexpr Version kDowngradingFromLatestToLastLTS = Version::kDowngradingFrom49To44;
-        static constexpr Version kDowngradingFromLatestToLastContinuous =
-            Version::kDowngradingFrom49To48;
-        // kUpgradingFromLastLTSToLastContinuous is only ever set to a valid FCV when
-        // kLastLTS and kLastContinuous are not equal. Otherwise, this value should be set to
-        // kInvalid.
-        static constexpr Version kUpgradingFromLastLTSToLastContinuous =
-            Version::kUpgradingFrom44To48;
-
-        /**
-         * On startup, the featureCompatibilityVersion may not have been explicitly set yet. This
-         * exposes the actual state of the featureCompatibilityVersion if it is uninitialized.
-         */
-        const bool isVersionInitialized() const {
-            return _version.load() != Version::kUnsetDefault44Behavior;
-        }
-
-        /**
-         * This safe getter for the featureCompatibilityVersion parameter ensures the parameter has
-         * been initialized with a meaningful value.
-         */
-        const Version getVersion() const {
-            invariant(isVersionInitialized());
-            return _version.load();
-        }
-
-        bool isLessThanOrEqualTo(Version version, Version* versionReturn = nullptr) const {
-            Version currentVersion = getVersion();
-            if (versionReturn != nullptr) {
-                *versionReturn = currentVersion;
-            }
-            return currentVersion <= version;
-        }
-
-        bool isGreaterThanOrEqualTo(Version version, Version* versionReturn = nullptr) const {
-            Version currentVersion = getVersion();
-            if (versionReturn != nullptr) {
-                *versionReturn = currentVersion;
-            }
-            return currentVersion >= version;
-        }
-
-        bool isLessThan(Version version, Version* versionReturn = nullptr) const {
-            Version currentVersion = getVersion();
-            if (versionReturn != nullptr) {
-                *versionReturn = currentVersion;
-            }
-            return currentVersion < version;
-        }
-
-        bool isGreaterThan(Version version, Version* versionReturn = nullptr) const {
-            Version currentVersion = getVersion();
-            if (versionReturn != nullptr) {
-                *versionReturn = currentVersion;
-            }
-            return currentVersion > version;
-        }
-
-        // This function is to be used for generic FCV references only, and not for FCV-gating.
-        bool isUpgradingOrDowngrading(boost::optional<Version> version = boost::none) const {
-            if (version == boost::none) {
-                version = getVersion();
-            }
-            return version != kLatest && version != kLastContinuous && version != kLastLTS;
-        }
-
-        void reset() {
-            _version.store(Version::kUnsetDefault44Behavior);
-        }
-
-        void setVersion(Version version) {
-            return _version.store(version);
-        }
-
-    private:
-        AtomicWord<Version> _version{Version::kUnsetDefault44Behavior};
-
-    } mutableFeatureCompatibility;
-
-    // Const reference for featureCompatibilityVersion checks.
-    const FeatureCompatibility& featureCompatibility = mutableFeatureCompatibility;
 
     // Feature validation differs depending on the role of a mongod in a replica set. Replica set
     // primaries can accept user-initiated writes and validate based on the feature compatibility
@@ -317,7 +167,152 @@ struct ServerGlobalParams {
     bool enableMajorityReadConcern = true;
 };
 
+struct FeatureCompatibility {
+    /**
+     * The combination of the fields (version, targetVersion, previousVersion) in the
+     * featureCompatibilityVersion document in the server configuration collection
+     * (admin.system.version) are represented by this enum and determine this node's behavior.
+     *
+     * Features can be gated for specific versions, or ranges of versions above or below some
+     * minimum or maximum version, respectively.
+     *
+     * While upgrading from version X to Y or downgrading from Y to X, the server supports the
+     * features of the older of the two versions.
+     *
+     * For versions X and Y, the legal enums and featureCompatibilityVersion documents are:
+     *
+     * kFullyDowngradedToX
+     * (X, Unset, Unset): Only version X features are available, and new and existing storage
+     *                    engine entries use the X format
+     *
+     * kUpgradingFromXToY
+     * (X, Y, Unset): Only version X features are available, but new storage engine entries
+     *                use the Y format, and existing entries may have either the X or
+     *                Y format
+     *
+     * kVersionX
+     * (X, Unset, Unset): X features are available, and new and existing storage engine
+     *                    entries use the X format
+     *
+     * kDowngradingFromXToY
+     * (Y, Y, X): Only Y features are available and new storage engine entries use the
+     *            Y format, but existing entries may have either the Y or X format
+     *
+     * kUnsetDefault44Behavior
+     * (Unset, Unset, Unset): This is the case on startup before the fCV document is loaded into
+     *                        memory. isVersionInitialized() will return false, and getVersion()
+     *                        will return the default (kUnsetDefault44Behavior).
+     *
+     */
+    enum class Version {
+        // The order of these enums matter: sort by (version, targetVersion, previousVersion).
+        kInvalid,
+        kUnsetDefault44Behavior,
+        kFullyDowngradedTo44,    // { version: 4.4 }
+        kDowngradingFrom47To44,  // { version: 4.4, targetVersion: 4.4, previousVersion: 4.7 }
+        kDowngradingFrom48To44,  // { version: 4.4, targetVersion: 4.4, previousVersion: 4.8 }
+        kDowngradingFrom49To44,  // { version: 4.4, targetVersion: 4.4, previousVersion: 4.9 }
+        kUpgradingFrom44To47,    // { version: 4.4, targetVersion: 4.7 }
+        kUpgradingFrom44To48,    // { version: 4.4, targetVersion: 4.8 }
+        kUpgradingFrom44To49,    // { version: 4.4, targetVersion: 4.9 }
+        kVersion47,              // { version: 4.7 }
+        kDowngradingFrom48To47,  // { version: 4.7, targetVersion: 4.7, previousVersion: 4.8 }
+        kUpgradingFrom47To48,    // { version: 4.7, targetVersion: 4.8 }
+        kVersion48,              // { version: 4.8 }
+        kDowngradingFrom49To48,  // { version: 4.8, targetVersion: 4.8, previousVersion: 4.9 }
+        kUpgradingFrom48To49,    // { version: 4.8, targetVersion: 4.9 }
+        kVersion49,              // { version: 4.9 }
+    };
+
+    // These constants should only be used for generic FCV references. Generic references are
+    // FCV references that are expected to exist across LTS binary versions.
+    static constexpr Version kLatest = Version::kVersion49;
+    static constexpr Version kLastContinuous = Version::kVersion48;
+    static constexpr Version kLastLTS = Version::kFullyDowngradedTo44;
+
+    // These constants should only be used for generic FCV references. Generic references are
+    // FCV references that are expected to exist across LTS binary versions.
+    // NOTE: DO NOT USE THEM FOR REGULAR FCV CHECKS.
+    static constexpr Version kUpgradingFromLastLTSToLatest = Version::kUpgradingFrom44To49;
+    static constexpr Version kUpgradingFromLastContinuousToLatest = Version::kUpgradingFrom48To49;
+    static constexpr Version kDowngradingFromLatestToLastLTS = Version::kDowngradingFrom49To44;
+    static constexpr Version kDowngradingFromLatestToLastContinuous =
+        Version::kDowngradingFrom49To48;
+    // kUpgradingFromLastLTSToLastContinuous is only ever set to a valid FCV when
+    // kLastLTS and kLastContinuous are not equal. Otherwise, this value should be set to
+    // kInvalid.
+    static constexpr Version kUpgradingFromLastLTSToLastContinuous = Version::kUpgradingFrom44To48;
+
+    static constexpr Version kDefault = Version::kUnsetDefault44Behavior;
+
+    /**
+     * On startup, the featureCompatibilityVersion may not have been explicitly set yet. This
+     * exposes the actual state of the featureCompatibilityVersion if it is uninitialized.
+     */
+    const bool isVersionInitialized() const {
+        return _version.load() != Version::kUnsetDefault44Behavior;
+    }
+
+    /**
+     * This safe getter for the featureCompatibilityVersion parameter ensures the parameter has
+     * been initialized with a meaningful value.
+     */
+    const Version getVersion() const {
+        invariant(isVersionInitialized());
+        return _version.load();
+    }
+
+    bool isLessThanOrEqualTo(Version version, Version* versionReturn = nullptr) const {
+        Version currentVersion = getVersion();
+        if (versionReturn != nullptr) {
+            *versionReturn = currentVersion;
+        }
+        return currentVersion <= version;
+    }
+
+    bool isGreaterThanOrEqualTo(Version version, Version* versionReturn = nullptr) const {
+        Version currentVersion = getVersion();
+        if (versionReturn != nullptr) {
+            *versionReturn = currentVersion;
+        }
+        return currentVersion >= version;
+    }
+
+    bool isLessThan(Version version, Version* versionReturn = nullptr) const {
+        Version currentVersion = getVersion();
+        if (versionReturn != nullptr) {
+            *versionReturn = currentVersion;
+        }
+        return currentVersion < version;
+    }
+
+    bool isGreaterThan(Version version, Version* versionReturn = nullptr) const {
+        Version currentVersion = getVersion();
+        if (versionReturn != nullptr) {
+            *versionReturn = currentVersion;
+        }
+        return currentVersion > version;
+    }
+
+    // This function is to be used for generic FCV references only, and not for FCV-gating.
+    bool isUpgradingOrDowngrading(boost::optional<Version> version = boost::none) const {
+        if (version == boost::none) {
+            version = getVersion();
+        }
+        return version != kLatest && version != kLastContinuous && version != kLastLTS;
+    }
+
+    void setVersion(Version version) {
+        return _version.store(version);
+    }
+
+private:
+    AtomicWord<Version> _version{Version::kUnsetDefault44Behavior};
+};
+
 ServerGlobalParams& getStaticServerParams();
+const FeatureCompatibility& getFeatureCompatibility();
+void setFeatureCompatibility(FeatureCompatibility::Version version);
 
 template <typename NameTrait>
 struct TraitNamedDomain {

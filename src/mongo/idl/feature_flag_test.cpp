@@ -84,19 +84,19 @@ TEST(IDLFeatureFlag, Basic) {
     ASSERT_NOT_OK(featureFlagToaster->setFromString("alpha"));
 
     ASSERT(feature_flags::gFeatureFlagToaster.getVersion() ==
-           ServerGlobalParams::FeatureCompatibility::Version::kVersion49);
+           FeatureCompatibility::Version::kVersion49);
 }
 
 // Verify getVersion works correctly when enabled and not enabled
 TEST_F(FeatureFlagTest, Version) {
     ASSERT(feature_flags::gFeatureFlagBlender.getVersion() ==
-           ServerGlobalParams::FeatureCompatibility::Version::kVersion49);
+           FeatureCompatibility::Version::kVersion49);
 
     // NOTE: if you are hitting this assertion, the version in feature_flag_test.idl may need to be
     // changed to match the current kLastLTS
     // (Generic FCV reference): feature flag test
     ASSERT(feature_flags::gFeatureFlagSpoon.getVersion() ==
-           ServerGlobalParams::FeatureCompatibility::kLastLTS);
+           FeatureCompatibility::kLastLTS);
 
     ASSERT_OK(_featureFlagBlender->setFromString("false"));
     ASSERT(feature_flags::gFeatureFlagBlender.isEnabledAndIgnoreFCV() == false);
@@ -136,23 +136,23 @@ TEST_F(FeatureFlagTest, ServerStatus) {
 TEST_F(FeatureFlagTest, IsEnabledTrue) {
     // Test FCV checks with enabled flag
     // Test newest version
-    getStaticServerParams().mutableFeatureCompatibility.setVersion(
-        ServerGlobalParams::FeatureCompatibility::Version::kVersion49);
+    setFeatureCompatibility(
+        FeatureCompatibility::Version::kVersion49);
 
     ASSERT_TRUE(
-        feature_flags::gFeatureFlagBlender.isEnabled(getStaticServerParams().featureCompatibility));
+        feature_flags::gFeatureFlagBlender.isEnabled(getFeatureCompatibility()));
     ASSERT_TRUE(
-        feature_flags::gFeatureFlagSpoon.isEnabled(getStaticServerParams().featureCompatibility));
+        feature_flags::gFeatureFlagSpoon.isEnabled(getFeatureCompatibility()));
 
     // Test oldest version
     // (Generic FCV reference): feature flag test
-    getStaticServerParams().mutableFeatureCompatibility.setVersion(
-        ServerGlobalParams::FeatureCompatibility::kLastLTS);
+    setFeatureCompatibility(
+        FeatureCompatibility::kLastLTS);
 
     ASSERT_FALSE(
-        feature_flags::gFeatureFlagBlender.isEnabled(getStaticServerParams().featureCompatibility));
+        feature_flags::gFeatureFlagBlender.isEnabled(getFeatureCompatibility()));
     ASSERT_TRUE(
-        feature_flags::gFeatureFlagSpoon.isEnabled(getStaticServerParams().featureCompatibility));
+        feature_flags::gFeatureFlagSpoon.isEnabled(getFeatureCompatibility()));
 }
 
 // Test feature flags are disabled regardless of fcv
@@ -162,23 +162,23 @@ TEST_F(FeatureFlagTest, IsEnabledFalse) {
     ASSERT_OK(_featureFlagBlender->setFromString("false"));
     ASSERT_OK(_featureFlagSpoon->setFromString("false"));
 
-    getStaticServerParams().mutableFeatureCompatibility.setVersion(
-        ServerGlobalParams::FeatureCompatibility::Version::kVersion49);
+    setFeatureCompatibility(
+        FeatureCompatibility::Version::kVersion49);
 
     ASSERT_FALSE(
-        feature_flags::gFeatureFlagBlender.isEnabled(getStaticServerParams().featureCompatibility));
+        feature_flags::gFeatureFlagBlender.isEnabled(getFeatureCompatibility()));
     ASSERT_FALSE(
-        feature_flags::gFeatureFlagSpoon.isEnabled(getStaticServerParams().featureCompatibility));
+        feature_flags::gFeatureFlagSpoon.isEnabled(getFeatureCompatibility()));
 
     // Test oldest version
     // (Generic FCV reference): feature flag test
-    getStaticServerParams().mutableFeatureCompatibility.setVersion(
-        ServerGlobalParams::FeatureCompatibility::kLastLTS);
+    setFeatureCompatibility(
+        FeatureCompatibility::kLastLTS);
 
     ASSERT_FALSE(
-        feature_flags::gFeatureFlagBlender.isEnabled(getStaticServerParams().featureCompatibility));
+        feature_flags::gFeatureFlagBlender.isEnabled(getFeatureCompatibility()));
     ASSERT_FALSE(
-        feature_flags::gFeatureFlagSpoon.isEnabled(getStaticServerParams().featureCompatibility));
+        feature_flags::gFeatureFlagSpoon.isEnabled(getFeatureCompatibility()));
 }
 
 }  // namespace

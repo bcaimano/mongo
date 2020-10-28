@@ -169,7 +169,7 @@ public:
     static void registerAccumulator(
         std::string name,
         Parser parser,
-        boost::optional<ServerGlobalParams::FeatureCompatibility::Version> requiredMinVersion);
+        boost::optional<FeatureCompatibility::Version> requiredMinVersion);
 
     /**
      * Retrieves the Parser for the accumulator specified by the given name, and raises an error if
@@ -178,7 +178,7 @@ public:
      */
     static Parser& getParser(
         StringData name,
-        boost::optional<ServerGlobalParams::FeatureCompatibility::Version> allowedMaxVersion);
+        boost::optional<FeatureCompatibility::Version> allowedMaxVersion);
 
     // The field name is used to store the results of the accumulation in a result document.
     std::string fieldName;

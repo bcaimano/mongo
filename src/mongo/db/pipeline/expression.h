@@ -255,7 +255,7 @@ public:
     static void registerExpression(
         std::string key,
         Parser parser,
-        boost::optional<ServerGlobalParams::FeatureCompatibility::Version> requiredMinVersion);
+        boost::optional<FeatureCompatibility::Version> requiredMinVersion);
 
     const auto& getChildren() const {
         return _children;

@@ -32,12 +32,12 @@
 #include "mongo/db/server_options.h"
 
 namespace mongo {
-using FeatureCompatibilityParams = ServerGlobalParams::FeatureCompatibility;
+using FeatureCompatibilityParams = FeatureCompatibility;
 
 /**
  * Helpers to parse featureCompatibilityVersion document BSON objects into
- * ServerGlobalParams::FeatureCompatibility::Version enums and convert
- * ServerGlobalParams::FeatureCompatibility::Version enums into strings.
+ * FeatureCompatibility::Version enums and convert
+ * FeatureCompatibility::Version enums into strings.
  */
 class FeatureCompatibilityVersionParser {
 public:

@@ -1338,8 +1338,8 @@ Status applyOperation_inlock(OperationContext* opCtx,
                 if (getStaticServerParams().validateFeaturesAsPrimary.load()) {
                     uassert(4773100,
                             "Delta oplog entries may not be used in FCV below 4.7",
-                            getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
-                                ServerGlobalParams::FeatureCompatibility::Version::kVersion47));
+                            getFeatureCompatibility().isGreaterThanOrEqualTo(
+                                FeatureCompatibility::Version::kVersion47));
                 }
             }
 

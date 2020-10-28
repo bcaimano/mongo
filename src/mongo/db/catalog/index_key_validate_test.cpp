@@ -288,13 +288,13 @@ TEST(IndexKeyValidateTest, CompoundHashedIndex) {
     ASSERT_OK(index_key_validate::validateIndexSpec(
         nullptr,
         fromjson("{key: {a : 'hashed', b: 1}, name: 'index'}"),
-        ServerGlobalParams::FeatureCompatibility()));
+        FeatureCompatibility()));
 
     // Validation succeeds with non-hashed prefix in the index.
     ASSERT_OK(index_key_validate::validateIndexSpec(
         nullptr,
         fromjson("{key: {b: 1, a : 'hashed', c: 1}, name: 'index'}"),
-        ServerGlobalParams::FeatureCompatibility()));
+        FeatureCompatibility()));
 }
 
 }  // namespace

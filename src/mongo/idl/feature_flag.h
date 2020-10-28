@@ -58,7 +58,7 @@ public:
     /**
      * Returns true if the flag is set to true and enabled for this FCV version.
      */
-    bool isEnabled(const ServerGlobalParams::FeatureCompatibility& fcv) const;
+    bool isEnabled(const FeatureCompatibility& fcv) const;
 
     /**
      * Returns true if this flag is enabled regardless of the current FCV version.
@@ -72,14 +72,14 @@ public:
      *
      * Throws if feature is not enabled.
      */
-    ServerGlobalParams::FeatureCompatibility::Version getVersion() const;
+    FeatureCompatibility::Version getVersion() const;
 
 private:
     void set(bool enabled);
 
 private:
     bool _enabled;
-    ServerGlobalParams::FeatureCompatibility::Version _version;
+    FeatureCompatibility::Version _version;
 };
 
 /**

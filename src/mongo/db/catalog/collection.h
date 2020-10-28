@@ -453,7 +453,7 @@ public:
         OperationContext* opCtx,
         const BSONObj& validator,
         MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-        boost::optional<ServerGlobalParams::FeatureCompatibility::Version>
+        boost::optional<FeatureCompatibility::Version>
             maxFeatureCompatibilityVersion) const = 0;
 
     static Status parseValidationLevel(StringData level);

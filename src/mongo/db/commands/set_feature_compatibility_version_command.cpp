@@ -66,7 +66,7 @@
 namespace mongo {
 
 using FCVP = FeatureCompatibilityVersionParser;
-using FeatureCompatibilityParams = ServerGlobalParams::FeatureCompatibility;
+using FeatureCompatibilityParams = FeatureCompatibility;
 
 namespace {
 
@@ -187,7 +187,7 @@ public:
         const auto requestedVersion = request.getCommandParameter();
         const auto requestedVersionString = FCVP::serializeVersion(requestedVersion);
         FeatureCompatibilityParams::Version actualVersion =
-            getStaticServerParams().featureCompatibility.getVersion();
+            getFeatureCompatibility().getVersion();
         if (request.getDowngradeOnDiskChanges() &&
             (requestedVersion != FeatureCompatibilityParams::kLastContinuous ||
              actualVersion < requestedVersion)) {
@@ -247,7 +247,7 @@ public:
             // Completed transition to requestedVersion.
             FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
                 opCtx,
-                getStaticServerParams().featureCompatibility.getVersion(),
+                getFeatureCompatibility().getVersion(),
                 requestedVersion,
                 isFromConfigServer);
         } else {
@@ -313,7 +313,7 @@ public:
             // Completed transition to requestedVersion.
             FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
                 opCtx,
-                getStaticServerParams().featureCompatibility.getVersion(),
+                getFeatureCompatibility().getVersion(),
                 requestedVersion,
                 isFromConfigServer);
 

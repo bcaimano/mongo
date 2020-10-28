@@ -179,9 +179,9 @@ void ReplSetHeartbeatArgsV1::addToBSON(BSONObjBuilder* builder) const {
     builder->appendIntOrLL(kTermFieldName, _term);
 
     // TODO SERVER-49382: Remove this FCV check when 5.0 becomes last-lts.
-    if (getStaticServerParams().featureCompatibility.isVersionInitialized() &&
-        getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
-            ServerGlobalParams::FeatureCompatibility::Version::kVersion47)) {
+    if (getFeatureCompatibility().isVersionInitialized() &&
+        getFeatureCompatibility().isGreaterThanOrEqualTo(
+            FeatureCompatibility::Version::kVersion47)) {
         builder->append(kPrimaryIdFieldName, _primaryId);
     }
 }

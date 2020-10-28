@@ -257,7 +257,7 @@ BSONObj removeUnknownFields(const BSONObj& indexSpec) {
 StatusWith<BSONObj> validateIndexSpec(
     OperationContext* opCtx,
     const BSONObj& indexSpec,
-    const ServerGlobalParams::FeatureCompatibility& featureCompatibility) {
+    const FeatureCompatibility& featureCompatibility) {
     bool hasKeyPatternField = false;
     bool hasIndexNameField = false;
     bool hasNamespaceField = false;

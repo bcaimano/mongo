@@ -103,7 +103,7 @@ void generateSystemIndexForExistingCollection(OperationContext* opCtx,
 
     try {
         auto indexSpecStatus = index_key_validate::validateIndexSpec(
-            opCtx, spec.toBSON(), getStaticServerParams().featureCompatibility);
+            opCtx, spec.toBSON(), getFeatureCompatibility());
         BSONObj indexSpec = fassert(40452, indexSpecStatus);
 
         LOGV2(22488,
@@ -207,13 +207,13 @@ void createSystemIndexes(OperationContext* opCtx, CollectionWriter& collection) 
         indexSpec = fassert(
             40455,
             index_key_validate::validateIndexSpec(
-                opCtx, v3SystemUsersIndexSpec.toBSON(), getStaticServerParams().featureCompatibility));
+                opCtx, v3SystemUsersIndexSpec.toBSON(), getFeatureCompatibility()));
 
     } else if (ns == AuthorizationManager::rolesCollectionNamespace) {
         indexSpec = fassert(
             40457,
             index_key_validate::validateIndexSpec(
-                opCtx, v3SystemRolesIndexSpec.toBSON(), getStaticServerParams().featureCompatibility));
+                opCtx, v3SystemRolesIndexSpec.toBSON(), getFeatureCompatibility()));
     }
     if (!indexSpec.isEmpty()) {
         auto fromMigrate = false;

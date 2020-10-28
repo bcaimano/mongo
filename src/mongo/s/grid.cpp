@@ -49,9 +49,9 @@ const auto grid = ServiceContext::declareDecoration<Grid>();
 
 // TODO SERVER-50675: Remove this FVC function when 5.0 becomes last-lts.
 bool fcvGreaterThanOrEqualTo47() {
-    auto& fcv = getStaticServerParams().featureCompatibility;
+    auto& fcv = getFeatureCompatibility();
     return fcv.isVersionInitialized() &&
-        fcv.isGreaterThanOrEqualTo(ServerGlobalParams::FeatureCompatibility::Version::kVersion47);
+        fcv.isGreaterThanOrEqualTo(FeatureCompatibility::Version::kVersion47);
 }
 }  // namespace
 

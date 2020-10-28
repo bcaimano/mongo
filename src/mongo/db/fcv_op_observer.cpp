@@ -48,22 +48,22 @@
 #include "mongo/util/assert_util.h"
 
 namespace mongo {
-using FeatureCompatibilityParams = ServerGlobalParams::FeatureCompatibility;
+using FeatureCompatibilityParams = FeatureCompatibility;
 
 void FcvOpObserver::_setVersion(OperationContext* opCtx,
-                                ServerGlobalParams::FeatureCompatibility::Version newVersion) {
+                                FeatureCompatibility::Version newVersion) {
     boost::optional<FeatureCompatibilityParams::Version> prevVersion;
 
-    if (getStaticServerParams().featureCompatibility.isVersionInitialized()) {
-        prevVersion = getStaticServerParams().featureCompatibility.getVersion();
+    if (getFeatureCompatibility().isVersionInitialized()) {
+        prevVersion = getFeatureCompatibility().getVersion();
     }
-    getStaticServerParams().mutableFeatureCompatibility.setVersion(newVersion);
+    setFeatureCompatibility(newVersion);
     FeatureCompatibilityVersion::updateMinWireVersion();
 
     // (Generic FCV reference): This FCV check should exist across LTS binary versions.
-    if (getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
+    if (getFeatureCompatibility().isGreaterThanOrEqualTo(
             FeatureCompatibilityParams::kLatest) ||
-        getStaticServerParams().featureCompatibility.isUpgradingOrDowngrading()) {
+        getFeatureCompatibility().isUpgradingOrDowngrading()) {
         // minWireVersion == maxWireVersion on kLatest FCV or upgrading/downgrading FCV.
         // Close all incoming connections from internal clients with binary versions lower than
         // ours.
@@ -81,7 +81,7 @@ void FcvOpObserver::_setVersion(OperationContext* opCtx,
     // rather than waiting for the transactions to complete. FCV changes take the global S lock when
     // in the upgrading/downgrading state.
     // (Generic FCV reference): This FCV check should exist across LTS binary versions.
-    if (getStaticServerParams().featureCompatibility.isUpgradingOrDowngrading()) {
+    if (getFeatureCompatibility().isUpgradingOrDowngrading()) {
         SessionKiller::Matcher matcherAllSessions(
             KillAllSessionsByPatternSet{makeKillAllSessionsByPattern(opCtx)});
         killSessionsAbortUnpreparedTransactions(opCtx, matcherAllSessions);
@@ -120,8 +120,8 @@ void FcvOpObserver::_onInsertOrUpdate(OperationContext* opCtx, const BSONObj& do
     // changes.
     logv2::DynamicAttributes attrs;
     bool isDifferent = true;
-    if (getStaticServerParams().featureCompatibility.isVersionInitialized()) {
-        const auto currentVersion = getStaticServerParams().featureCompatibility.getVersion();
+    if (getFeatureCompatibility().isVersionInitialized()) {
+        const auto currentVersion = getFeatureCompatibility().getVersion();
         attrs.add("currentVersion", FeatureCompatibilityVersionParser::toString(currentVersion));
         isDifferent = currentVersion != newVersion;
     }
@@ -185,7 +185,7 @@ void FcvOpObserver::onReplicationRollback(OperationContext* opCtx,
     if (swFcv.isOK()) {
         const auto featureCompatibilityVersion = swFcv.getValue();
         auto swVersion = FeatureCompatibilityVersionParser::parse(featureCompatibilityVersion);
-        const auto memoryFcv = getStaticServerParams().featureCompatibility.getVersion();
+        const auto memoryFcv = getFeatureCompatibility().getVersion();
         if (swVersion.isOK() && (swVersion.getValue() != memoryFcv)) {
             auto diskFcv = swVersion.getValue();
             LOGV2(4675801,

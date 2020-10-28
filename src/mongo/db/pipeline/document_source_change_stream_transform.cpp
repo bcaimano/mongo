@@ -72,14 +72,14 @@ constexpr auto checkValueType = &DocumentSourceChangeStream::checkValueType;
 boost::intrusive_ptr<DocumentSourceChangeStreamTransform>
 DocumentSourceChangeStreamTransform::create(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
-    const ServerGlobalParams::FeatureCompatibility::Version& fcv,
+    const FeatureCompatibility::Version& fcv,
     BSONObj changeStreamSpec) {
     return new DocumentSourceChangeStreamTransform(expCtx, fcv, changeStreamSpec);
 }
 
 DocumentSourceChangeStreamTransform::DocumentSourceChangeStreamTransform(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
-    const ServerGlobalParams::FeatureCompatibility::Version& fcv,
+    const FeatureCompatibility::Version& fcv,
     BSONObj changeStreamSpec)
     : DocumentSource(DocumentSourceChangeStreamTransform::kStageName, expCtx),
       _changeStreamSpec(changeStreamSpec.getOwned()),

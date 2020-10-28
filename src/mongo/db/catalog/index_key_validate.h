@@ -58,7 +58,7 @@ Status validateKeyPattern(const BSONObj& key, IndexDescriptor::IndexVersion inde
 StatusWith<BSONObj> validateIndexSpec(
     OperationContext* opCtx,
     const BSONObj& indexSpec,
-    const ServerGlobalParams::FeatureCompatibility& featureCompatibility);
+    const FeatureCompatibility& featureCompatibility);
 
 /**
  * Returns a new index spec with any unknown field names removed from 'indexSpec'.

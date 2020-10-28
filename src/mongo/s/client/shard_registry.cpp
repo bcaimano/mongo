@@ -59,9 +59,9 @@ const Seconds kRefreshPeriod(30);
  * topologyTime part of the cache's Time will stay fixed and not advance.
  */
 bool useActualTopologyTime() {
-    return getStaticServerParams().featureCompatibility.isVersionInitialized() &&
-        getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
-            ServerGlobalParams::FeatureCompatibility::Version::kVersion47);
+    return getFeatureCompatibility().isVersionInitialized() &&
+        getFeatureCompatibility().isGreaterThanOrEqualTo(
+            FeatureCompatibility::Version::kVersion47);
 }
 
 }  // namespace

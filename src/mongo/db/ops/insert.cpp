@@ -175,9 +175,9 @@ StatusWith<BSONObj> fixDocumentForInsert(ServiceContext* service, const BSONObj&
 Status userAllowedWriteNS(const NamespaceString& ns) {
     // TODO (SERVER-49545): Remove the FCV check when 5.0 becomes last-lts.
     if (ns.isSystemDotProfile() ||
-        (ns.isSystemDotViews() && getStaticServerParams().featureCompatibility.isVersionInitialized() &&
-         getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
-             ServerGlobalParams::FeatureCompatibility::Version::kVersion47)) ||
+        (ns.isSystemDotViews() && getFeatureCompatibility().isVersionInitialized() &&
+         getFeatureCompatibility().isGreaterThanOrEqualTo(
+             FeatureCompatibility::Version::kVersion47)) ||
         (ns.isOplog() &&
          repl::ReplicationCoordinator::get(getGlobalServiceContext())->isReplEnabled())) {
         return Status(ErrorCodes::InvalidNamespace, str::stream() << "cannot write to " << ns);

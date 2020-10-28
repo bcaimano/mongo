@@ -35,7 +35,7 @@ namespace mongo {
 
 // (Generic FCV reference): feature flag support
 FeatureFlag::FeatureFlag(bool enabled, StringData versionString)
-    : _enabled(enabled), _version(ServerGlobalParams::FeatureCompatibility::kLatest) {
+    : _enabled(enabled), _version(FeatureCompatibility::kLatest) {
 
     // Verify the feature flag invariants. IDL binder verifies these hold but we add these checks to
     // prevent incorrect direct instantiation.
@@ -55,7 +55,7 @@ FeatureFlag::FeatureFlag(bool enabled, StringData versionString)
     }
 }
 
-bool FeatureFlag::isEnabled(const ServerGlobalParams::FeatureCompatibility& fcv) const {
+bool FeatureFlag::isEnabled(const FeatureCompatibility& fcv) const {
     if (!_enabled) {
         return false;
     }
@@ -67,7 +67,7 @@ bool FeatureFlag::isEnabledAndIgnoreFCV() const {
     return _enabled;
 }
 
-ServerGlobalParams::FeatureCompatibility::Version FeatureFlag::getVersion() const {
+FeatureCompatibility::Version FeatureFlag::getVersion() const {
     uassert(5111001, "Feature Flag is not enabled, cannot retrieve version", _enabled);
 
     return _version;

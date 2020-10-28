@@ -136,7 +136,7 @@ protected:
                                               StatusWith<BSONObj> response,
                                               BSONObj writeConcern) {
         // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
-        SetFeatureCompatibilityVersion fcvCmd(ServerGlobalParams::FeatureCompatibility::kLatest);
+        SetFeatureCompatibilityVersion fcvCmd(FeatureCompatibility::kLatest);
         fcvCmd.setFromConfigServer(true);
         fcvCmd.setDbName(NamespaceString::kAdminDb);
         const auto setFcvObj = fcvCmd.toBSON(BSON("writeConcern" << writeConcern));

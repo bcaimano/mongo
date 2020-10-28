@@ -102,7 +102,7 @@ StatusWith<std::vector<BSONObj>> parseAndValidateIndexSpecs(
     OperationContext* opCtx,
     const NamespaceString& ns,
     const BSONObj& cmdObj,
-    const ServerGlobalParams::FeatureCompatibility& featureCompatibility) {
+    const FeatureCompatibility& featureCompatibility) {
     bool hasIndexesField = false;
 
     bool ignoreUnknownIndexOptions = false;
@@ -494,7 +494,7 @@ bool runCreateIndexesWithCoordinator(OperationContext* opCtx,
             !opCtx->inMultiDocumentTransaction() || !ns.isSystem());
 
     auto specs = uassertStatusOK(
-        parseAndValidateIndexSpecs(opCtx, ns, cmdObj, getStaticServerParams().featureCompatibility));
+        parseAndValidateIndexSpecs(opCtx, ns, cmdObj, getFeatureCompatibility()));
     auto replCoord = repl::ReplicationCoordinator::get(opCtx);
     auto indexBuildsCoord = IndexBuildsCoordinator::get(opCtx);
     // Two phase index builds are designed to improve the availability of indexes in a replica set.

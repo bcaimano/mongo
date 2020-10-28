@@ -650,7 +650,7 @@ void assertFCVRequest(RemoteCommandRequest request) {
 void InitialSyncerTest::processSuccessfulFCVFetcherResponseLastLTS() {
     FeatureCompatibilityVersionDocument fcvDoc;
     // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
-    fcvDoc.setVersion(ServerGlobalParams::FeatureCompatibility::kLastLTS);
+    fcvDoc.setVersion(FeatureCompatibility::kLastLTS);
     processSuccessfulFCVFetcherResponse({fcvDoc.toBSON()});
 }
 
@@ -1868,7 +1868,7 @@ TEST_F(InitialSyncerTest,
        InitialSyncerReturnsTooManyMatchingDocumentsWhenFCVFetcherReturnsMultipleDocuments) {
     FeatureCompatibilityVersionDocument fcvDoc;
     // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
-    fcvDoc.setVersion(ServerGlobalParams::FeatureCompatibility::kLastLTS);
+    fcvDoc.setVersion(FeatureCompatibility::kLastLTS);
     auto docs = {fcvDoc.toBSON(),
                  BSON("_id"
                       << "other")};
@@ -1879,8 +1879,8 @@ TEST_F(InitialSyncerTest,
        InitialSyncerReturnsIncompatibleServerVersionWhenFCVFetcherReturnsUpgradeTargetVersion) {
     FeatureCompatibilityVersionDocument fcvDoc;
     // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
-    fcvDoc.setVersion(ServerGlobalParams::FeatureCompatibility::kLastLTS);
-    fcvDoc.setTargetVersion(ServerGlobalParams::FeatureCompatibility::kLatest);
+    fcvDoc.setVersion(FeatureCompatibility::kLastLTS);
+    fcvDoc.setTargetVersion(FeatureCompatibility::kLatest);
     runInitialSyncWithBadFCVResponse({fcvDoc.toBSON()}, ErrorCodes::IncompatibleServerVersion);
 }
 
@@ -1888,9 +1888,9 @@ TEST_F(InitialSyncerTest,
        InitialSyncerReturnsIncompatibleServerVersionWhenFCVFetcherReturnsDowngradeTargetVersion) {
     FeatureCompatibilityVersionDocument fcvDoc;
     // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
-    fcvDoc.setVersion(ServerGlobalParams::FeatureCompatibility::kLastLTS);
-    fcvDoc.setTargetVersion(ServerGlobalParams::FeatureCompatibility::kLastLTS);
-    fcvDoc.setPreviousVersion(ServerGlobalParams::FeatureCompatibility::kLatest);
+    fcvDoc.setVersion(FeatureCompatibility::kLastLTS);
+    fcvDoc.setTargetVersion(FeatureCompatibility::kLastLTS);
+    fcvDoc.setPreviousVersion(FeatureCompatibility::kLatest);
     runInitialSyncWithBadFCVResponse({fcvDoc.toBSON()}, ErrorCodes::IncompatibleServerVersion);
 }
 
@@ -1929,7 +1929,7 @@ TEST_F(InitialSyncerTest, InitialSyncerSucceedsWhenFCVFetcherReturnsOldVersion) 
 
         FeatureCompatibilityVersionDocument fcvDoc;
         // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
-        fcvDoc.setVersion(ServerGlobalParams::FeatureCompatibility::kLastLTS);
+        fcvDoc.setVersion(FeatureCompatibility::kLastLTS);
         processSuccessfulFCVFetcherResponse({fcvDoc.toBSON()});
     }
 
@@ -4037,7 +4037,7 @@ OplogEntry InitialSyncerTest::doInitialSyncWithOneBatch() {
 
 void InitialSyncerTest::doSuccessfulInitialSyncWithOneBatch() {
     auto lastOp = doInitialSyncWithOneBatch();
-    getStaticServerParams().mutableFeatureCompatibility.reset();
+    setFeatureCompatibility(FeatureCompatibility::kDefault);
     ASSERT_OK(_lastApplied.getStatus());
     ASSERT_EQUALS(lastOp.getOpTime(), _lastApplied.getValue().opTime);
     ASSERT_EQUALS(lastOp.getWallClockTime(), _lastApplied.getValue().wallTime);

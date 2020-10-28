@@ -61,7 +61,7 @@ namespace mongo {
 
 using repl::UnreplicatedWritesBlock;
 using FCVP = FeatureCompatibilityVersionParser;
-using FCVParams = ServerGlobalParams::FeatureCompatibility;
+using FCVParams = FeatureCompatibility;
 using FCV = FCVParams::Version;
 
 using namespace fmt::literals;
@@ -142,7 +142,7 @@ public:
     }
 
     /**
-     * True if a server in ServerGlobalParams::FeatureCompatibility::Version "fromVersion" can
+     * True if a server in FeatureCompatibility::Version "fromVersion" can
      * transition to "newVersion". Different rules apply if the request is from a config server.
      */
     bool permitsTransition(FCV fromVersion, FCV newVersion, bool isFromConfigServer) const {
@@ -152,7 +152,7 @@ public:
 
     /**
      * Get a feature compatibility version enum value from a document representing the
-     * ServerGlobalParams::FeatureCompatibility::Version, or uassert if the document is invalid.
+     * FeatureCompatibility::Version, or uassert if the document is invalid.
      */
     FCV versionFromFCVDoc(const FeatureCompatibilityVersionDocument& fcvDoc) const {
         auto it = std::find_if(_fcvDocuments.begin(), _fcvDocuments.end(), [&](const auto& value) {
@@ -257,8 +257,8 @@ void FeatureCompatibilityVersion::validateSetFeatureCompatibilityVersionRequest(
 
 void FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
     OperationContext* opCtx,
-    ServerGlobalParams::FeatureCompatibility::Version fromVersion,
-    ServerGlobalParams::FeatureCompatibility::Version newVersion,
+    FeatureCompatibility::Version fromVersion,
+    FeatureCompatibility::Version newVersion,
     bool isFromConfigServer) {
     auto transitioningVersion = fromVersion == newVersion
         ? fromVersion
@@ -320,9 +320,9 @@ bool FeatureCompatibilityVersion::isCleanStartUp() {
 
 void FeatureCompatibilityVersion::updateMinWireVersion() {
     WireSpec& wireSpec = WireSpec::instance();
-    const auto currentFcv = getStaticServerParams().featureCompatibility.getVersion();
+    const auto currentFcv = getFeatureCompatibility().getVersion();
     if (currentFcv == FCVParams::kLatest ||
-        (getStaticServerParams().featureCompatibility.isUpgradingOrDowngrading() &&
+        (getFeatureCompatibility().isUpgradingOrDowngrading() &&
          currentFcv != FCVParams::kUpgradingFromLastLTSToLastContinuous)) {
         // FCV == kLatest or FCV is upgrading/downgrading to or from kLatest.
         WireSpec::Specification newSpec = *wireSpec.get();
@@ -372,11 +372,11 @@ void FeatureCompatibilityVersion::initializeForStartup(OperationContext* opCtx) 
     }
 
     auto version = swVersion.getValue();
-    getStaticServerParams().mutableFeatureCompatibility.setVersion(version);
+    setFeatureCompatibility(version);
     FeatureCompatibilityVersion::updateMinWireVersion();
 
     // On startup, if the version is in an upgrading or downgrading state, print a warning.
-    if (getStaticServerParams().featureCompatibility.isUpgradingOrDowngrading()) {
+    if (getFeatureCompatibility().isUpgradingOrDowngrading()) {
         LOGV2_WARNING_OPTIONS(
             4978301,
             {logv2::LogTag::kStartupWarnings},
@@ -422,7 +422,7 @@ void FeatureCompatibilityVersion::fassertInitializedAfterStartup(OperationContex
     // featureCompatibilityVersion until a primary is chosen. For this case, we expect the in-memory
     // featureCompatibilityVersion parameter to still be uninitialized until after startup.
     if (isWriteableStorageEngine() && (!replSettings.usingReplSets() || nonLocalDatabases)) {
-        invariant(getStaticServerParams().featureCompatibility.isVersionInitialized());
+        invariant(getFeatureCompatibility().isVersionInitialized());
     }
 }
 
@@ -440,10 +440,10 @@ void FeatureCompatibilityVersionParameter::append(OperationContext* opCtx,
                                                   const std::string& name) {
     uassert(ErrorCodes::UnknownFeatureCompatibilityVersion,
             str::stream() << name << " is not yet known.",
-            getStaticServerParams().featureCompatibility.isVersionInitialized());
+            getFeatureCompatibility().isVersionInitialized());
 
     BSONObjBuilder featureCompatibilityVersionBuilder(b.subobjStart(name));
-    auto version = getStaticServerParams().featureCompatibility.getVersion();
+    auto version = getFeatureCompatibility().getVersion();
     FeatureCompatibilityVersionDocument fcvDoc = fcvTransitions.getFCVDocument(version);
     featureCompatibilityVersionBuilder.appendElements(fcvDoc.toBSON().removeField("_id"));
 }

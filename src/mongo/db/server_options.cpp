@@ -57,6 +57,9 @@ auto threadConstructorAction = ThreadContext::ConstructorActionRegisterer(
         auto serverParams = getServerParams(parentThreadContext.get());
         getServerParams(threadContext) = std::move(serverParams);
     });
+
+FeatureCompatibility featureCompatibility;
+
 }  // namespace
 
 ServerGlobalParams& getStaticServerParams() {
@@ -64,6 +67,14 @@ ServerGlobalParams& getStaticServerParams() {
     auto serverParams = getServerParams(threadContext.get());
     invariant(serverParams);
     return *serverParams;
+}
+
+const FeatureCompatibility& getFeatureCompatibility() {
+    return featureCompatibility;
+}
+
+void setFeatureCompatibility(FeatureCompatibility::Version version) {
+    featureCompatibility.setVersion(version);
 }
 
 std::string ServerGlobalParams::getPortSettingHelpText() {

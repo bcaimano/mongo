@@ -386,7 +386,7 @@ public:
 
             // Perform index spec validation.
             idIndexSpec = uassertStatusOK(index_key_validate::validateIndexSpec(
-                opCtx, idIndexSpec, getStaticServerParams().featureCompatibility));
+                opCtx, idIndexSpec, getFeatureCompatibility()));
             uassertStatusOK(index_key_validate::validateIdIndexSpec(idIndexSpec));
 
             // Validate or fill in _id index collation.

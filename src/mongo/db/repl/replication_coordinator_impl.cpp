@@ -3180,8 +3180,8 @@ Status ReplicationCoordinatorImpl::processReplSetFreeze(int secs, BSONObjBuilder
 
 bool ReplicationCoordinatorImpl::_supportsAutomaticReconfig() const {
     // TODO SERVER-48545: Remove this when 5.0 becomes last-lts.
-    return getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
-        ServerGlobalParams::FeatureCompatibility::Version::kVersion47);
+    return getFeatureCompatibility().isGreaterThanOrEqualTo(
+        FeatureCompatibility::Version::kVersion47);
 }
 
 Status ReplicationCoordinatorImpl::processReplSetReconfig(OperationContext* opCtx,

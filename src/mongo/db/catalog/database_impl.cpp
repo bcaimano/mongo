@@ -892,10 +892,10 @@ Status DatabaseImpl::userCreateNS(OperationContext* opCtx,
         // primary, ban the use of new agg features introduced in kLatest to prevent them from being
         // persisted in the catalog.
         // (Generic FCV reference): This FCV check should exist across LTS binary versions.
-        ServerGlobalParams::FeatureCompatibility::Version fcv;
+        FeatureCompatibility::Version fcv;
         if (getStaticServerParams().validateFeaturesAsPrimary.load() &&
-            getStaticServerParams().featureCompatibility.isLessThan(
-                ServerGlobalParams::FeatureCompatibility::kLatest, &fcv)) {
+            getFeatureCompatibility().isLessThan(
+                FeatureCompatibility::kLatest, &fcv)) {
             expCtx->maxFeatureCompatibilityVersion = fcv;
         }
 

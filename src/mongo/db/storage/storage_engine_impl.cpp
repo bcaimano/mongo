@@ -986,9 +986,9 @@ bool StorageEngineImpl::supportsOplogStones() const {
 
 bool StorageEngineImpl::supportsResumableIndexBuilds() const {
     return enableResumableIndexBuilds && supportsReadConcernMajority() && !isEphemeral() &&
-        getStaticServerParams().featureCompatibility.isVersionInitialized() &&
-        getStaticServerParams().featureCompatibility.isGreaterThanOrEqualTo(
-            ServerGlobalParams::FeatureCompatibility::Version::kVersion47) &&
+        getFeatureCompatibility().isVersionInitialized() &&
+        getFeatureCompatibility().isGreaterThanOrEqualTo(
+            FeatureCompatibility::Version::kVersion47) &&
         !repl::ReplSettings::shouldRecoverFromOplogAsStandalone();
 }
 
