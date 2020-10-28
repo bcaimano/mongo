@@ -506,6 +506,10 @@ public:
 
     LockedClient getLockedClient(OperationId id);
 
+    const auto id() const {
+        return _id;
+    }
+
 private:
     /**
      * A synchronized owning pointer to avoid setters racing with getters.
@@ -583,6 +587,9 @@ private:
      * should only be called after killing an operation or in its destructor.
      */
     void _delistOperation(OperationContext* opCtx) noexcept;
+
+    inline static auto _nextId = AtomicWord<uint64_t>{0};
+    const uint64_t _id = _nextId.fetchAndAdd(1);
 
     Mutex _mutex = MONGO_MAKE_LATCH(/*HierarchicalAcquisitionLevel(2), */ "ServiceContext::_mutex");
 
