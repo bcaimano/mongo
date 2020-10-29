@@ -39,6 +39,8 @@
 
 namespace mongo {
 
+class ServiceContext;
+
 /**
  * Notfication callback, which stores the last notification result and signals a condition
  * variable, which can be waited on.
@@ -405,5 +407,6 @@ public:
  * Retrieves the global lock manager instance.
  */
 LockManager* getGlobalLockManager();
+LockManager* getLockManager(ServiceContext* serviceContext);
 
 }  // namespace mongo

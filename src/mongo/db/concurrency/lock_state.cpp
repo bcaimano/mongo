@@ -1074,31 +1074,50 @@ void LockerImpl::_setWaitingResource(ResourceId resId) {
 //
 
 namespace {
-/**
- *  Periodically purges unused lock buckets. The first time the lock is used again after
- *  cleanup it needs to be allocated, and similarly, every first use by a client for an intent
- *  mode may need to create a partitioned lock head. Cleanup is done roughly once a minute.
- */
-class UnusedLockCleaner : PeriodicTask {
-public:
-    std::string taskName() const {
-        return "UnusedLockCleaner";
-    }
+struct LockManagerState {
+    LockManager lockManager;
+    PeriodicJobAnchor lockCleanerJob;
+};
 
-    void taskDoWork() {
-        LOGV2_DEBUG(20524, 2, "cleaning up unused lock buckets of the global lock manager");
-        getGlobalLockManager()->cleanupUnusedLocks();
-    }
-} unusedLockCleaner;
+auto getLockManagerState = ServiceContext::declareDecoration<LockManagerState>();
+auto lockManagerActions = ServiceContext::ConstructorActionRegisterer(
+    "LockManagerInit",
+    [](ServiceContext* serviceContext) {
+        auto& state = getLockManagerState(serviceContext);
+
+        /**
+         * Periodically purges unused lock buckets. The first time the lock is used again after
+         * cleanup it needs to be allocated, and similarly, every first use by a client for an
+         * intent mode may need to create a partitioned lock head.
+         */
+        state.lockCleanerJob = serviceContext->getPeriodicRunner()->makeJob(
+            {"UnusedLockCleaner",
+             [](Client* client) {
+                 LOGV2_DEBUG(
+                     20524, 2, "cleaning up unused lock buckets of the global lock manager");
+                 getLockManager(client->getServiceContext())->cleanupUnusedLocks();
+             },
+             Minutes(1)});
+        state.lockCleanerJob.start();
+    },
+    [](ServiceContext* serviceContext) {
+        auto& state = getLockManagerState(serviceContext);
+        state.lockCleanerJob.stop();
+    });
 }  // namespace
-
 
 //
 // Standalone functions
 //
 
+LockManager* getLockManager(ServiceContext* serviceContext) {
+    return &getLockManagerState(serviceContext).lockManager;
+}
+
 LockManager* getGlobalLockManager() {
-    return &globalLockManager;
+    auto serviceContext = getGlobalServiceContext();
+    invariant(serviceContext);
+    return getLockManager(serviceContext);
 }
 
 void reportGlobalLockingStats(SingleThreadedLockStats* outStats) {
