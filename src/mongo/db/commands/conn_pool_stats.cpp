@@ -77,7 +77,7 @@ public:
         executor::ConnectionPoolStats stats{};
 
         // Global connection pool connections.
-        globalConnPool.appendConnectionStats(&stats);
+        getGlobalConnPool().appendConnectionStats(&stats);
         result.appendNumber("numClientConnections", DBClientConnection::getNumConnections());
         result.appendNumber("numAScopedConnections", AScopedConnection::getNumConnections());
 

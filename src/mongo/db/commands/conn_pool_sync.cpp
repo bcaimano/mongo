@@ -63,7 +63,7 @@ public:
              const std::string&,
              const mongo::BSONObj&,
              mongo::BSONObjBuilder& result) override {
-        globalConnPool.flush();
+        getGlobalConnPool().flush();
         return true;
     }
 

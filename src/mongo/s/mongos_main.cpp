@@ -707,7 +707,7 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
     unshardedHookList->addHook(std::make_unique<rpc::CommittedOpTimeMetadataHook>(serviceContext));
 
     // Add sharding hooks to both connection pools - ShardingConnectionHook includes auth hooks
-    globalConnPool.addHook(new ShardingConnectionHook(std::move(unshardedHookList)));
+    getGlobalConnPool().addHook(new ShardingConnectionHook(std::move(unshardedHookList)));
 
     auto shardedHookList = std::make_unique<rpc::EgressMetadataHookList>();
     shardedHookList->addHook(std::make_unique<rpc::LogicalTimeMetadataHook>(serviceContext));

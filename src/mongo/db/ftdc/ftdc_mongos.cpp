@@ -55,7 +55,7 @@ public:
         executor::ConnectionPoolStats stats{};
 
         // Global connection pool connections.
-        globalConnPool.appendConnectionStats(&stats);
+        getGlobalConnPool().appendConnectionStats(&stats);
 
         // Sharding connections.
         {

@@ -798,13 +798,13 @@ DBClientConnection* DBClientReplicaSet::selectNodeUsingTags(
     }
 
     auto dtor = [host = _lastSlaveOkHost.toString()](DBClientConnection* ptr) {
-        globalConnPool.release(host, ptr);
+        getGlobalConnPool().release(host, ptr);
     };
 
     // Needs to perform a dynamic_cast because we need to set the replSet
     // callback. We should eventually not need this after we remove the
     // callback.
-    DBClientConnection* newConn = dynamic_cast<DBClientConnection*>(globalConnPool.get(
+    DBClientConnection* newConn = dynamic_cast<DBClientConnection*>(getGlobalConnPool().get(
         _uri.cloneURIForServer(_lastSlaveOkHost, _applicationName), _so_timeout));
 
     // Assert here instead of returning NULL since the contract of this method is such

@@ -1066,7 +1066,7 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
 
     // Shut down the global dbclient pool so callers stop waiting for connections.
     LOGV2_OPTIONS(4784905, {LogComponent::kNetwork}, "Shutting down the global connection pool");
-    globalConnPool.shutdown();
+    getGlobalConnPool().shutdown();
 
     // Inform Flow Control to stop gating writes on ticket admission. This must be done before the
     // Periodic Runner is shut down (see SERVER-41751).

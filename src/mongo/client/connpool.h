@@ -43,6 +43,7 @@
 
 namespace mongo {
 
+class ServiceContext;
 class BSONObjBuilder;
 class DBConnectionPool;
 
@@ -275,7 +276,7 @@ public:
        c.conn()...
     }
 */
-class DBConnectionPool : public PeriodicTask {
+class DBConnectionPool {
 public:
     DBConnectionPool();
     ~DBConnectionPool();
@@ -375,10 +376,7 @@ public:
         bool operator()(const std::string& a, const std::string& b) const;
     };
 
-    virtual std::string taskName() const {
-        return "DBConnectionPool-cleaner";
-    }
-    virtual void taskDoWork();
+    void cleanStaleConnections();
 
     /**
      * Shuts down the connection pool, unblocking any waiters on connections.

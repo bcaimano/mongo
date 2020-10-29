@@ -33,22 +33,47 @@
 
 #include "mongo/base/init.h"
 #include "mongo/client/global_conn_pool_gen.h"
+#include "mongo/db/service_context.h"
 
 namespace mongo {
 namespace {
 
-MONGO_INITIALIZER_WITH_PREREQUISITES(InitializeGlobalConnectionPool, ("EndStartupOptionStorage"))
-(InitializerContext* context) {
-    globalConnPool.setName("connection pool");
-    globalConnPool.setMaxPoolSize(maxConnsPerHost);
-    globalConnPool.setMaxInUse(maxInUseConnsPerHost);
-    globalConnPool.setIdleTimeout(globalConnPoolIdleTimeout);
+struct State {
+    DBConnectionPool pool;
+    PeriodicJobAnchor cleanerJob;
+};
+auto getState = ServiceContext::declareDecoration<State>();
 
-    return Status::OK();
-}
+auto connPoolActions = ServiceContext::ConstructorActionRegisterer(
+    "GlobalConnPoolInit",
+    [](ServiceContext* serviceContext) {
+        auto& state = getState(serviceContext);
+
+        state.pool.setName("connection pool");
+        state.pool.setMaxPoolSize(maxConnsPerHost);
+        state.pool.setMaxInUse(maxInUseConnsPerHost);
+        state.pool.setIdleTimeout(globalConnPoolIdleTimeout);
+
+        state.cleanerJob = getGlobalServiceContext()->getPeriodicRunner()->makeJob(
+            {"DBConnectionPool-cleaner",
+             [](Client* client) {
+                 auto& state = getState(client->getServiceContext());
+                 state.pool.cleanStaleConnections();
+             },
+             Minutes(1)});
+        state.cleanerJob.start();
+    },
+    [](ServiceContext* serviceContext) {
+        auto& state = getState(serviceContext);
+        state.cleanerJob.stop();
+    });
 
 }  // namespace
 
-DBConnectionPool globalConnPool;
+DBConnectionPool& getGlobalConnPool() {
+    auto serviceContext = getGlobalServiceContext();
+    invariant(serviceContext);
+    return getState(serviceContext).pool;
+}
 
 }  // namespace mongo

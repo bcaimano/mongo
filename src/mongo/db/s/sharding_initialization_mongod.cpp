@@ -557,7 +557,7 @@ void initializeGlobalShardingStateForMongoD(OperationContext* opCtx,
         validator->stopKeyManager();
     }
 
-    globalConnPool.addHook(new ShardingConnectionHook(makeEgressHooksList(service)));
+    getGlobalConnPool().addHook(new ShardingConnectionHook(makeEgressHooksList(service)));
 
     auto catalogCache = std::make_unique<CatalogCache>(service, CatalogCacheLoader::get(opCtx));
 

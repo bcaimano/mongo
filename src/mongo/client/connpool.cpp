@@ -324,9 +324,7 @@ DBConnectionPool::DBConnectionPool()
       _maxInUse(kDefaultMaxInUse),
       _idleTimeout(kDefaultIdleTimeout),
       _inShutdown(false),
-      _hooks(new list<DBConnectionHook*>())
-
-{}
+      _hooks(new list<DBConnectionHook*>()) {}
 
 void DBConnectionPool::shutdown() {
     if (!_inShutdown.swap(true)) {
@@ -637,7 +635,7 @@ bool DBConnectionPool::isConnectionGood(const string& hostName, DBClientBase* co
     return true;
 }
 
-void DBConnectionPool::taskDoWork() {
+void DBConnectionPool::cleanStaleConnections() {
     vector<DBClientBase*> toDelete;
     auto idleThreshold = Date_t::now() - _idleTimeout;
     {
@@ -663,21 +661,21 @@ void DBConnectionPool::taskDoWork() {
 
 ScopedDbConnection::ScopedDbConnection(const std::string& host, double socketTimeout)
     : _host(host),
-      _conn(globalConnPool.get(host, socketTimeout)),
+      _conn(getGlobalConnPool().get(host, socketTimeout)),
       _socketTimeoutSecs(socketTimeout) {
     _setSocketTimeout();
 }
 
 ScopedDbConnection::ScopedDbConnection(const ConnectionString& host, double socketTimeout)
     : _host(host.toString()),
-      _conn(globalConnPool.get(host, socketTimeout)),
+      _conn(getGlobalConnPool().get(host, socketTimeout)),
       _socketTimeoutSecs(socketTimeout) {
     _setSocketTimeout();
 }
 
 ScopedDbConnection::ScopedDbConnection(const MongoURI& uri, double socketTimeout)
     : _host(uri.toString()),
-      _conn(globalConnPool.get(uri, socketTimeout)),
+      _conn(getGlobalConnPool().get(uri, socketTimeout)),
       _socketTimeoutSecs(socketTimeout) {
     _setSocketTimeout();
 }
@@ -687,12 +685,12 @@ void ScopedDbConnection::done() {
         return;
     }
 
-    globalConnPool.release(_host, _conn);
+    getGlobalConnPool().release(_host, _conn);
     _conn = nullptr;
 }
 
 void ScopedDbConnection::kill() {
-    globalConnPool.decrementEgress(_host, _conn);
+    getGlobalConnPool().decrementEgress(_host, _conn);
     delete _conn;
     _conn = nullptr;
 }
@@ -727,7 +725,7 @@ ScopedDbConnection::~ScopedDbConnection() {
 }
 
 void ScopedDbConnection::clearPool() {
-    globalConnPool.clear();
+    getGlobalConnPool().clear();
 }
 
 AtomicWord<int> AScopedConnection::_numConnections;

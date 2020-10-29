@@ -82,7 +82,7 @@ void ReplicaSetMonitor::remove(const string& name) {
 
     // Kill all pooled ReplicaSetConnections for this set. They will not function correctly
     // after we kill the ReplicaSetMonitor.
-    globalConnPool.removeHost(name);
+    getGlobalConnPool().removeHost(name);
 }
 
 ReplicaSetChangeNotifier& ReplicaSetMonitor::getNotifier() {
