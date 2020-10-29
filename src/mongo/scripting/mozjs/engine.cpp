@@ -63,15 +63,20 @@ std::string ScriptEngine::getInterpreterVersionString() {
 }
 
 namespace mozjs {
-
-MozJSScriptEngine::MozJSScriptEngine(bool disableLoadStored) : ScriptEngine(disableLoadStored) {
+namespace {
+MONGO_INITIALIZER(JSInit)(InitializerContext*) {
     uassert(ErrorCodes::JSInterpreterFailure, "Failed to JS_Init()", JS_Init());
     js::DisableExtraThreads();
+
+    return Status::OK();
 }
 
-MozJSScriptEngine::~MozJSScriptEngine() {
-    JS_ShutDown();
-}
+auto jsShutdown = makeGuard([] { JS_ShutDown(); });
+}  // namespace
+
+MozJSScriptEngine::MozJSScriptEngine(bool disableLoadStored) : ScriptEngine(disableLoadStored) {}
+
+MozJSScriptEngine::~MozJSScriptEngine() {}
 
 mongo::Scope* MozJSScriptEngine::createScope() {
     return new MozJSProxyScope(this);
