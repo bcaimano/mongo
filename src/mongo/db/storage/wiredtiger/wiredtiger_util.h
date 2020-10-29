@@ -129,6 +129,14 @@ private:
     WiredTigerUtil();
 
 public:
+    // Used to keep track of the table logging setting modifications during start up.
+    struct TableLoggingInfo {
+        bool isInitializing = true;
+        bool isFirstTable = true;
+        bool changeTableLogging = false;
+        bool hasPreviouslyIncompleteTableChecks = false;
+    };
+
     /**
      * Fetch the type and source fields out of the colgroup metadata.  'tableUri' must be a
      * valid table: uri.
@@ -294,16 +302,6 @@ private:
     static T _castStatisticsValue(uint64_t statisticsValue, T maximumResultType);
 
     static Status _setTableLogging(WT_SESSION* session, const std::string& uri, bool on);
-
-    // Used to keep track of the table logging setting modifications during start up. The mutex must
-    // be held prior to accessing any of the member variables in the struct.
-    static Mutex _tableLoggingInfoMutex;
-    static struct TableLoggingInfo {
-        bool isInitializing = true;
-        bool isFirstTable = true;
-        bool changeTableLogging = false;
-        bool hasPreviouslyIncompleteTableChecks = false;
-    } _tableLoggingInfo;
 };
 
 class WiredTigerConfigParser {

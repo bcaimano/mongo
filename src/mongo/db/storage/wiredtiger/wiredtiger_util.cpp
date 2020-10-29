@@ -41,6 +41,7 @@
 #include "mongo/base/simple_string_data_comparator.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/concurrency/write_conflict_exception.h"
+#include "mongo/db/service_context.h"
 #include "mongo/db/snapshot_window_options_gen.h"
 #include "mongo/db/storage/storage_file_util.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
@@ -118,13 +119,21 @@ void removeTableChecksFile() {
     }
 }
 
+struct TableLoggingInfoState {
+    Mutex mutex = MONGO_MAKE_LATCH("TableLoggingInfo::getTableLoggingInfo().mutex");
+    WiredTigerUtil::TableLoggingInfo info;
+};
+
+auto getTableLoggingInfoForServiceContext =
+    ServiceContext::declareDecoration<TableLoggingInfoState>();
+auto& getTableLoggingInfo() {
+    auto serviceContext = getGlobalServiceContext();
+    invariant(serviceContext);
+    return getTableLoggingInfoForServiceContext(serviceContext);
+}
 }  // namespace
 
 using std::string;
-
-Mutex WiredTigerUtil::_tableLoggingInfoMutex =
-    MONGO_MAKE_LATCH("WiredTigerUtil::_tableLoggingInfoMutex");
-WiredTigerUtil::TableLoggingInfo WiredTigerUtil::_tableLoggingInfo;
 
 Status wtRCToStatus_slow(int retCode, const char* prefix) {
     if (retCode == 0)
@@ -659,9 +668,9 @@ int WiredTigerUtil::verifyTable(OperationContext* opCtx,
 
 void WiredTigerUtil::notifyStartupComplete() {
     {
-        stdx::lock_guard<Latch> lk(_tableLoggingInfoMutex);
-        invariant(_tableLoggingInfo.isInitializing);
-        _tableLoggingInfo.isInitializing = false;
+        stdx::lock_guard<Latch> lk(getTableLoggingInfo().mutex);
+        invariant(getTableLoggingInfo().info.isInitializing);
+        getTableLoggingInfo().info.isInitializing = false;
     }
 
     if (!getStaticStorageParams().readOnly) {
@@ -670,8 +679,8 @@ void WiredTigerUtil::notifyStartupComplete() {
 }
 
 void WiredTigerUtil::resetTableLoggingInfo() {
-    stdx::lock_guard<Latch> lk(_tableLoggingInfoMutex);
-    _tableLoggingInfo = TableLoggingInfo();
+    stdx::lock_guard<Latch> lk(getTableLoggingInfo().mutex);
+    getTableLoggingInfo().info = TableLoggingInfo();
 }
 
 bool WiredTigerUtil::useTableLogging(NamespaceString ns, bool replEnabled) {
@@ -709,10 +718,10 @@ Status WiredTigerUtil::setTableLogging(OperationContext* opCtx, const std::strin
 
 Status WiredTigerUtil::setTableLogging(WT_SESSION* session, const std::string& uri, bool on) {
     invariant(!getStaticStorageParams().readOnly);
-    stdx::lock_guard<Latch> lk(_tableLoggingInfoMutex);
+    stdx::lock_guard<Latch> lk(getTableLoggingInfo().mutex);
 
     // Update the table logging settings regardless if we're no longer starting up the process.
-    if (!_tableLoggingInfo.isInitializing) {
+    if (!getTableLoggingInfo().info.isInitializing) {
         return _setTableLogging(session, uri, on);
     }
 
@@ -723,14 +732,15 @@ Status WiredTigerUtil::setTableLogging(WT_SESSION* session, const std::string& u
     // change the logging settings for all tables during start up.
     // In the event that the server wasn't shutdown cleanly, the logging settings will be modified
     // for all tables as a safety precaution, or if repair mode is running.
-    if (_tableLoggingInfo.isFirstTable && hasPreviouslyIncompleteTableChecks()) {
-        _tableLoggingInfo.hasPreviouslyIncompleteTableChecks = true;
+    if (getTableLoggingInfo().info.isFirstTable && hasPreviouslyIncompleteTableChecks()) {
+        getTableLoggingInfo().info.hasPreviouslyIncompleteTableChecks = true;
     }
 
-    if (getStaticStorageParams().repair || _tableLoggingInfo.hasPreviouslyIncompleteTableChecks) {
-        if (_tableLoggingInfo.isFirstTable) {
-            _tableLoggingInfo.isFirstTable = false;
-            if (!_tableLoggingInfo.hasPreviouslyIncompleteTableChecks) {
+    if (getStaticStorageParams().repair ||
+        getTableLoggingInfo().info.hasPreviouslyIncompleteTableChecks) {
+        if (getTableLoggingInfo().info.isFirstTable) {
+            getTableLoggingInfo().info.isFirstTable = false;
+            if (!getTableLoggingInfo().info.hasPreviouslyIncompleteTableChecks) {
                 createTableChecksFile();
             }
 
@@ -739,14 +749,14 @@ Status WiredTigerUtil::setTableLogging(WT_SESSION* session, const std::string& u
                   "loggingEnabled"_attr = on,
                   "repair"_attr = getStaticStorageParams().repair,
                   "hasPreviouslyIncompleteTableChecks"_attr =
-                      _tableLoggingInfo.hasPreviouslyIncompleteTableChecks);
+                      getTableLoggingInfo().info.hasPreviouslyIncompleteTableChecks);
         }
 
         return _setTableLogging(session, uri, on);
     }
 
-    if (!_tableLoggingInfo.isFirstTable) {
-        if (_tableLoggingInfo.changeTableLogging) {
+    if (!getTableLoggingInfo().info.isFirstTable) {
+        if (getTableLoggingInfo().info.changeTableLogging) {
             return _setTableLogging(session, uri, on);
         }
 
@@ -754,9 +764,9 @@ Status WiredTigerUtil::setTableLogging(WT_SESSION* session, const std::string& u
         return Status::OK();
     }
 
-    invariant(_tableLoggingInfo.isFirstTable);
-    invariant(!_tableLoggingInfo.hasPreviouslyIncompleteTableChecks);
-    _tableLoggingInfo.isFirstTable = false;
+    invariant(getTableLoggingInfo().info.isFirstTable);
+    invariant(!getTableLoggingInfo().info.hasPreviouslyIncompleteTableChecks);
+    getTableLoggingInfo().info.isFirstTable = false;
 
     // Check if the first tables logging settings need to be modified.
     const std::string setting = on ? "log=(enabled=true)" : "log=(enabled=false)";
@@ -771,7 +781,7 @@ Status WiredTigerUtil::setTableLogging(WT_SESSION* session, const std::string& u
 
     // The first table is running with the incorrect logging settings. All tables will need to have
     // their logging settings modified.
-    _tableLoggingInfo.changeTableLogging = true;
+    getTableLoggingInfo().info.changeTableLogging = true;
     createTableChecksFile();
 
     LOGV2(4366406,
