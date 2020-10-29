@@ -146,13 +146,13 @@ void startWatchdog(ServiceContext* service) {
     std::vector<std::unique_ptr<WatchdogCheck>> checks;
 
     auto dataCheck =
-        std::make_unique<DirectoryCheck>(boost::filesystem::path(storageGlobalParams.dbpath));
+        std::make_unique<DirectoryCheck>(boost::filesystem::path(getStaticStorageParams().dbpath));
 
     checks.push_back(std::move(dataCheck));
 
     // Add a check for the journal if it is not disabled
-    if (storageGlobalParams.dur) {
-        auto journalDirectory = boost::filesystem::path(storageGlobalParams.dbpath);
+    if (getStaticStorageParams().dur) {
+        auto journalDirectory = boost::filesystem::path(getStaticStorageParams().dbpath);
         journalDirectory /= "journal";
 
         if (boost::filesystem::exists(journalDirectory)) {

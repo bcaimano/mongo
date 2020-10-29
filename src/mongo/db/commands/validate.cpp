@@ -127,7 +127,7 @@ public:
 
         // Background validation is not supported on the ephemeralForTest storage engine due to its
         // lack of support for timestamps. Switch the mode to foreground validation instead.
-        if (background && storageGlobalParams.engine == "ephemeralForTest") {
+        if (background && getStaticStorageParams().engine == "ephemeralForTest") {
             LOGV2(4775400,
                   "ephemeralForTest does not support background validation, switching to "
                   "foreground validation");

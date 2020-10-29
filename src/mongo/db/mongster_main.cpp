@@ -35,6 +35,7 @@
 
 #include "mongo/db/main_initializer.h"
 #include "mongo/db/mongod_main.h"
+#include "mongo/db/storage/storage_options.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/util/exit.h"
 
@@ -53,21 +54,39 @@ int mongster_main(int argc, char* argv[]) {
     mainInit.finish();
 
     auto thread1 = stdx::thread([&] {
-        // Modify the parameters for this MongoDService.
-        auto staticParams = getStaticServerParams();
-        staticParams.port = 20001;
+        {
+            // Modify the parameters for this MongoDService.
+            auto staticParams = getStaticServerParams();
+            staticParams.port = 20001;
 
-        setStaticServerParams(std::move(staticParams));
+            setStaticServerParams(std::move(staticParams));
+        }
+
+        {
+            auto staticParams = getStaticStorageParams();
+            staticParams.dbpath = "/data/db-1";
+
+            setStaticStorageParams(mongod1.serviceContext().get(), std::move(staticParams));
+        }
 
         mongod1.start();
     });
 
     auto thread2 = stdx::thread([&] {
-        // Modify the parameters for this MongoDService.
-        auto staticParams = getStaticServerParams();
-        staticParams.port = 20002;
+        {
+            // Modify the parameters for this MongoDService.
+            auto staticParams = getStaticServerParams();
+            staticParams.port = 20002;
 
-        setStaticServerParams(std::move(staticParams));
+            setStaticServerParams(std::move(staticParams));
+        }
+
+        {
+            auto staticParams = getStaticStorageParams();
+            staticParams.dbpath = "/data/db-2";
+
+            setStaticStorageParams(mongod2.serviceContext().get(), std::move(staticParams));
+        }
 
         mongod2.start();
     });

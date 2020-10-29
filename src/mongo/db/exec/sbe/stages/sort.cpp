@@ -120,7 +120,7 @@ value::SlotAccessor* SortStage::getAccessor(CompileCtx& ctx, value::SlotId slot)
 
 void SortStage::makeSorter() {
     SortOptions opts;
-    opts.tempDir = storageGlobalParams.dbpath + "/_tmp";
+    opts.tempDir = getStaticStorageParams().dbpath + "/_tmp";
     opts.maxMemoryUsageBytes = _memoryLimit;
     opts.extSortAllowed = _allowDiskUse;
     opts.limit = _limit != std::numeric_limits<size_t>::max() ? _limit : 0;

@@ -441,9 +441,9 @@ std::string DurableCatalogImpl::_newInternalIdent(StringData identStem) {
 
 std::string DurableCatalogImpl::getFilesystemPathForDb(const std::string& dbName) const {
     if (_directoryPerDb) {
-        return storageGlobalParams.dbpath + '/' + escapeDbName(dbName);
+        return getStaticStorageParams().dbpath + '/' + escapeDbName(dbName);
     } else {
-        return storageGlobalParams.dbpath;
+        return getStaticStorageParams().dbpath;
     }
 }
 

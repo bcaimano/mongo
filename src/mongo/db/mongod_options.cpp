@@ -68,12 +68,12 @@ using std::endl;
 std::string storageDBPathDescription() {
     StringBuilder sb;
 
-    sb << "Directory for datafiles - defaults to " << storageGlobalParams.kDefaultDbPath;
+    sb << "Directory for datafiles - defaults to " << getStaticStorageParams().kDefaultDbPath;
 
 #ifdef _WIN32
     boost::filesystem::path currentPath = boost::filesystem::current_path();
 
-    sb << " which is " << currentPath.root_name().string() << storageGlobalParams.kDefaultDbPath
+    sb << " which is " << currentPath.root_name().string() << getStaticStorageParams().kDefaultDbPath
        << " based on the current working drive";
 #endif
 
@@ -363,26 +363,26 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("storage.engine")) {
-        storageGlobalParams.engine = params["storage.engine"].as<std::string>();
-        storageGlobalParams.engineSetByUser = true;
+        getStaticStorageParams().engine = params["storage.engine"].as<std::string>();
+        getStaticStorageParams().engineSetByUser = true;
     }
 
     if (params.count("storage.dbPath")) {
-        storageGlobalParams.dbpath = params["storage.dbPath"].as<std::string>();
-        if (params.count("processManagement.fork") && storageGlobalParams.dbpath[0] != '/') {
+        getStaticStorageParams().dbpath = params["storage.dbPath"].as<std::string>();
+        if (params.count("processManagement.fork") && getStaticStorageParams().dbpath[0] != '/') {
             // we need to change dbpath if we fork since we change
             // cwd to "/"
             // fork only exists on *nix
             // so '/' is safe
-            storageGlobalParams.dbpath = getStaticServerParams().cwd + "/" + storageGlobalParams.dbpath;
+            getStaticStorageParams().dbpath = getStaticServerParams().cwd + "/" + getStaticStorageParams().dbpath;
         }
     }
 #ifdef _WIN32
-    if (storageGlobalParams.dbpath.size() > 1 &&
-        storageGlobalParams.dbpath[storageGlobalParams.dbpath.size() - 1] == '/') {
+    if (getStaticStorageParams().dbpath.size() > 1 &&
+        getStaticStorageParams().dbpath[getStaticStorageParams().dbpath.size() - 1] == '/') {
         // size() check is for the unlikely possibility of --dbpath "/"
-        storageGlobalParams.dbpath =
-            storageGlobalParams.dbpath.erase(storageGlobalParams.dbpath.size() - 1);
+        getStaticStorageParams().dbpath =
+            getStaticStorageParams().dbpath.erase(getStaticStorageParams().dbpath.size() - 1);
     }
 #endif
 
@@ -403,12 +403,12 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("storage.syncPeriodSecs")) {
-        storageGlobalParams.syncdelay = params["storage.syncPeriodSecs"].as<double>();
-        storageGlobalParams.checkpointDelaySecs =
+        storageDynamicParams.syncdelay = params["storage.syncPeriodSecs"].as<double>();
+        getStaticStorageParams().checkpointDelaySecs =
             static_cast<size_t>(params["storage.syncPeriodSecs"].as<double>());
 
-        if (storageGlobalParams.syncdelay < 0 ||
-            storageGlobalParams.syncdelay > StorageGlobalParams::kMaxSyncdelaySecs) {
+        if (storageDynamicParams.syncdelay < 0 ||
+            storageDynamicParams.syncdelay > StorageGlobalParams::kMaxSyncdelaySecs) {
             return Status(ErrorCodes::BadValue,
                           str::stream() << "syncdelay out of allowed range (0-"
                                         << StorageGlobalParams::kMaxSyncdelaySecs << "s)");
@@ -416,16 +416,16 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("storage.directoryPerDB")) {
-        storageGlobalParams.directoryperdb = params["storage.directoryPerDB"].as<bool>();
+        getStaticStorageParams().directoryperdb = params["storage.directoryPerDB"].as<bool>();
     }
 
     if (params.count("storage.queryableBackupMode") &&
         params["storage.queryableBackupMode"].as<bool>()) {
-        storageGlobalParams.readOnly = true;
+        getStaticStorageParams().readOnly = true;
     }
 
     if (params.count("storage.groupCollections")) {
-        storageGlobalParams.groupCollections = params["storage.groupCollections"].as<bool>();
+        getStaticStorageParams().groupCollections = params["storage.groupCollections"].as<bool>();
     }
 
     if (params.count("cpu")) {
@@ -433,7 +433,7 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("storage.journal.enabled")) {
-        storageGlobalParams.dur = params["storage.journal.enabled"].as<bool>();
+        getStaticStorageParams().dur = params["storage.journal.enabled"].as<bool>();
     }
 
     if (params.count("storage.journal.commitIntervalMs")) {
@@ -441,7 +441,7 @@ Status storeMongodOptions(const moe::Environment& params) {
         // to off on win32.  ie no point making life a little more complex by giving an error on
         // a dev environment.
         auto journalCommitIntervalMs = params["storage.journal.commitIntervalMs"].as<int>();
-        storageGlobalParams.journalCommitIntervalMs.store(journalCommitIntervalMs);
+        storageDynamicParams.journalCommitIntervalMs.store(journalCommitIntervalMs);
         if (journalCommitIntervalMs < 1 ||
             journalCommitIntervalMs > StorageGlobalParams::kMaxJournalCommitIntervalMs) {
             return Status(ErrorCodes::BadValue,
@@ -468,14 +468,14 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("repair") && params["repair"].as<bool>() == true) {
-        storageGlobalParams.upgrade = 1;  // --repair implies --upgrade
-        storageGlobalParams.repair = 1;
+        getStaticStorageParams().upgrade = 1;  // --repair implies --upgrade
+        getStaticStorageParams().repair = 1;
     }
     if (params.count("upgrade") && params["upgrade"].as<bool>() == true) {
-        storageGlobalParams.upgrade = 1;
+        getStaticStorageParams().upgrade = 1;
     }
     if (params.count("notablescan")) {
-        storageGlobalParams.noTableScan.store(params["notablescan"].as<bool>());
+        storageDynamicParams.noTableScan.store(params["notablescan"].as<bool>());
     }
 
     repl::ReplSettings replSettings;
@@ -501,16 +501,16 @@ Status storeMongodOptions(const moe::Environment& params) {
         // Note: we only use this to defer oplog collection truncation via OplogStones in WT. Non-WT
         // storage engines will continue to perform regular capped collection handling for the oplog
         // collection, regardless of this parameter setting.
-        storageGlobalParams.allowOplogTruncation = false;
+        getStaticStorageParams().allowOplogTruncation = false;
 
         // Standalone mode does not currently support lock-free reads, so we disable it. If the user
         // tries to explicitly enable it by specifying --disableLockFreeReads=false, log a warning
         // so that the user knows the feature will not run in standalone mode.
-        if (!storageGlobalParams.disableLockFreeReads) {
+        if (!getStaticStorageParams().disableLockFreeReads) {
             LOGV2_WARNING(
                 4788400,
                 "Lock-free reads is not supported in standalone mode: disabling lock-free reads.");
-            storageGlobalParams.disableLockFreeReads = true;
+            getStaticStorageParams().disableLockFreeReads = true;
         }
     }
 
@@ -523,17 +523,17 @@ Status storeMongodOptions(const moe::Environment& params) {
             // them. If the user tries to explicitly enable lock-free reads by specifying
             // disableLockFreeReads=false, log a warning so that the user knows these are not
             // compatible settings.
-            if (!storageGlobalParams.disableLockFreeReads) {
+            if (!getStaticStorageParams().disableLockFreeReads) {
                 LOGV2_WARNING(4788401,
                               "Lock-free reads is not compatible with "
                               "enableMajorityReadConcern=false: disabling lock-free reads.");
-                storageGlobalParams.disableLockFreeReads = true;
+                getStaticStorageParams().disableLockFreeReads = true;
             }
         }
     }
 
     // TODO (SERVER-49464): remove this development only extra logging.
-    if (storageGlobalParams.disableLockFreeReads) {
+    if (getStaticStorageParams().disableLockFreeReads) {
         LOGV2(4788402, "Lock-free reads is disabled.");
     } else {
         LOGV2(4788403, "Lock-free reads is enabled.");
@@ -559,13 +559,13 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("storage.oplogMinRetentionHours")) {
-        storageGlobalParams.oplogMinRetentionHours.store(
+        storageDynamicParams.oplogMinRetentionHours.store(
             params["storage.oplogMinRetentionHours"].as<double>());
-        if (storageGlobalParams.oplogMinRetentionHours.load() < 0) {
+        if (storageDynamicParams.oplogMinRetentionHours.load() < 0) {
             return Status(ErrorCodes::BadValue,
                           "bad --oplogMinRetentionHours, argument must be greater or equal to 0");
         }
-        invariant(storageGlobalParams.oplogMinRetentionHours.load() >= 0);
+        invariant(storageDynamicParams.oplogMinRetentionHours.load() >= 0);
     }
 
     if (params.count("cacheSize")) {
@@ -610,11 +610,11 @@ Status storeMongodOptions(const moe::Environment& params) {
             // If we haven't explicitly specified a journal option, default journaling to true for
             // the config server role
             if (!params.count("storage.journal.enabled")) {
-                storageGlobalParams.dur = true;
+                getStaticStorageParams().dur = true;
             }
 
             if (!params.count("storage.dbPath")) {
-                storageGlobalParams.dbpath = storageGlobalParams.kDefaultConfigDbPath;
+                getStaticStorageParams().dbpath = getStaticStorageParams().kDefaultConfigDbPath;
             }
         } else if (clusterRoleParam == "shardsvr") {
             getStaticServerParams().clusterRole = ClusterRole::ShardServer;
@@ -648,10 +648,10 @@ Status storeMongodOptions(const moe::Environment& params) {
 #ifdef _WIN32
     // If dbPath is a default value, prepend with drive name so log entries are explicit
     // We must resolve the dbpath before it stored in repairPath in the default case.
-    if (storageGlobalParams.dbpath == storageGlobalParams.kDefaultDbPath ||
-        storageGlobalParams.dbpath == storageGlobalParams.kDefaultConfigDbPath) {
+    if (getStaticStorageParams().dbpath == getStaticStorageParams().kDefaultDbPath ||
+        getStaticStorageParams().dbpath == getStaticStorageParams().kDefaultConfigDbPath) {
         boost::filesystem::path currentPath = boost::filesystem::current_path();
-        storageGlobalParams.dbpath = currentPath.root_name().string() + storageGlobalParams.dbpath;
+        getStaticStorageParams().dbpath = currentPath.root_name().string() + getStaticStorageParams().dbpath;
     }
 #endif
 

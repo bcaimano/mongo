@@ -423,7 +423,7 @@ Status validate(OperationContext* opCtx,
                 ValidateResults* results,
                 BSONObjBuilder* output,
                 bool turnOnExtraLoggingForTest) {
-    invariant(!opCtx->lockState()->isLocked() || storageGlobalParams.repair);
+    invariant(!opCtx->lockState()->isLocked() || getStaticStorageParams().repair);
 
     // This is deliberately outside of the try-catch block, so that any errors thrown in the
     // constructor fail the cmd, as opposed to returning OK with valid:false.

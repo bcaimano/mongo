@@ -346,7 +346,7 @@ void startMongoD(ServiceContext* serviceContext) {
               "MongoDB starting",
               "pid"_attr = pid.toNative(),
               "port"_attr = getStaticServerParams().port,
-              "dbPath"_attr = boost::filesystem::path(storageGlobalParams.dbpath).generic_string(),
+              "dbPath"_attr = boost::filesystem::path(getStaticStorageParams().dbpath).generic_string(),
               "architecture"_attr = (is32bit ? "32-bit" : "64-bit"),
               "host"_attr = getHostNameCached());
     }
@@ -375,7 +375,7 @@ void startMongoD(ServiceContext* serviceContext) {
 #endif
     */
 
-    if (!storageGlobalParams.repair) {
+    if (!getStaticStorageParams().repair) {
         auto tl =
             transport::TransportLayerManager::createWithConfig(&getStaticServerParams(), serviceContext);
         uassertStatusOK(tl->setup());
@@ -408,7 +408,7 @@ void startMongoD(ServiceContext* serviceContext) {
         invariant(storageElement.isABSONObj());
         for (auto&& e : storageElement.Obj()) {
             // Ignore if field name under "storage" matches current storage engine.
-            if (storageGlobalParams.engine == e.fieldName()) {
+            if (getStaticStorageParams().engine == e.fieldName()) {
                 continue;
             }
 
@@ -419,7 +419,7 @@ void startMongoD(ServiceContext* serviceContext) {
                               "when current storage engine is {storageEngine}",
                               "Detected configuration for non-active storage engine",
                               "fieldName"_attr = e.fieldName(),
-                              "storageEngine"_attr = storageGlobalParams.engine);
+                              "storageEngine"_attr = getStaticStorageParams().engine);
             }
         }
     }
@@ -431,12 +431,12 @@ void startMongoD(ServiceContext* serviceContext) {
                     "Running {storageEngine} with profiling is not supported. Make sure you "
                     "are not using --profile",
                     "Running the selected storage engine with profiling is not supported",
-                    "storageEngine"_attr = storageGlobalParams.engine);
+                    "storageEngine"_attr = getStaticStorageParams().engine);
         exitCleanly(EXIT_BADOPTIONS);
     }
 
     // Disallow running WiredTiger with --nojournal in a replica set
-    if (storageGlobalParams.engine == "wiredTiger" && !storageGlobalParams.dur &&
+    if (getStaticStorageParams().engine == "wiredTiger" && !getStaticStorageParams().dur &&
         replSettings.usingReplSets()) {
         LOGV2_ERROR(
             20535,
@@ -446,17 +446,17 @@ void startMongoD(ServiceContext* serviceContext) {
         exitCleanly(EXIT_BADOPTIONS);
     }
 
-    logMongodStartupWarnings(storageGlobalParams, getStaticServerParams(), serviceContext);
+    logMongodStartupWarnings(getStaticStorageParams(), getStaticServerParams(), serviceContext);
 
     {
         std::stringstream ss;
         ss << endl;
         ss << "*********************************************************************" << endl;
-        ss << " ERROR: dbpath (" << storageGlobalParams.dbpath << ") does not exist." << endl;
+        ss << " ERROR: dbpath (" << getStaticStorageParams().dbpath << ") does not exist." << endl;
         ss << " Create this directory or give existing directory in --dbpath." << endl;
         ss << " See http://dochub.mongodb.org/core/startingandstoppingmongo" << endl;
         ss << "*********************************************************************" << endl;
-        uassert(10296, ss.str().c_str(), boost::filesystem::exists(storageGlobalParams.dbpath));
+        uassert(10296, ss.str().c_str(), boost::filesystem::exists(getStaticStorageParams().dbpath));
     }
 
     initializeSNMP();
@@ -492,7 +492,7 @@ void startMongoD(ServiceContext* serviceContext) {
     // the upgrade flag to true.
     serviceContext->getStorageEngine()->notifyStartupComplete();
 
-    if (storageGlobalParams.upgrade) {
+    if (getStaticStorageParams().upgrade) {
         LOGV2(20537, "Finished checking dbs");
         exitCleanly(EXIT_CLEAN);
     }
@@ -601,7 +601,7 @@ void startMongoD(ServiceContext* serviceContext) {
     BackupCursorHooks::initialize(serviceContext, storageEngine);
 
     // Perform replication recovery for queryable backup mode if needed.
-    if (storageGlobalParams.readOnly) {
+    if (getStaticStorageParams().readOnly) {
         uassert(ErrorCodes::BadValue,
                 str::stream() << "Cannot specify both queryableBackupMode and "
                               << "recoverFromOplogAsStandalone at the same time",
@@ -620,7 +620,7 @@ void startMongoD(ServiceContext* serviceContext) {
         replCoord->startup(startupOpCtx.get(), lastStorageEngineShutdownState);
     }
 
-    if (!storageGlobalParams.readOnly) {
+    if (!getStaticStorageParams().readOnly) {
 
         if (storageEngine->supportsCappedCollections()) {
             logStartup(startupOpCtx.get());
@@ -733,7 +733,7 @@ void startMongoD(ServiceContext* serviceContext) {
 
     uassertStatusOK(serviceContext->getServiceExecutor()->start());
     uassertStatusOK(serviceContext->getServiceEntryPoint()->start());
-    if (!storageGlobalParams.repair) {
+    if (!getStaticStorageParams().repair) {
         uassertStatusOK(serviceContext->getTransportLayer()->start());
     }
 }
@@ -763,7 +763,7 @@ void startupConfigActions(const std::vector<std::string>& args) {
         const auto command = moe::startupOptionsParsed["command"].as<std::vector<std::string>>();
 
         if (command[0].compare("dbpath") == 0) {
-            std::cout << storageGlobalParams.dbpath << endl;
+            std::cout << getStaticStorageParams().dbpath << endl;
             quickExit(EXIT_SUCCESS);
         }
 
@@ -794,7 +794,7 @@ void startupConfigActions(const std::vector<std::string>& args) {
         bool failed = false;
 
         std::string name =
-            (boost::filesystem::path(storageGlobalParams.dbpath) / kLockFileBasename.toString())
+            (boost::filesystem::path(getStaticStorageParams().dbpath) / kLockFileBasename.toString())
                 .string();
         if (!boost::filesystem::exists(name) || boost::filesystem::file_size(name) == 0)
             failed = true;
@@ -817,7 +817,7 @@ void startupConfigActions(const std::vector<std::string>& args) {
 
         if (failed) {
             std::cerr << "There doesn't seem to be a server running with dbpath: "
-                      << storageGlobalParams.dbpath << std::endl;
+                      << getStaticStorageParams().dbpath << std::endl;
             quickExit(EXIT_FAILURE);
         }
 

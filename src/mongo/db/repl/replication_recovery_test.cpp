@@ -222,7 +222,7 @@ private:
         getStaticServerParams().enableMajorityReadConcern = _stashedEnableMajorityReadConcern;
 
         ServiceContextMongoDTest::tearDown();
-        storageGlobalParams.readOnly = false;
+        getStaticStorageParams().readOnly = false;
         gTakeUnstableCheckpointOnShutdown = false;
     }
 

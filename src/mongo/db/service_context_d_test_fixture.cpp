@@ -64,19 +64,19 @@ ServiceContextMongoDTest::ServiceContextMongoDTest(std::string engine)
 ServiceContextMongoDTest::ServiceContextMongoDTest(std::string engine, RepairAction repair)
     : _tempDir("service_context_d_test_fixture") {
 
-    _stashedStorageParams.engine = std::exchange(storageGlobalParams.engine, std::move(engine));
+    _stashedStorageParams.engine = std::exchange(getStaticStorageParams().engine, std::move(engine));
     _stashedStorageParams.engineSetByUser =
-        std::exchange(storageGlobalParams.engineSetByUser, true);
+        std::exchange(getStaticStorageParams().engineSetByUser, true);
     _stashedStorageParams.repair =
-        std::exchange(storageGlobalParams.repair, (repair == RepairAction::kRepair));
+        std::exchange(getStaticStorageParams().repair, (repair == RepairAction::kRepair));
     _stashedServerParams.enableMajorityReadConcern = getStaticServerParams().enableMajorityReadConcern;
 
-    if (storageGlobalParams.engine == "ephemeralForTest" ||
-        storageGlobalParams.engine == "devnull") {
+    if (getStaticStorageParams().engine == "ephemeralForTest" ||
+        getStaticStorageParams().engine == "devnull") {
         // The ephemeralForTest and devnull storage engines do not support majority read concern.
         LOGV2(4939201,
               "Disabling majority read concern as it isn't supported by the storage engine",
-              "storageEngine"_attr = storageGlobalParams.engine);
+              "storageEngine"_attr = getStaticStorageParams().engine);
         getStaticServerParams().enableMajorityReadConcern = false;
     }
 
@@ -87,7 +87,7 @@ ServiceContextMongoDTest::ServiceContextMongoDTest(std::string engine, RepairAct
     auto runner = makePeriodicRunner(getServiceContext());
     getServiceContext()->setPeriodicRunner(std::move(runner));
 
-    storageGlobalParams.dbpath = _tempDir.path();
+    getStaticStorageParams().dbpath = _tempDir.path();
 
     // Since unit tests start in their own directories, skip lock file and metadata file for faster
     // startup.
@@ -117,9 +117,9 @@ ServiceContextMongoDTest::~ServiceContextMongoDTest() {
 
     shutdownGlobalStorageEngineCleanly(getServiceContext());
 
-    std::swap(storageGlobalParams.engine, _stashedStorageParams.engine);
-    std::swap(storageGlobalParams.engineSetByUser, _stashedStorageParams.engineSetByUser);
-    std::swap(storageGlobalParams.repair, _stashedStorageParams.repair);
+    std::swap(getStaticStorageParams().engine, _stashedStorageParams.engine);
+    std::swap(getStaticStorageParams().engineSetByUser, _stashedStorageParams.engineSetByUser);
+    std::swap(getStaticStorageParams().repair, _stashedStorageParams.repair);
     std::swap(getStaticServerParams().enableMajorityReadConcern,
               _stashedServerParams.enableMajorityReadConcern);
 }

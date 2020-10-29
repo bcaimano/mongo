@@ -46,7 +46,7 @@ namespace mongo {
 
 MONGO_FAIL_POINT_DEFINE(WTPauseOplogVisibilityUpdateLoop);
 
-// Arbitrary. Using the storageGlobalParams.journalCommitIntervalMs default, which used to
+// Arbitrary. Using the storageDynamicParams.journalCommitIntervalMs default, which used to
 // dynamically control the visibility thread's delay back when the visibility thread also flushed
 // the journal.
 const int kDelayMillis = 100;

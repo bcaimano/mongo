@@ -186,7 +186,7 @@ void DatabaseImpl::init(OperationContext* const opCtx) const {
     }
 
     // When in repair mode, record stores are not loaded. Thus the ViewsCatalog cannot be reloaded.
-    if (!storageGlobalParams.repair) {
+    if (!getStaticStorageParams().repair) {
         // At construction time of the viewCatalog, the CollectionCatalog map wasn't initialized
         // yet, so no system.views collection would be found. Now that we're sufficiently
         // initialized, reload the viewCatalog to populate its in-memory state. If there are

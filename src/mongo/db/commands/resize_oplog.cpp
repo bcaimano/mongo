@@ -103,7 +103,7 @@ public:
             }
 
             if (auto minRetentionHoursOpt = params.getMinRetentionHours()) {
-                storageGlobalParams.oplogMinRetentionHours.store(*minRetentionHoursOpt);
+                storageDynamicParams.oplogMinRetentionHours.store(*minRetentionHoursOpt);
             }
             wunit.commit();
 
@@ -112,7 +112,7 @@ public:
                   "size"_attr = DurableCatalog::get(opCtx)
                                     ->getCollectionOptions(opCtx, coll->getCatalogId())
                                     .cappedSize,
-                  "minRetentionHours"_attr = storageGlobalParams.oplogMinRetentionHours.load());
+                  "minRetentionHours"_attr = storageDynamicParams.oplogMinRetentionHours.load());
             return true;
         });
     }

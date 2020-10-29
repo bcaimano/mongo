@@ -58,7 +58,7 @@ public:
         auto backupCursorHooks = BackupCursorHooks::get(svcCtx);
 
         BSONObjBuilder bob;
-        bob.append("name", storageGlobalParams.engine);
+        bob.append("name", getStaticStorageParams().engine);
         bob.append("supportsCommittedReads", engine->supportsReadConcernMajority());
         bob.append("oldestRequiredTimestampForCrashRecovery",
                    oldestRequiredTimestampForCrashRecovery
@@ -68,7 +68,7 @@ public:
         bob.append("dropPendingIdents",
                    static_cast<long long>(engine->getDropPendingIdents().size()));
         bob.append("supportsSnapshotReadConcern", engine->supportsReadConcernSnapshot());
-        bob.append("readOnly", storageGlobalParams.readOnly);
+        bob.append("readOnly", getStaticStorageParams().readOnly);
         bob.append("persistent", !engine->isEphemeral());
         bob.append("backupCursorOpen", backupCursorHooks->isBackupCursorOpen());
         if (getFeatureCompatibility().isVersionInitialized()) {

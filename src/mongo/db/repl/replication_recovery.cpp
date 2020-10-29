@@ -342,7 +342,7 @@ void ReplicationRecoveryImpl::recoverFromOplogAsStandalone(OperationContext* opC
     LOGV2_WARNING(21558,
                   "Setting mongod to readOnly mode as a result of specifying "
                   "'recoverFromOplogAsStandalone'");
-    storageGlobalParams.readOnly = true;
+    getStaticStorageParams().readOnly = true;
 }
 
 void ReplicationRecoveryImpl::recoverFromOplogUpTo(OperationContext* opCtx, Timestamp endPoint) {

@@ -58,7 +58,7 @@ RemoveSaver::RemoveSaver(const string& a,
     : _storage(std::move(storage)) {
     static int NUM = 0;
 
-    _root = storageGlobalParams.dbpath;
+    _root = getStaticStorageParams().dbpath;
     if (a.size())
         _root /= a;
     if (b.size())

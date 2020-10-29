@@ -123,9 +123,9 @@ Status storeTestFrameworkOptions(const moe::Environment& params,
         LOGV2(22491, "DEBUG build");
 
     string dbpathString = p.string();
-    storageGlobalParams.dbpath = dbpathString.c_str();
+    getStaticStorageParams().dbpath = dbpathString.c_str();
 
-    storageGlobalParams.engine = params["storage.engine"].as<string>();
+    getStaticStorageParams().engine = params["storage.engine"].as<string>();
     gFlowControlEnabled.store(params["enableFlowControl"].as<bool>());
 
     if (gFlowControlEnabled.load()) {

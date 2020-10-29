@@ -70,13 +70,13 @@ LastStorageEngineShutdownState initializeStorageEngine(OperationContext* opCtx,
         createLockFile(service);
     }
 
-    const std::string dbpath = storageGlobalParams.dbpath;
+    const std::string dbpath = getStaticStorageParams().dbpath;
 
-    if (!storageGlobalParams.readOnly) {
+    if (!getStaticStorageParams().readOnly) {
         StorageRepairObserver::set(service, std::make_unique<StorageRepairObserver>(dbpath));
         auto repairObserver = StorageRepairObserver::get(service);
 
-        if (storageGlobalParams.repair) {
+        if (getStaticStorageParams().repair) {
             repairObserver->onRepairStarted();
         } else if (repairObserver->isIncomplete()) {
             LOGV2_FATAL_NOTRACE(
@@ -88,11 +88,11 @@ LastStorageEngineShutdownState initializeStorageEngine(OperationContext* opCtx,
     }
 
     if (auto existingStorageEngine = StorageEngineMetadata::getStorageEngineForPath(dbpath)) {
-        if (storageGlobalParams.engineSetByUser) {
+        if (getStaticStorageParams().engineSetByUser) {
             // Verify that the name of the user-supplied storage engine matches the contents of
             // the metadata file.
             const StorageEngine::Factory* factory =
-                getFactoryForStorageEngine(service, storageGlobalParams.engine);
+                getFactoryForStorageEngine(service, getStaticStorageParams().engine);
             if (factory) {
                 uassert(28662,
                         str::stream()
@@ -109,23 +109,23 @@ LastStorageEngineShutdownState initializeStorageEngine(OperationContext* opCtx,
                   "Storage engine to use detected by data files",
                   "dbpath"_attr = boost::filesystem::path(dbpath).generic_string(),
                   "storageEngine"_attr = *existingStorageEngine);
-            storageGlobalParams.engine = *existingStorageEngine;
+            getStaticStorageParams().engine = *existingStorageEngine;
         }
     }
 
     const StorageEngine::Factory* factory =
-        getFactoryForStorageEngine(service, storageGlobalParams.engine);
+        getFactoryForStorageEngine(service, getStaticStorageParams().engine);
 
     uassert(18656,
             str::stream() << "Cannot start server with an unknown storage engine: "
-                          << storageGlobalParams.engine,
+                          << getStaticStorageParams().engine,
             factory);
 
-    if (storageGlobalParams.readOnly) {
+    if (getStaticStorageParams().readOnly) {
         uassert(34368,
                 str::stream()
                     << "Server was started in read-only mode, but the configured storage engine, "
-                    << storageGlobalParams.engine << ", does not support read-only operation",
+                    << getStaticStorageParams().engine << ", does not support read-only operation",
                 factory->supportsReadOnly());
     }
 
@@ -134,7 +134,7 @@ LastStorageEngineShutdownState initializeStorageEngine(OperationContext* opCtx,
         metadata = StorageEngineMetadata::forPath(dbpath);
     }
 
-    if (storageGlobalParams.readOnly) {
+    if (getStaticStorageParams().readOnly) {
         uassert(34415,
                 "Server was started in read-only mode, but the storage metadata file was not"
                 " found.",
@@ -143,7 +143,7 @@ LastStorageEngineShutdownState initializeStorageEngine(OperationContext* opCtx,
 
     // Validate options in metadata against current startup options.
     if (metadata.get()) {
-        uassertStatusOK(factory->validateMetadata(*metadata, storageGlobalParams));
+        uassertStatusOK(factory->validateMetadata(*metadata, getStaticStorageParams()));
     }
 
     auto guard = makeGuard([&] {
@@ -155,7 +155,7 @@ LastStorageEngineShutdownState initializeStorageEngine(OperationContext* opCtx,
 
     auto& lockFile = StorageEngineLockFile::get(service);
     service->setStorageEngine(std::unique_ptr<StorageEngine>(
-        factory->create(opCtx, storageGlobalParams, lockFile ? &*lockFile : nullptr)));
+        factory->create(opCtx, getStaticStorageParams(), lockFile ? &*lockFile : nullptr)));
     service->getStorageEngine()->finishInit();
 
     if (lockFile) {
@@ -164,10 +164,10 @@ LastStorageEngineShutdownState initializeStorageEngine(OperationContext* opCtx,
 
     // Write a new metadata file if it is not present.
     if (!metadata.get() && (initFlags & StorageEngineInitFlags::kSkipMetadataFile) == 0) {
-        invariant(!storageGlobalParams.readOnly);
-        metadata.reset(new StorageEngineMetadata(storageGlobalParams.dbpath));
+        invariant(!getStaticStorageParams().readOnly);
+        metadata.reset(new StorageEngineMetadata(getStaticStorageParams().dbpath));
         metadata->setStorageEngine(factory->getCanonicalName().toString());
-        metadata->setStorageEngineOptions(factory->createMetadataOptions(storageGlobalParams));
+        metadata->setStorageEngineOptions(factory->createMetadataOptions(getStaticStorageParams()));
         uassertStatusOK(metadata->write());
     }
 
@@ -175,7 +175,7 @@ LastStorageEngineShutdownState initializeStorageEngine(OperationContext* opCtx,
 
     if (getStaticServerParams().enableMajorityReadConcern) {
         uassert(4939200,
-                str::stream() << "Cannot initialize " << storageGlobalParams.engine
+                str::stream() << "Cannot initialize " << getStaticStorageParams().engine
                               << " with 'enableMajorityReadConcern=true' "
                                  "as it does not support read concern majority",
                 service->getStorageEngine()->supportsReadConcernMajority());
@@ -205,23 +205,23 @@ namespace {
 void createLockFile(ServiceContext* service) {
     auto& lockFile = StorageEngineLockFile::get(service);
     try {
-        lockFile.emplace(storageGlobalParams.dbpath);
+        lockFile.emplace(getStaticStorageParams().dbpath);
     } catch (const std::exception& ex) {
         uassert(28596,
                 str::stream() << "Unable to determine status of lock file in the data directory "
-                              << storageGlobalParams.dbpath << ": " << ex.what(),
+                              << getStaticStorageParams().dbpath << ": " << ex.what(),
                 false);
     }
     const bool wasUnclean = lockFile->createdByUncleanShutdown();
     const auto openStatus = lockFile->open();
-    if (storageGlobalParams.readOnly && openStatus == ErrorCodes::IllegalOperation) {
+    if (getStaticStorageParams().readOnly && openStatus == ErrorCodes::IllegalOperation) {
         lockFile = boost::none;
     } else {
         uassertStatusOK(openStatus);
     }
 
     if (wasUnclean) {
-        if (storageGlobalParams.readOnly) {
+        if (getStaticStorageParams().readOnly) {
             LOGV2_FATAL_NOTRACE(34416,
                                 "Attempted to open dbpath in readOnly mode, but the server was "
                                 "previously not shut down cleanly.");

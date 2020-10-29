@@ -423,7 +423,7 @@ public:
             result.append("maxWireVersion", wireSpec->incomingExternalClient.maxWireVersion);
         }
 
-        result.append("readOnly", storageGlobalParams.readOnly);
+        result.append("readOnly", getStaticStorageParams().readOnly);
 
         const auto& params = ServerParameterSet::getGlobal()->getMap();
         if (auto iter = params.find("automationServiceDescriptor");

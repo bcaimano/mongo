@@ -68,7 +68,7 @@ public:
     void getOplogStonesStats(BSONObjBuilder& builder) const {
         builder.append("totalTimeProcessingMicros", _totalTimeProcessing.load());
         builder.append("processingMethod", _processBySampling.load() ? "sampling" : "scanning");
-        if (auto oplogMinRetentionHours = storageGlobalParams.oplogMinRetentionHours.load()) {
+        if (auto oplogMinRetentionHours = storageDynamicParams.oplogMinRetentionHours.load()) {
             builder.append("oplogMinRetentionHours", oplogMinRetentionHours);
         }
     }

@@ -44,6 +44,8 @@
 
 namespace mongo {
 
+class ServiceContext; // FWD
+
 struct StorageGlobalParams {
     StorageGlobalParams();
     void reset();
@@ -76,13 +78,7 @@ struct StorageGlobalParams {
 
     bool dur;  // --dur durability (now --journal)
 
-    // --journalCommitInterval
     static constexpr int kMaxJournalCommitIntervalMs = 500;
-    AtomicWord<int> journalCommitIntervalMs;
-
-    // --notablescan
-    // no table scans allowed
-    AtomicWord<bool> noTableScan;
 
     // --directoryperdb
     // Stores each database’s files in its own folder in the data directory.
@@ -90,13 +86,7 @@ struct StorageGlobalParams {
     // the storage pattern of the data directory.
     bool directoryperdb;
 
-    // --syncdelay
-    // Controls how much time can pass before MongoDB flushes data to the data files
-    // via an fsync operation.
-    // Do not set this value on production systems.
-    // In almost every situation, you should use the default setting.
     static constexpr double kMaxSyncdelaySecs = 60 * 60;  // 1hr
-    AtomicDouble syncdelay;                               // seconds between fsyncs
 
     // --queryableBackupMode
     // Puts MongoD into "read-only" mode. MongoD will not write any data to the underlying
@@ -109,12 +99,6 @@ struct StorageGlobalParams {
     // an existing underlying MongoDB database level resource if possible. This can improve
     // workloads that rely heavily on creating many collections within a database.
     bool groupCollections;
-
-    // --oplogMinRetentionHours
-    // Controls what size the oplog should be in addition to oplogSize. If set, the oplog will only
-    // be truncated if it is over the capped size, and if the bucket of oldest oplog entries fall
-    // outside of the retention window which is set by this option.
-    AtomicWord<double> oplogMinRetentionHours;
 
     // Controls whether we allow the OplogStones mechanism to delete oplog history on WT.
     bool allowOplogTruncation;
@@ -129,6 +113,31 @@ struct StorageGlobalParams {
     size_t checkpointDelaySecs;
 };
 
-extern StorageGlobalParams storageGlobalParams;
+struct StorageDynamicParams {
+    // --syncdelay
+    // Controls how much time can pass before MongoDB flushes data to the data files
+    // via an fsync operation.
+    // Do not set this value on production systems.
+    // In almost every situation, you should use the default setting.
+    AtomicDouble syncdelay{60.0};  // seconds between fsyncs
+
+    // --journalCommitInterval
+    AtomicWord<int> journalCommitIntervalMs{};
+
+    // --notablescan
+    // no table scans allowed
+    AtomicWord<bool> noTableScan{};
+
+    // --oplogMinRetentionHours
+    // Controls what size the oplog should be in addition to oplogSize. If set, the oplog will only
+    // be truncated if it is over the capped size, and if the bucket of oldest oplog entries fall
+    // outside of the retention window which is set by this option.
+    AtomicWord<double> oplogMinRetentionHours{};
+};
+
+StorageGlobalParams& getStaticStorageParams();
+void setStaticStorageParams(ServiceContext* serviceContext, StorageGlobalParams);
+
+extern StorageDynamicParams storageDynamicParams;
 
 }  // namespace mongo

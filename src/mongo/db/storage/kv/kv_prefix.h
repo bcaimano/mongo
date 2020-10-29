@@ -78,7 +78,7 @@ public:
     static void setLargestPrefix(KVPrefix largestPrefix);
 
     /**
-     * Returns 'KVPrefix::kNotPrefixed' if 'storageGlobalParams.groupCollections' is false or the
+     * Returns 'KVPrefix::kNotPrefixed' if 'getStaticStorageParams().groupCollections' is false or the
      * input 'ns' is a namespace disallowed for grouping. Otherwise returns the next 'KVPrefix'
      * ensuring it is unique with respect to active collections and indexes.
      */

@@ -87,13 +87,13 @@ public:
     }
 
     path repairFilePath() {
-        return path(storageGlobalParams.dbpath) / path(kRepairIncompleteFileName);
+        return path(getStaticStorageParams().dbpath) / path(kRepairIncompleteFileName);
     }
 
     StorageRepairObserver* reset() {
         StorageRepairObserver::set(
             getServiceContext(),
-            std::make_unique<StorageRepairObserver>(storageGlobalParams.dbpath));
+            std::make_unique<StorageRepairObserver>(getStaticStorageParams().dbpath));
         return getRepairObserver();
     }
 
@@ -103,7 +103,7 @@ public:
 
     void setUp() {
         ServiceContextMongoDTest::setUp();
-        storageGlobalParams.repair = true;
+        getStaticStorageParams().repair = true;
     }
 
     void tearDown() {
@@ -122,7 +122,7 @@ public:
                       "mod_getDescription"_attr = mod.getDescription());
             }
         }
-        storageGlobalParams.repair = false;
+        getStaticStorageParams().repair = false;
     }
 
 private:

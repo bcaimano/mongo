@@ -161,7 +161,7 @@ StatusWith<AggregationRequest> AggregationRequest::parseFromBSON(
             hasNeedsMergeElem = true;
             request.setNeedsMerge(elem.Bool());
         } else if (kAllowDiskUseName == fieldName) {
-            if (storageGlobalParams.readOnly) {
+            if (getStaticStorageParams().readOnly) {
                 return {ErrorCodes::IllegalOperation,
                         str::stream() << "The '" << kAllowDiskUseName
                                       << "' option is not permitted in read-only mode."};

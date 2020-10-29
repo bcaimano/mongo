@@ -109,7 +109,7 @@ public:
 
             uassert(ErrorCodes::IllegalOperation,
                     "Can't call _flushDatabaseCacheUpdates if in read-only mode",
-                    !storageGlobalParams.readOnly);
+                    !getStaticStorageParams().readOnly);
 
             auto& oss = OperationShardingState::get(opCtx);
 

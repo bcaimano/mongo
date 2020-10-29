@@ -38,21 +38,21 @@ server_parameters:
             Whether all queries must use indexes.
             If true, MongoDB will not execute queries that require a table scan and will return an error.
         set_at: [ startup, runtime ]
-        cpp_varname: 'storageGlobalParams.noTableScan'
+        cpp_varname: 'storageDynamicParams.noTableScan'
     syncdelay:
         # In almost every situation you should not set this value and use the default setting.
         description: >-
             Interval in seconds between fsync operations where mongod flushes its
             working memory to disk. By default, mongod flushes memory to disk every 60 seconds.
         set_at: [ startup, runtime ]
-        cpp_varname: 'storageGlobalParams.syncdelay'
+        cpp_varname: 'storageDynamicParams.syncdelay'
         validator:
             gte: 0.0
             lte: { expr: 'StorageGlobalParams::kMaxSyncdelaySecs' }
     journalCommitInterval:
         description: 'Number of milliseconds between journal commits'
         set_at: [ startup, runtime ]
-        cpp_varname: 'storageGlobalParams.journalCommitIntervalMs'
+        cpp_varname: 'storageDynamicParams.journalCommitIntervalMs'
         validator:
             gte: 1
             lte: { expr: 'StorageGlobalParams::kMaxJournalCommitIntervalMs' }
@@ -81,7 +81,7 @@ server_parameters:
     disableLockFreeReads:
         description: "Disables the lock-free reads feature."
         set_at: [ startup ]
-        cpp_varname: 'storageGlobalParams.disableLockFreeReads'
+        cpp_varname: 'getStaticStorageParams().disableLockFreeReads'
         default: true
 
 feature_flags:

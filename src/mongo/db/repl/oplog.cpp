@@ -548,7 +548,7 @@ long long getNewOplogSizeBytes(OperationContext* opCtx, const ReplSettings& repl
     } else {
         // disk: 990MB minimum size
         lowerBound = 990LL * 1024 * 1024;
-        bytes = File::freeSpace(storageGlobalParams.dbpath);  //-1 if call not supported.
+        bytes = File::freeSpace(getStaticStorageParams().dbpath);  //-1 if call not supported.
         LOGV2_DEBUG(21248,
                     3,
                     "Disk storage system; lowerBound: {lowerBoundBytes} bytes, {freeSpaceBytes} "

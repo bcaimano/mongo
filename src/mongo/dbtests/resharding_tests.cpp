@@ -479,7 +479,7 @@ public:
             !mongo::getStaticServerParams().enableMajorityReadConcern) {
             LOGV2(5123009,
                   "Skipping this test because the configuration does not support majority reads.",
-                  "storageEngine"_attr = storageGlobalParams.engine,
+                  "storageEngine"_attr = getStaticStorageParams().engine,
                   "enableMajorityReadConcern"_attr =
                       mongo::getStaticServerParams().enableMajorityReadConcern);
             return true;

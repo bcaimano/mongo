@@ -70,30 +70,30 @@ Status storeOptions(const moe::Environment& params) {
     }
 
     if (params.count("storage.engine")) {
-        storageGlobalParams.engine = params["storage.engine"].as<std::string>();
-        storageGlobalParams.engineSetByUser = true;
+        getStaticStorageParams().engine = params["storage.engine"].as<std::string>();
+        getStaticStorageParams().engineSetByUser = true;
     }
 
     if (params.count("storage.dbPath")) {
-        storageGlobalParams.dbpath = params["storage.dbPath"].as<string>();
+        getStaticStorageParams().dbpath = params["storage.dbPath"].as<string>();
     }
 
 #ifdef _WIN32
-    if (storageGlobalParams.dbpath.size() > 1 &&
-        storageGlobalParams.dbpath[storageGlobalParams.dbpath.size() - 1] == '/') {
+    if (getStaticStorageParams().dbpath.size() > 1 &&
+        getStaticStorageParams().dbpath[getStaticStorageParams().dbpath.size() - 1] == '/') {
         // size() check is for the unlikely possibility of --dbpath "/"
-        storageGlobalParams.dbpath =
-            storageGlobalParams.dbpath.erase(storageGlobalParams.dbpath.size() - 1);
+        getStaticStorageParams().dbpath =
+            getStaticStorageParams().dbpath.erase(getStaticStorageParams().dbpath.size() - 1);
     }
 #endif
 
 #ifdef _WIN32
     // If dbPath is a default value, prepend with drive name so log entries are explicit
     // We must resolve the dbpath before it stored in repairPath in the default case.
-    if (storageGlobalParams.dbpath == storageGlobalParams.kDefaultDbPath ||
-        storageGlobalParams.dbpath == storageGlobalParams.kDefaultConfigDbPath) {
+    if (getStaticStorageParams().dbpath == getStaticStorageParams().kDefaultDbPath ||
+        getStaticStorageParams().dbpath == getStaticStorageParams().kDefaultConfigDbPath) {
         boost::filesystem::path currentPath = boost::filesystem::current_path();
-        storageGlobalParams.dbpath = currentPath.root_name().string() + storageGlobalParams.dbpath;
+        getStaticStorageParams().dbpath = currentPath.root_name().string() + getStaticStorageParams().dbpath;
     }
 #endif
 
@@ -101,18 +101,18 @@ Status storeOptions(const moe::Environment& params) {
 }
 
 void resetOptions() {
-    storageGlobalParams.reset();
+    getStaticStorageParams().reset();
 }
 
 std::string storageDBPathDescription() {
     StringBuilder sb;
 
-    sb << "Directory for datafiles - defaults to " << storageGlobalParams.kDefaultDbPath;
+    sb << "Directory for datafiles - defaults to " << getStaticStorageParams().kDefaultDbPath;
 
 #ifdef _WIN32
     boost::filesystem::path currentPath = boost::filesystem::current_path();
 
-    sb << " which is " << currentPath.root_name().string() << storageGlobalParams.kDefaultDbPath
+    sb << " which is " << currentPath.root_name().string() << getStaticStorageParams().kDefaultDbPath
        << " based on the current working drive";
 #endif
 

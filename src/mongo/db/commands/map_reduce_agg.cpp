@@ -102,7 +102,7 @@ auto makeExpressionContext(OperationContext* opCtx,
         boost::none,                             // let
         CurOp::get(opCtx)->dbProfileLevel() > 0  // mayDbProfile
     );
-    expCtx->tempDir = storageGlobalParams.dbpath + "/_tmp";
+    expCtx->tempDir = getStaticStorageParams().dbpath + "/_tmp";
     return expCtx;
 }
 

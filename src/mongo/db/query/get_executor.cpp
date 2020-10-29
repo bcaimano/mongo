@@ -290,7 +290,7 @@ void fillOutPlannerParams(OperationContext* opCtx,
     // We will not output collection scans unless there are no indexed solutions. NO_TABLE_SCAN
     // overrides this behavior by not outputting a collscan even if there are no indexed
     // solutions.
-    if (storageGlobalParams.noTableScan.load()) {
+    if (storageDynamicParams.noTableScan.load()) {
         const auto& nss = canonicalQuery->nss();
         // There are certain cases where we ignore this restriction:
         bool ignore =

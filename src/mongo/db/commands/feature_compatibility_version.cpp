@@ -191,7 +191,7 @@ private:
 } fcvTransitions;
 
 bool isWriteableStorageEngine() {
-    return !storageGlobalParams.readOnly && (storageGlobalParams.engine != "devnull");
+    return !getStaticStorageParams().readOnly && (getStaticStorageParams().engine != "devnull");
 }
 
 // Returns the featureCompatibilityVersion document if it exists.

@@ -67,7 +67,7 @@ const std::string kTableChecksFileName = "_wt_table_checks";
  * Must be called before createTableChecksFile() or removeTableChecksFile() to get accurate results.
  */
 bool hasPreviouslyIncompleteTableChecks() {
-    auto path = boost::filesystem::path(storageGlobalParams.dbpath) /
+    auto path = boost::filesystem::path(getStaticStorageParams().dbpath) /
         boost::filesystem::path(kTableChecksFileName);
 
     return boost::filesystem::exists(path);
@@ -77,7 +77,7 @@ bool hasPreviouslyIncompleteTableChecks() {
  * Creates the 'kTableChecksFileName' file in the dbpath.
  */
 void createTableChecksFile() {
-    auto path = boost::filesystem::path(storageGlobalParams.dbpath) /
+    auto path = boost::filesystem::path(getStaticStorageParams().dbpath) /
         boost::filesystem::path(kTableChecksFileName);
 
     boost::filesystem::ofstream fileStream(path);
@@ -100,7 +100,7 @@ void createTableChecksFile() {
  * Removes the 'kTableChecksFileName' file in the dbpath, if it exists.
  */
 void removeTableChecksFile() {
-    auto path = boost::filesystem::path(storageGlobalParams.dbpath) /
+    auto path = boost::filesystem::path(getStaticStorageParams().dbpath) /
         boost::filesystem::path(kTableChecksFileName);
 
     if (!boost::filesystem::exists(path)) {
@@ -135,7 +135,7 @@ Status wtRCToStatus_slow(int retCode, const char* prefix) {
     }
 
     // Don't abort on WT_PANIC when repairing, as the error will be handled at a higher layer.
-    fassert(28559, retCode != WT_PANIC || storageGlobalParams.repair);
+    fassert(28559, retCode != WT_PANIC || getStaticStorageParams().repair);
 
     str::stream s;
     if (prefix)
@@ -531,7 +531,7 @@ int mdb_handle_error_with_startup_suppression(WT_EVENT_HANDLER* handler,
                     "message"_attr = message);
 
         // Don't abort on WT_PANIC when repairing, as the error will be handled at a higher layer.
-        if (storageGlobalParams.repair) {
+        if (getStaticStorageParams().repair) {
             return 0;
         }
         fassert(50853, errorCode != WT_PANIC);
@@ -553,7 +553,7 @@ int mdb_handle_error(WT_EVENT_HANDLER* handler,
                     "message"_attr = redact(message));
 
         // Don't abort on WT_PANIC when repairing, as the error will be handled at a higher layer.
-        if (storageGlobalParams.repair) {
+        if (getStaticStorageParams().repair) {
             return 0;
         }
         fassert(28558, errorCode != WT_PANIC);
@@ -664,7 +664,7 @@ void WiredTigerUtil::notifyStartupComplete() {
         _tableLoggingInfo.isInitializing = false;
     }
 
-    if (!storageGlobalParams.readOnly) {
+    if (!getStaticStorageParams().readOnly) {
         removeTableChecksFile();
     }
 }
@@ -708,7 +708,7 @@ Status WiredTigerUtil::setTableLogging(OperationContext* opCtx, const std::strin
 }
 
 Status WiredTigerUtil::setTableLogging(WT_SESSION* session, const std::string& uri, bool on) {
-    invariant(!storageGlobalParams.readOnly);
+    invariant(!getStaticStorageParams().readOnly);
     stdx::lock_guard<Latch> lk(_tableLoggingInfoMutex);
 
     // Update the table logging settings regardless if we're no longer starting up the process.
@@ -727,7 +727,7 @@ Status WiredTigerUtil::setTableLogging(WT_SESSION* session, const std::string& u
         _tableLoggingInfo.hasPreviouslyIncompleteTableChecks = true;
     }
 
-    if (storageGlobalParams.repair || _tableLoggingInfo.hasPreviouslyIncompleteTableChecks) {
+    if (getStaticStorageParams().repair || _tableLoggingInfo.hasPreviouslyIncompleteTableChecks) {
         if (_tableLoggingInfo.isFirstTable) {
             _tableLoggingInfo.isFirstTable = false;
             if (!_tableLoggingInfo.hasPreviouslyIncompleteTableChecks) {
@@ -737,7 +737,7 @@ Status WiredTigerUtil::setTableLogging(WT_SESSION* session, const std::string& u
             LOGV2(4366405,
                   "Modifying the table logging settings for all existing WiredTiger tables",
                   "loggingEnabled"_attr = on,
-                  "repair"_attr = storageGlobalParams.repair,
+                  "repair"_attr = getStaticStorageParams().repair,
                   "hasPreviouslyIncompleteTableChecks"_attr =
                       _tableLoggingInfo.hasPreviouslyIncompleteTableChecks);
         }

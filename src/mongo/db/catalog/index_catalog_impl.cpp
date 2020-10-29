@@ -1764,7 +1764,7 @@ StatusWith<BSONObj> IndexCatalogImpl::_fixIndexSpec(OperationContext* opCtx,
     // running on old data files from other mongod versions. Removing the 'ns' field during repair
     // would prevent the data files from starting up on the original mongod version as the 'ns'
     // field is required to be present in 3.6 and 4.0.
-    if (storageGlobalParams.repair && o.hasField("ns")) {
+    if (getStaticStorageParams().repair && o.hasField("ns")) {
         b.append("ns", o.getField("ns").String());
     }
 

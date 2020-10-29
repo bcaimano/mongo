@@ -78,7 +78,7 @@ void startMongoDFTDC() {
     auto dir = getFTDCDirectoryPathParameter();
 
     if (dir.empty()) {
-        dir = storageGlobalParams.dbpath;
+        dir = getStaticStorageParams().dbpath;
         dir /= kFTDCDefaultDirectory.toString();
     }
 

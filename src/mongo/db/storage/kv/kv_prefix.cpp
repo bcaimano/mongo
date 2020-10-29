@@ -50,7 +50,7 @@ std::string KVPrefix::toString() const {
 }
 
 /* static */ void KVPrefix::setLargestPrefix(KVPrefix largestPrefix) {
-    if (!storageGlobalParams.groupCollections) {
+    if (!getStaticStorageParams().groupCollections) {
         return;
     }
 
@@ -59,7 +59,7 @@ std::string KVPrefix::toString() const {
 }
 
 /* static */ KVPrefix KVPrefix::getNextPrefix(const NamespaceString& ns) {
-    if (!storageGlobalParams.groupCollections || ns.isOplog()) {
+    if (!getStaticStorageParams().groupCollections || ns.isOplog()) {
         return kNotPrefixed;
     }
 

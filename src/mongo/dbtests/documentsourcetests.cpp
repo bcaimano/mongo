@@ -77,7 +77,7 @@ public:
     DocumentSourceCursorTest()
         : client(_opCtx.get()),
           _ctx(new ExpressionContextForTest(_opCtx.get(), AggregationRequest(nss, {}))) {
-        _ctx->tempDir = storageGlobalParams.dbpath + "/_tmp";
+        _ctx->tempDir = getStaticStorageParams().dbpath + "/_tmp";
     }
 
     virtual ~DocumentSourceCursorTest() {

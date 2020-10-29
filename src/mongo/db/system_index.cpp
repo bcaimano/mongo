@@ -132,7 +132,7 @@ void generateSystemIndexForExistingCollection(OperationContext* opCtx,
 
 Status verifySystemIndexes(OperationContext* opCtx) {
     // Do not try and generate any system indexes in read only mode.
-    if (storageGlobalParams.readOnly) {
+    if (getStaticStorageParams().readOnly) {
         LOGV2_WARNING(22489,
                       "Running in queryable backup mode. Unable to create authorization indexes");
         return Status::OK();

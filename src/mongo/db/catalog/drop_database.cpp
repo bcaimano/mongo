@@ -124,7 +124,7 @@ void _finishDropDatabase(OperationContext* opCtx,
 Status _dropDatabase(OperationContext* opCtx, const std::string& dbName, bool abortIndexBuilds) {
     uassert(ErrorCodes::IllegalOperation,
             "Cannot drop a database in read-only mode",
-            !storageGlobalParams.readOnly);
+            !getStaticStorageParams().readOnly);
 
     // As of SERVER-32205, dropping the admin database is prohibited.
     uassert(ErrorCodes::IllegalOperation,

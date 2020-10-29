@@ -219,7 +219,7 @@ ServiceContext* initialize(const char* yaml_config) {
                       "pid"_attr = pid.toNative(),
                       "port"_attr = getStaticServerParams().port,
                       "dbpath"_attr =
-                          boost::filesystem::path(storageGlobalParams.dbpath).generic_string(),
+                          boost::filesystem::path(getStaticStorageParams().dbpath).generic_string(),
                       "architecture"_attr = (is32bit ? "32-bit" : "64-bit"));
     }
 
@@ -249,7 +249,7 @@ ServiceContext* initialize(const char* yaml_config) {
         invariant(storageElement.isABSONObj());
         for (auto&& e : storageElement.Obj()) {
             // Ignore if field name under "storage" matches current storage engine.
-            if (storageGlobalParams.engine == e.fieldName()) {
+            if (getStaticStorageParams().engine == e.fieldName()) {
                 continue;
             }
 
@@ -257,9 +257,9 @@ ServiceContext* initialize(const char* yaml_config) {
             if (isRegisteredStorageEngine(serviceContext, e.fieldName())) {
                 LOGV2_WARNING(22554,
                               "Detected configuration for non-active storage engine {e_fieldName} "
-                              "when current storage engine is {storageGlobalParams_engine}",
+                              "when current storage engine is {getStaticStorageParams()_engine}",
                               "e_fieldName"_attr = e.fieldName(),
-                              "storageGlobalParams_engine"_attr = storageGlobalParams.engine);
+                              "getStaticStorageParams()_engine"_attr = getStaticStorageParams().engine);
             }
         }
     }
@@ -268,21 +268,21 @@ ServiceContext* initialize(const char* yaml_config) {
         std::stringstream ss;
         ss << endl;
         ss << "*********************************************************************" << endl;
-        ss << " ERROR: dbpath (" << storageGlobalParams.dbpath << ") does not exist." << endl;
+        ss << " ERROR: dbpath (" << getStaticStorageParams().dbpath << ") does not exist." << endl;
         ss << " Create this directory or give existing directory in --dbpath." << endl;
         ss << " See http://dochub.mongodb.org/core/startingandstoppingmongo" << endl;
         ss << "*********************************************************************" << endl;
-        uassert(50677, ss.str().c_str(), boost::filesystem::exists(storageGlobalParams.dbpath));
+        uassert(50677, ss.str().c_str(), boost::filesystem::exists(getStaticStorageParams().dbpath));
     }
 
-    if (!storageGlobalParams.readOnly) {
-        boost::filesystem::remove_all(storageGlobalParams.dbpath + "/_tmp/");
+    if (!getStaticStorageParams().readOnly) {
+        boost::filesystem::remove_all(getStaticStorageParams().dbpath + "/_tmp/");
     }
 
     ReadWriteConcernDefaults::create(serviceContext, readWriteConcernDefaultsCacheLookupEmbedded);
 
     bool canCallFCVSetIfCleanStartup =
-        !storageGlobalParams.readOnly && !(storageGlobalParams.engine == "devnull");
+        !getStaticStorageParams().readOnly && !(getStaticStorageParams().engine == "devnull");
     if (canCallFCVSetIfCleanStartup) {
         Lock::GlobalWrite lk(startupOpCtx.get());
         FeatureCompatibilityVersion::setIfCleanStartup(startupOpCtx.get(),
@@ -308,7 +308,7 @@ ServiceContext* initialize(const char* yaml_config) {
     // the upgrade flag to true.
     serviceContext->getStorageEngine()->notifyStartupComplete();
 
-    if (storageGlobalParams.upgrade) {
+    if (getStaticStorageParams().upgrade) {
         LOGV2(22553, "finished checking dbs");
         exitCleanly(EXIT_CLEAN);
     }

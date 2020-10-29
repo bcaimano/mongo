@@ -74,7 +74,7 @@ public:
     }
 
     /**
-     * Runs data flushes every 'storageGlobalParams.journalCommitIntervalMs' millis (unless
+     * Runs data flushes every 'storageDynamicParams.journalCommitIntervalMs' millis (unless
      * '_disablePeriodicFlushes' is set) or immediately if triggerJournalFlush() or
      * waitForJournalFlush() is called.
      */
@@ -140,7 +140,7 @@ private:
     std::unique_ptr<SharedPromise<void>> _nextSharedPromise =
         std::make_unique<SharedPromise<void>>();
 
-    // Controls whether to ignore the 'storageGlobalParams.journalCommitIntervalMs' setting. If set,
+    // Controls whether to ignore the 'storageDynamicParams.journalCommitIntervalMs' setting. If set,
     // data flushes will only be executed upon explicit request, no longer periodically in addition
     // to upon request.
     bool _disablePeriodicFlushes;

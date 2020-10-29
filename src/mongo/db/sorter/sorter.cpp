@@ -943,7 +943,7 @@ private:
         }
 
         // We should check readOnly before getting here.
-        invariant(!storageGlobalParams.readOnly);
+        invariant(!getStaticStorageParams().readOnly);
 
         sort();
         updateCutoff();

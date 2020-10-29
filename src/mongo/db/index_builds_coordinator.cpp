@@ -1450,7 +1450,7 @@ void IndexBuildsCoordinator::restartIndexBuildsForRecovery(
 
                 boost::system::error_code ec;
                 boost::filesystem::remove(
-                    storageGlobalParams.dbpath + "/_tmp/" + index.getFileName()->toString(), ec);
+                    getStaticStorageParams().dbpath + "/_tmp/" + index.getFileName()->toString(), ec);
 
                 if (ec) {
                     LOGV2(5043101,

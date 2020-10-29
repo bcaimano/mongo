@@ -253,7 +253,7 @@ void WiredTigerRecoveryUnit::_ensureSession() {
 
 bool WiredTigerRecoveryUnit::waitUntilDurable(OperationContext* opCtx) {
     invariant(!_inUnitOfWork(), toString(_getState()));
-    invariant(!opCtx->lockState()->isLocked() || storageGlobalParams.repair);
+    invariant(!opCtx->lockState()->isLocked() || getStaticStorageParams().repair);
 
     // Flushes the journal log to disk. Checkpoints all data if journaling is disabled.
     _sessionCache->waitUntilDurable(opCtx,
@@ -266,7 +266,7 @@ bool WiredTigerRecoveryUnit::waitUntilDurable(OperationContext* opCtx) {
 bool WiredTigerRecoveryUnit::waitUntilUnjournaledWritesDurable(OperationContext* opCtx,
                                                                bool stableCheckpoint) {
     invariant(!_inUnitOfWork(), toString(_getState()));
-    invariant(!opCtx->lockState()->isLocked() || storageGlobalParams.repair);
+    invariant(!opCtx->lockState()->isLocked() || getStaticStorageParams().repair);
 
     // Take a checkpoint, rather than only flush the (oplog) journal, in order to lock in stable
     // writes to unjournaled tables.

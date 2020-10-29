@@ -100,7 +100,7 @@ protected:
         _dbDirectClient.reset();
 
         // Restore the defaults before calling tearDown
-        storageGlobalParams.readOnly = false;
+        getStaticStorageParams().readOnly = false;
         getStaticServerParams().overrideShardIdentity = BSONObj();
 
         CatalogCacheLoader::clearForTests(getServiceContext());
@@ -289,7 +289,7 @@ TEST_F(ShardingInitializationMongoDTest, InitializeAgainWithMatchingReplSetNameS
  */
 TEST_F(ShardingInitializationMongoDTest,
        InitializeShardingAwarenessIfNeededReadOnlyAndShardServerAndNoOverrideShardIdentity) {
-    storageGlobalParams.readOnly = true;
+    getStaticStorageParams().readOnly = true;
 
     ASSERT_THROWS_CODE(
         shardingInitialization()->initializeShardingAwarenessIfNeeded(operationContext()),
@@ -299,7 +299,7 @@ TEST_F(ShardingInitializationMongoDTest,
 
 TEST_F(ShardingInitializationMongoDTest,
        InitializeShardingAwarenessIfNeededReadOnlyAndShardServerAndInvalidOverrideShardIdentity) {
-    storageGlobalParams.readOnly = true;
+    getStaticStorageParams().readOnly = true;
     getStaticServerParams().overrideShardIdentity =
         BSON("_id"
              << "shardIdentity" << ShardIdentity::kShardNameFieldName << kShardName
@@ -314,7 +314,7 @@ TEST_F(ShardingInitializationMongoDTest,
 
 TEST_F(ShardingInitializationMongoDTest,
        InitializeShardingAwarenessIfNeededReadOnlyAndShardServerAndValidOverrideShardIdentity) {
-    storageGlobalParams.readOnly = true;
+    getStaticStorageParams().readOnly = true;
     getStaticServerParams().clusterRole = ClusterRole::ShardServer;
     getStaticServerParams().overrideShardIdentity = [] {
         ShardIdentityType shardIdentity;
@@ -334,7 +334,7 @@ TEST_F(ShardingInitializationMongoDTest,
  */
 TEST_F(ShardingInitializationMongoDTest,
        InitializeShardingAwarenessIfNeededReadOnlyAndNotShardServerAndNoOverrideShardIdentity) {
-    storageGlobalParams.readOnly = true;
+    getStaticStorageParams().readOnly = true;
     getStaticServerParams().clusterRole = ClusterRole::None;
 
     ASSERT(!shardingInitialization()->initializeShardingAwarenessIfNeeded(operationContext()));
@@ -343,7 +343,7 @@ TEST_F(ShardingInitializationMongoDTest,
 TEST_F(
     ShardingInitializationMongoDTest,
     InitializeShardingAwarenessIfNeededReadOnlyAndNotShardServerAndInvalidOverrideShardIdentity) {
-    storageGlobalParams.readOnly = true;
+    getStaticStorageParams().readOnly = true;
     getStaticServerParams().clusterRole = ClusterRole::None;
     getStaticServerParams().overrideShardIdentity = BSON("_id"
                                                     << "shardIdentity"
@@ -358,7 +358,7 @@ TEST_F(
 
 TEST_F(ShardingInitializationMongoDTest,
        InitializeShardingAwarenessIfNeededReadOnlyAndNotShardServerAndValidOverrideShardIdentity) {
-    storageGlobalParams.readOnly = true;
+    getStaticStorageParams().readOnly = true;
     getStaticServerParams().clusterRole = ClusterRole::None;
     getStaticServerParams().overrideShardIdentity = [] {
         ShardIdentityType shardIdentity;

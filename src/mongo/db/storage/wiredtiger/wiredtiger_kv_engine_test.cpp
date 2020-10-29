@@ -262,7 +262,7 @@ TEST_F(WiredTigerKVEngineTest, TestOplogTruncation) {
 #endif
 #endif
     {
-        storageGlobalParams.checkpointDelaySecs = 1;
+        getStaticStorageParams().checkpointDelaySecs = 1;
     }
     ();
 

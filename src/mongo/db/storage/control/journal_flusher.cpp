@@ -118,7 +118,7 @@ void JournalFlusher::run() {
         // wake up until a journal flush is externally requested.
 
         auto deadline =
-            Date_t::now() + Milliseconds(storageGlobalParams.journalCommitIntervalMs.load());
+            Date_t::now() + Milliseconds(storageDynamicParams.journalCommitIntervalMs.load());
 
         stdx::unique_lock<Latch> lk(_stateMutex);
 

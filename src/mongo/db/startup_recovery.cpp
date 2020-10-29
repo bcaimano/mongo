@@ -75,7 +75,7 @@ namespace {
 
 // Returns true if storage engine is writable.
 bool isWriteableStorageEngine() {
-    return !storageGlobalParams.readOnly && (storageGlobalParams.engine != "devnull");
+    return !getStaticStorageParams().readOnly && (getStaticStorageParams().engine != "devnull");
 }
 
 // Attempt to restore the featureCompatibilityVersion document if it is missing.
@@ -358,7 +358,7 @@ void reconcileCatalogAndRebuildUnfinishedIndexes(
         LOGV2(5071100, "Clearing temp directory");
 
         boost::system::error_code ec;
-        boost::filesystem::remove_all(storageGlobalParams.dbpath + "/_tmp/", ec);
+        boost::filesystem::remove_all(getStaticStorageParams().dbpath + "/_tmp/", ec);
 
         if (ec) {
             LOGV2(5071101, "Failed to clear temp directory", "error"_attr = ec.message());
@@ -449,7 +449,7 @@ void setReplSetMemberInStandaloneMode(OperationContext* opCtx) {
 
 // Perform startup procedures for --repair mode.
 void startupRepair(OperationContext* opCtx, StorageEngine* storageEngine) {
-    invariant(!storageGlobalParams.readOnly);
+    invariant(!getStaticStorageParams().readOnly);
 
     if (MONGO_unlikely(exitBeforeDataRepair.shouldFail())) {
         LOGV2(21006, "Exiting because 'exitBeforeDataRepair' fail point was set.");
@@ -532,7 +532,7 @@ void startupRepair(OperationContext* opCtx, StorageEngine* storageEngine) {
 
 // Perform startup procedures for read-only mode.
 void startupRecoveryReadOnly(OperationContext* opCtx, StorageEngine* storageEngine) {
-    invariant(!storageGlobalParams.repair);
+    invariant(!getStaticStorageParams().repair);
 
     setReplSetMemberInStandaloneMode(opCtx);
 
@@ -548,7 +548,7 @@ void startupRecoveryReadOnly(OperationContext* opCtx, StorageEngine* storageEngi
 void startupRecovery(OperationContext* opCtx,
                      StorageEngine* storageEngine,
                      LastStorageEngineShutdownState lastStorageEngineShutdownState) {
-    invariant(!storageGlobalParams.readOnly && !storageGlobalParams.repair);
+    invariant(!getStaticStorageParams().readOnly && !getStaticStorageParams().repair);
 
     // Determine whether this is a replica set node running in standalone mode. This must be set
     // before determining whether to restart index builds.
@@ -612,9 +612,9 @@ void repairAndRecoverDatabases(OperationContext* opCtx,
         FeatureCompatibilityVersion::setIfCleanStartup(opCtx, repl::StorageInterface::get(opCtx));
     }
 
-    if (storageGlobalParams.repair) {
+    if (getStaticStorageParams().repair) {
         startupRepair(opCtx, storageEngine);
-    } else if (storageGlobalParams.readOnly) {
+    } else if (getStaticStorageParams().readOnly) {
         startupRecoveryReadOnly(opCtx, storageEngine);
     } else {
         startupRecovery(opCtx, storageEngine, lastStorageEngineShutdownState);

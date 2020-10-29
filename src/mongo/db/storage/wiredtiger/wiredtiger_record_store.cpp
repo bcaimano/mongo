@@ -273,7 +273,7 @@ bool WiredTigerRecordStore::OplogStones::hasExcessStones_inlock() const {
         return false;
     }
 
-    double minRetentionHours = storageGlobalParams.oplogMinRetentionHours.load();
+    double minRetentionHours = storageDynamicParams.oplogMinRetentionHours.load();
 
     // If we are not checking for time, then yes, there is a stone to be reaped
     // because oplog is at capacity.
@@ -929,7 +929,7 @@ void WiredTigerRecordStore::checkSize(OperationContext* opCtx) {
 
 void WiredTigerRecordStore::postConstructorInit(OperationContext* opCtx) {
     if (NamespaceString::oplog(ns()) &&
-        !(storageGlobalParams.repair || storageGlobalParams.readOnly)) {
+        !(getStaticStorageParams().repair || getStaticStorageParams().readOnly)) {
         _oplogStones = std::make_shared<OplogStones>(opCtx, this);
     }
 

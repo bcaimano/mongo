@@ -85,7 +85,7 @@ public:
         result.append("minWireVersion", wireSpec->incomingExternalClient.minWireVersion);
         result.append("maxWireVersion", wireSpec->incomingExternalClient.maxWireVersion);
 
-        result.append("readOnly", storageGlobalParams.readOnly);
+        result.append("readOnly", getStaticStorageParams().readOnly);
 
         return true;
     }

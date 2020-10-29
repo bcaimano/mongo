@@ -564,7 +564,7 @@ DocumentSource::GetNextResult DocumentSourceGroup::initialize() {
             _memoryTracker.memoryUsageBytes += group[i]->memUsageForSorter();
         }
 
-        if (kDebugBuild && !storageGlobalParams.readOnly) {
+        if (kDebugBuild && !getStaticStorageParams().readOnly) {
             // In debug mode, spill every time we have a duplicate id to stress merge logic.
             if (!inserted &&                     // is a dup
                 !pExpCtx->inMongos &&            // can't spill to disk in mongos

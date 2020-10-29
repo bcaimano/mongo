@@ -29,12 +29,17 @@
 
 #include "mongo/platform/basic.h"
 
+#include "mongo/db/service_context.h"
 #include "mongo/db/storage/storage_options.h"
 
 #include "mongo/platform/compiler.h"
 #include "mongo/util/str.h"
 
 namespace mongo {
+namespace {
+auto getStorageParams = ServiceContext::declareDecoration<boost::optional<StorageGlobalParams>>();
+auto initialStorageParams = StorageGlobalParams();
+}  // namespace
 
 StorageGlobalParams::StorageGlobalParams() {
     reset();
@@ -50,18 +55,33 @@ void StorageGlobalParams::reset() {
     // The intention here is to enable the journal by default if we are running on a 64 bit system.
     dur = (sizeof(void*) == 8);
 
-    noTableScan.store(false);
     directoryperdb = false;
-    syncdelay = 60.0;
     readOnly = false;
     groupCollections = false;
-    oplogMinRetentionHours.store(0.0);
     allowOplogTruncation = true;
     disableLockFreeReads = true;
     checkpointDelaySecs = 0;
 }
 
-StorageGlobalParams storageGlobalParams;
+StorageGlobalParams& getStaticStorageParams() {
+    auto svcCtx = getGlobalServiceContext();
+    if (!svcCtx) {
+        // TODO(cr) We shouldn't have to do this, but "engine" and "readOnly" get modified in hidden
+        // places.
+        return initialStorageParams;
+    }
+
+    auto& storageParams = getStorageParams(getGlobalServiceContext());
+    invariant(storageParams);
+    return *storageParams;
+}
+
+void setStaticStorageParams(ServiceContext* serviceContext, StorageGlobalParams params) {
+    auto& storageParams = getStorageParams(serviceContext);
+    storageParams = std::move(params);
+}
+
+StorageDynamicParams storageDynamicParams;
 
 /**
  * The directory where the mongod instance stores its data.

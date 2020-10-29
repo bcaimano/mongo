@@ -471,7 +471,7 @@ StatusWith<BSONObj> validateIndexSpec(
     // Ignore any 'ns' field in the index spec because this field is dropped post-4.0. Don't remove
     // the field during repair, as repair may run on old data files (version 3.6 and 4.0) that
     // require the field to be present.
-    if (hasNamespaceField && !storageGlobalParams.repair) {
+    if (hasNamespaceField && !getStaticStorageParams().repair) {
         modifiedSpec = modifiedSpec.removeField(IndexDescriptor::kNamespaceFieldName);
     }
 

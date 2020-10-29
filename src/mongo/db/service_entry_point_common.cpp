@@ -1924,7 +1924,7 @@ void HandleRequest::completeOperation(const DbResponse& dbresponse) {
             // TODO SERVER-26825: Fix race condition where fsyncLock is acquired post
             // lockedForWriting() call but prior to profile collection lock acquisition.
             LOGV2_DEBUG(21972, 1, "Note: not profiling because doing fsync+lock");
-        } else if (storageGlobalParams.readOnly) {
+        } else if (getStaticStorageParams().readOnly) {
             LOGV2_DEBUG(21973, 1, "Note: not profiling because server is read-only");
         } else {
             invariant(!opCtx->lockState()->inAWriteUnitOfWork());
