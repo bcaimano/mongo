@@ -690,8 +690,6 @@ void startMongoD(ServiceContext* serviceContext) {
 
     startClientCursorMonitor();
 
-    PeriodicTask::startRunningPeriodicTasks();
-
     SessionKiller::set(serviceContext,
                        std::make_shared<SessionKiller>(serviceContext, killSessionsLocal));
 

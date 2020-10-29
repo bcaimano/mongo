@@ -788,8 +788,6 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
 
     UserCacheInvalidator::start(serviceContext, opCtx);
 
-    PeriodicTask::startRunningPeriodicTasks();
-
     SessionKiller::set(serviceContext,
                        std::make_shared<SessionKiller>(serviceContext, killSessionsRemote));
 
