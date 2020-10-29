@@ -326,6 +326,19 @@ void registerPrimaryOnlyServices(ServiceContext* serviceContext) {
 
 MONGO_FAIL_POINT_DEFINE(shutdownAtStartup);
 
+auto periodicRunnerActions = ServiceContext::ConstructorActionRegisterer(
+    "PeriodicRunnerInit",
+    [](ServiceContext* serviceContext) {
+        // Set up the periodic runner for background job execution. This is required to be running
+        // before both the storage engine or the transport layer are initialized.
+        auto runner = makePeriodicRunner(serviceContext);
+        serviceContext->setPeriodicRunner(std::move(runner));
+    },
+    [](ServiceContext* serviceContext) {
+        // We should still have a periodic runner.
+        invariant(serviceContext->getPeriodicRunner());
+    });
+
 void startMongoD(ServiceContext* serviceContext) {
     Client::initThread("initandlisten");
 
@@ -346,7 +359,8 @@ void startMongoD(ServiceContext* serviceContext) {
               "MongoDB starting",
               "pid"_attr = pid.toNative(),
               "port"_attr = getStaticServerParams().port,
-              "dbPath"_attr = boost::filesystem::path(getStaticStorageParams().dbpath).generic_string(),
+              "dbPath"_attr =
+                  boost::filesystem::path(getStaticStorageParams().dbpath).generic_string(),
               "architecture"_attr = (is32bit ? "32-bit" : "64-bit"),
               "host"_attr = getHostNameCached());
     }
@@ -362,11 +376,6 @@ void startMongoD(ServiceContext* serviceContext) {
 
     serviceContext->setServiceEntryPoint(std::make_unique<ServiceEntryPointMongod>(serviceContext));
 
-    // Set up the periodic runner for background job execution. This is required to be running
-    // before both the storage engine or the transport layer are initialized.
-    auto runner = makePeriodicRunner(serviceContext);
-    serviceContext->setPeriodicRunner(std::move(runner));
-
     /*
      * This appears to block forever in mongster.
 #ifdef MONGO_CONFIG_SSL
@@ -376,8 +385,8 @@ void startMongoD(ServiceContext* serviceContext) {
     */
 
     if (!getStaticStorageParams().repair) {
-        auto tl =
-            transport::TransportLayerManager::createWithConfig(&getStaticServerParams(), serviceContext);
+        auto tl = transport::TransportLayerManager::createWithConfig(&getStaticServerParams(),
+                                                                     serviceContext);
         uassertStatusOK(tl->setup());
         serviceContext->setTransportLayer(std::move(tl));
     }
@@ -456,7 +465,8 @@ void startMongoD(ServiceContext* serviceContext) {
         ss << " Create this directory or give existing directory in --dbpath." << endl;
         ss << " See http://dochub.mongodb.org/core/startingandstoppingmongo" << endl;
         ss << "*********************************************************************" << endl;
-        uassert(10296, ss.str().c_str(), boost::filesystem::exists(getStaticStorageParams().dbpath));
+        uassert(
+            10296, ss.str().c_str(), boost::filesystem::exists(getStaticStorageParams().dbpath));
     }
 
     initializeSNMP();
@@ -791,9 +801,9 @@ void startupConfigActions(const std::vector<std::string>& args) {
         moe::startupOptionsParsed["shutdown"].as<bool>() == true) {
         bool failed = false;
 
-        std::string name =
-            (boost::filesystem::path(getStaticStorageParams().dbpath) / kLockFileBasename.toString())
-                .string();
+        std::string name = (boost::filesystem::path(getStaticStorageParams().dbpath) /
+                            kLockFileBasename.toString())
+                               .string();
         if (!boost::filesystem::exists(name) || boost::filesystem::file_size(name) == 0)
             failed = true;
 
