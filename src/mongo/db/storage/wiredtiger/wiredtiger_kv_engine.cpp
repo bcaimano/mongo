@@ -518,15 +518,17 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 
     Locker::setGlobalThrottling(&openReadTransaction, &openWriteTransaction);
 
+    /*
     _runTimeConfigParam.reset(new WiredTigerEngineRuntimeConfigParameter(
         "wiredTigerEngineRuntimeConfig", ServerParameterType::kRuntimeOnly));
     _runTimeConfigParam->_data.second = this;
+    */
 }
 
 WiredTigerKVEngine::~WiredTigerKVEngine() {
     // Remove server parameters that we added in the constructor, to enable unit tests to reload the
     // storage engine again in this same process.
-    ServerParameterSet::getGlobal()->remove("wiredTigerEngineRuntimeConfig");
+    //ServerParameterSet::getGlobal()->remove("wiredTigerEngineRuntimeConfig");
 
     cleanShutdown();
 
