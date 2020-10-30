@@ -409,4 +409,6 @@ public:
 LockManager* getGlobalLockManager();
 LockManager* getLockManager(ServiceContext* serviceContext);
 
+void startGlobalLockManager();
+
 }  // namespace mongo

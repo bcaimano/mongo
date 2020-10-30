@@ -1079,11 +1079,13 @@ struct LockManagerState {
     PeriodicJobAnchor lockCleanerJob;
 };
 
-auto getLockManagerState = ServiceContext::declareDecoration<LockManagerState>();
+auto getState = ServiceContext::declareDecoration<LockManagerState>();
 auto lockManagerActions = ServiceContext::ConstructorActionRegisterer(
     "LockManagerInit",
+    {"PeriodicRunnerInit"},
+    {},
     [](ServiceContext* serviceContext) {
-        auto& state = getLockManagerState(serviceContext);
+        auto& state = getState(serviceContext);
 
         /**
          * Periodically purges unused lock buckets. The first time the lock is used again after
@@ -1098,10 +1100,9 @@ auto lockManagerActions = ServiceContext::ConstructorActionRegisterer(
                  getLockManager(client->getServiceContext())->cleanupUnusedLocks();
              },
              Minutes(1)});
-        state.lockCleanerJob.start();
     },
     [](ServiceContext* serviceContext) {
-        auto& state = getLockManagerState(serviceContext);
+        auto& state = getState(serviceContext);
         state.lockCleanerJob.stop();
     });
 }  // namespace
@@ -1111,13 +1112,21 @@ auto lockManagerActions = ServiceContext::ConstructorActionRegisterer(
 //
 
 LockManager* getLockManager(ServiceContext* serviceContext) {
-    return &getLockManagerState(serviceContext).lockManager;
+    return &getState(serviceContext).lockManager;
 }
 
 LockManager* getGlobalLockManager() {
     auto serviceContext = getGlobalServiceContext();
     invariant(serviceContext);
     return getLockManager(serviceContext);
+}
+
+void startGlobalLockManager() {
+    auto serviceContext = getGlobalServiceContext();
+    invariant(serviceContext);
+
+    auto& state = getState(serviceContext);
+    state.lockCleanerJob.start();
 }
 
 void reportGlobalLockingStats(SingleThreadedLockStats* outStats) {
