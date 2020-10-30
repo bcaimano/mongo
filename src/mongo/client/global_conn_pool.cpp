@@ -46,6 +46,8 @@ auto getState = ServiceContext::declareDecoration<State>();
 
 auto connPoolActions = ServiceContext::ConstructorActionRegisterer(
     "GlobalConnPoolInit",
+    {"PeriodicRunnerInit"},
+    {},
     [](ServiceContext* serviceContext) {
         auto& state = getState(serviceContext);
 
@@ -54,14 +56,14 @@ auto connPoolActions = ServiceContext::ConstructorActionRegisterer(
         state.pool.setMaxInUse(maxInUseConnsPerHost);
         state.pool.setIdleTimeout(globalConnPoolIdleTimeout);
 
-        state.cleanerJob = getGlobalServiceContext()->getPeriodicRunner()->makeJob(
+        state.cleanerJob = serviceContext->getPeriodicRunner()->makeJob(
             {"DBConnectionPool-cleaner",
+
              [](Client* client) {
                  auto& state = getState(client->getServiceContext());
                  state.pool.cleanStaleConnections();
              },
              Minutes(1)});
-        state.cleanerJob.start();
     },
     [](ServiceContext* serviceContext) {
         auto& state = getState(serviceContext);
@@ -76,4 +78,11 @@ DBConnectionPool& getGlobalConnPool() {
     return getState(serviceContext).pool;
 }
 
+void startGlobalConnPool() {
+    auto serviceContext = getGlobalServiceContext();
+    invariant(serviceContext);
+
+    auto& state = getState(serviceContext);
+    state.cleanerJob.start();
+}
 }  // namespace mongo

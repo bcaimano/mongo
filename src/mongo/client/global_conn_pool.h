@@ -38,5 +38,6 @@ namespace mongo {
  * Global connection pool (used by all references to the internal DB client).
  */
 DBConnectionPool& getGlobalConnPool();
+void startGlobalConnPool();
 
 }  // namespace mongo
