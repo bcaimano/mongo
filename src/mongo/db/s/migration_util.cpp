@@ -188,24 +188,30 @@ void retryIdempotentWorkAsPrimaryUntilSuccessOrStepdown(
         }
     }
 }
+struct MueState {
+    Mutex mutex = MONGO_MAKE_LATCH("MigrationUtilExecutor::_mutex");
+    std::shared_ptr<ThreadPool> executor;
+};
 
+auto getMueState = ServiceContext::declareDecoration<MueState>();
 }  // namespace
 
 std::shared_ptr<ThreadPool> getMigrationUtilExecutor() {
-    static Mutex mutex = MONGO_MAKE_LATCH("MigrationUtilExecutor::_mutex");
-    static std::shared_ptr<ThreadPool> executor;
+    auto serviceContext = getGlobalServiceContext();
+    invariant(serviceContext);
 
-    stdx::lock_guard<Latch> lg(mutex);
-    if (!executor) {
+    auto& state = getMueState(serviceContext);
+    stdx::lock_guard<Latch> lg(state.mutex);
+    if (!state.executor) {
         ThreadPool::Options options;
         options.poolName = "MoveChunk";
         options.minThreads = 0;
         options.maxThreads = 16;
-        executor = std::make_shared<ThreadPool>(std::move(options));
-        executor->startup();
+        state.executor = std::make_shared<ThreadPool>(std::move(options));
+        state.executor->startup();
     }
 
-    return executor;
+    return state.executor;
 }
 
 BSONObj makeMigrationStatusDocument(const NamespaceString& nss,
