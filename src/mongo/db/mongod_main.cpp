@@ -1306,9 +1306,12 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
 #endif
 
     FlowControl::shutdown(serviceContext);
+
+    /**
 #ifdef MONGO_CONFIG_SSL
     OCSPManager::shutdown(serviceContext);
 #endif
+    **/
 }
 
 }  // namespace
