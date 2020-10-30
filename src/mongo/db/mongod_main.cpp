@@ -638,9 +638,10 @@ void startMongoD(ServiceContext* serviceContext) {
             logStartup(startupOpCtx.get());
         }
 
-        startMongoDFTDC();
+        // FTDC has a mystery error around interim file rotation.
+        // startMongoDFTDC();
 
-        startFreeMonitoring(serviceContext);
+        // startFreeMonitoring(serviceContext);
 
         auto replCoord = repl::ReplicationCoordinator::get(startupOpCtx.get());
         invariant(replCoord);
@@ -1254,12 +1255,12 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
     }
 #endif
 
-    LOGV2(4784925, "Shutting down free monitoring");
-    stopFreeMonitoring();
+    // LOGV2(4784925, "Shutting down free monitoring");
+    // stopFreeMonitoring();
 
     // Shutdown Full-Time Data Capture
-    LOGV2_OPTIONS(4784926, {LogComponent::kFTDC}, "Shutting down full-time data capture");
-    stopMongoDFTDC();
+    // LOGV2_OPTIONS(4784926, {LogComponent::kFTDC}, "Shutting down full-time data capture");
+    // stopMongoDFTDC();
 
     LOGV2(4784927, "Shutting down the HealthLog");
     HealthLog::get(serviceContext).shutdown();
