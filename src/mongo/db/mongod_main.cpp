@@ -374,6 +374,8 @@ void startMongoD(ServiceContext* serviceContext) {
 
     logProcessDetails(nullptr);
 
+    startGlobalLockManager();
+
     serviceContext->setServiceEntryPoint(std::make_unique<ServiceEntryPointMongod>(serviceContext));
 
     /*
@@ -743,6 +745,7 @@ void startMongoD(ServiceContext* serviceContext) {
     uassertStatusOK(serviceContext->getServiceEntryPoint()->start());
     if (!getStaticStorageParams().repair) {
         uassertStatusOK(serviceContext->getTransportLayer()->start());
+        startGlobalConnPool();
     }
 }
 
