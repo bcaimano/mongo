@@ -29,20 +29,42 @@
 
 #include "mongo/db/global_settings.h"
 
+#include "mongo/db/service_context.h"
+
 namespace mongo {
 
 MongodGlobalParams mongodGlobalParams;
 
 namespace {
-repl::ReplSettings globalReplSettings;
+repl::ReplSettings initialReplSettings;
+auto getReplSettings = ServiceContext::declareDecoration<boost::optional<repl::ReplSettings>>();
 }  // namespace
 
 void setGlobalReplSettings(const repl::ReplSettings& settings) {
-    globalReplSettings = settings;
+    auto serviceContext = getGlobalServiceContext();
+    if (!serviceContext) {
+        initialReplSettings = settings;
+    } else {
+        getReplSettings(serviceContext) = settings;
+    }
+}
+
+void setReplSettings(ServiceContext* serviceContext, const repl::ReplSettings& settings) {
+    getReplSettings(serviceContext) = settings;
 }
 
 const repl::ReplSettings& getGlobalReplSettings() {
-    return globalReplSettings;
+    auto serviceContext = getGlobalServiceContext();
+    if (!serviceContext) {
+        return initialReplSettings;
+    }
+
+    auto& replSettings = getReplSettings(serviceContext);
+    if (!replSettings) {
+        return initialReplSettings;
+    }
+
+    return *replSettings;
 }
 
 }  // namespace mongo

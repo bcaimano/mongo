@@ -42,5 +42,6 @@ struct MongodGlobalParams {
 extern MongodGlobalParams mongodGlobalParams;
 
 void setGlobalReplSettings(const repl::ReplSettings& settings);
+void setReplSettings(ServiceContext* serviceContext, const repl::ReplSettings& settings);
 const repl::ReplSettings& getGlobalReplSettings();
 }  // namespace mongo

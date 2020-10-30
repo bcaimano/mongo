@@ -922,7 +922,6 @@ void setUpReplication(ServiceContext* serviceContext) {
 
     auto replCoord = std::make_unique<repl::ReplicationCoordinatorImpl>(
         serviceContext,
-        getGlobalReplSettings(),
         std::make_unique<repl::ReplicationCoordinatorExternalStateImpl>(
             serviceContext, dropPendingCollectionReaper, storageInterface, replicationProcess),
         makeReplicationExecutor(serviceContext),

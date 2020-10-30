@@ -90,7 +90,6 @@ class ReplicationCoordinatorImpl : public ReplicationCoordinator {
 
 public:
     ReplicationCoordinatorImpl(ServiceContext* serviceContext,
-                               const ReplSettings& settings,
                                std::unique_ptr<ReplicationCoordinatorExternalState> externalState,
                                std::unique_ptr<executor::TaskExecutor> executor,
                                std::unique_ptr<TopologyCoordinator> topoCoord,
@@ -1507,9 +1506,6 @@ private:
 
     // Back pointer to the ServiceContext that has started the instance.
     ServiceContext* const _service;  // (S)
-
-    // Parsed command line arguments related to replication.
-    const ReplSettings _settings;  // (R)
 
     // Mode of replication specified by _settings.
     const Mode _replMode;  // (R)

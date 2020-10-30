@@ -42,6 +42,7 @@
 
 #include "mongo/base/status.h"
 #include "mongo/db/commands/test_commands_enabled.h"
+#include "mongo/db/global_settings.h"
 #include "mongo/db/index_builds_coordinator.h"
 #include "mongo/db/kill_sessions_local.h"
 #include "mongo/db/operation_context.h"
@@ -106,7 +107,7 @@ void ReplicationCoordinatorImpl::_doMemberHeartbeat(executor::TaskExecutor::Call
     BSONObj heartbeatObj;
     Milliseconds timeout(0);
     const std::pair<ReplSetHeartbeatArgsV1, Milliseconds> hbRequest =
-        _topCoord->prepareHeartbeatRequestV1(now, _settings.ourSetName(), target);
+        _topCoord->prepareHeartbeatRequestV1(now, getGlobalReplSettings().ourSetName(), target);
     heartbeatObj = hbRequest.first.toBSON();
     timeout = hbRequest.second;
 
@@ -302,10 +303,9 @@ void ReplicationCoordinatorImpl::_handleHeartbeatResponse(
                 // exception because a node can't downgrade the binary version until its FCV
                 // document is fully downgraded. So, its impossible for a node with downgraded
                 // binaries to have on-disk repl config with 'newlyAdded' fields.
-                invariant(
-                    _supportsAutomaticReconfig() ||
-                    getFeatureCompatibility().isGreaterThan(
-                        FeatureCompatibility::Version::kFullyDowngradedTo44));
+                invariant(_supportsAutomaticReconfig() ||
+                          getFeatureCompatibility().isGreaterThan(
+                              FeatureCompatibility::Version::kFullyDowngradedTo44));
 
                 const auto memId = mem->getId();
                 auto status = _replExecutor->scheduleWork(

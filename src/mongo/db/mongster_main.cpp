@@ -33,6 +33,7 @@
 
 #include "mongo/db/mongster_main.h"
 
+#include "mongo/db/global_settings.h"
 #include "mongo/db/main_initializer.h"
 #include "mongo/db/mongod_main.h"
 #include "mongo/db/storage/storage_options.h"
@@ -69,6 +70,13 @@ int mongster_main(int argc, char* argv[]) {
             setStaticStorageParams(mongod1.serviceContext().get(), std::move(staticParams));
         }
 
+        {
+            auto staticParams = getGlobalReplSettings();
+            staticParams.setReplSetString("rs1");
+
+            setReplSettings(mongod1.serviceContext().get(), staticParams);
+        }
+
         mongod1.start();
     });
 
@@ -86,6 +94,13 @@ int mongster_main(int argc, char* argv[]) {
             staticParams.dbpath = "/data/db-2";
 
             setStaticStorageParams(mongod2.serviceContext().get(), std::move(staticParams));
+        }
+
+        {
+            auto staticParams = getGlobalReplSettings();
+            staticParams.setReplSetString("rs2");
+
+            setReplSettings(mongod2.serviceContext().get(), staticParams);
         }
 
         mongod2.start();

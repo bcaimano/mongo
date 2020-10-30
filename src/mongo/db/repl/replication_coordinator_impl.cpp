@@ -58,6 +58,7 @@
 #include "mongo/db/curop.h"
 #include "mongo/db/curop_failpoint_helpers.h"
 #include "mongo/db/dbdirectclient.h"
+#include "mongo/db/global_settings.h"
 #include "mongo/db/index/index_descriptor.h"
 #include "mongo/db/index_builds_coordinator.h"
 #include "mongo/db/kill_sessions_local.h"
@@ -297,7 +298,6 @@ InitialSyncerOptions createInitialSyncerOptions(
 
 ReplicationCoordinatorImpl::ReplicationCoordinatorImpl(
     ServiceContext* service,
-    const ReplSettings& settings,
     std::unique_ptr<ReplicationCoordinatorExternalState> externalState,
     std::unique_ptr<executor::TaskExecutor> executor,
     std::unique_ptr<TopologyCoordinator> topCoord,
@@ -305,8 +305,7 @@ ReplicationCoordinatorImpl::ReplicationCoordinatorImpl(
     StorageInterface* storage,
     int64_t prngSeed)
     : _service(service),
-      _settings(settings),
-      _replMode(getReplicationModeFromSettings(settings)),
+      _replMode(getReplicationModeFromSettings(getGlobalReplSettings())),
       _topCoord(std::move(topCoord)),
       _replExecutor(std::move(executor)),
       _externalState(std::move(externalState)),
@@ -315,7 +314,8 @@ ReplicationCoordinatorImpl::ReplicationCoordinatorImpl(
       _rsConfigState(kConfigPreStart),
       _selfIndex(-1),
       _sleptLastElection(false),
-      _readWriteAbility(std::make_unique<ReadWriteAbility>(!settings.usingReplSets())),
+      _readWriteAbility(
+          std::make_unique<ReadWriteAbility>(!getGlobalReplSettings().usingReplSets())),
       _replicationProcess(replicationProcess),
       _storage(storage),
       _random(prngSeed) {
@@ -590,7 +590,7 @@ void ReplicationCoordinatorImpl::_finishLoadLocalConfig(
         }
     }
 
-    if (localConfig.getReplSetName() != _settings.ourSetName()) {
+    if (localConfig.getReplSetName() != getGlobalReplSettings().ourSetName()) {
         LOGV2_WARNING(21406,
                       "Local replica set configuration document reports set name of "
                       "{localConfigSetName}, but command line reports "
@@ -598,7 +598,7 @@ void ReplicationCoordinatorImpl::_finishLoadLocalConfig(
                       "Local replica set configuration document set name differs from command line "
                       "set name; waiting for reconfig or remote heartbeat",
                       "localConfigSetName"_attr = localConfig.getReplSetName(),
-                      "commandLineSetName"_attr = _settings.ourSetName());
+                      "commandLineSetName"_attr = getGlobalReplSettings().ourSetName());
         myIndex = StatusWith<int>(-1);
     }
     LOGV2_DEBUG(4280509, 1, "Local configuration validated for startup");
@@ -893,7 +893,7 @@ void ReplicationCoordinatorImpl::startup(
         return;
     }
 
-    invariant(_settings.usingReplSets());
+    invariant(getGlobalReplSettings().usingReplSets());
     invariant(!ReplSettings::shouldRecoverFromOplogAsStandalone());
 
     _storage->initializeStorageControlsForReplication(opCtx->getServiceContext());
@@ -957,7 +957,7 @@ void ReplicationCoordinatorImpl::shutdown(OperationContext* opCtx) {
     // * wake up all existing threads blocking in awaitReplication
     // * Shut down and join the execution resources it owns.
 
-    if (!_settings.usingReplSets()) {
+    if (!getGlobalReplSettings().usingReplSets()) {
         return;
     }
 
@@ -1018,7 +1018,7 @@ void ReplicationCoordinatorImpl::markAsCleanShutdownIfPossible(OperationContext*
 }
 
 const ReplSettings& ReplicationCoordinatorImpl::getSettings() const {
-    return _settings;
+    return getGlobalReplSettings();
 }
 
 ReplicationCoordinator::Mode ReplicationCoordinatorImpl::getReplicationMode() const {
@@ -2785,7 +2785,7 @@ void ReplicationCoordinatorImpl::_handleTimePassing(
 }
 
 bool ReplicationCoordinatorImpl::isMasterForReportingPurposes() {
-    if (!_settings.usingReplSets()) {
+    if (!getGlobalReplSettings().usingReplSets()) {
         return true;
     }
 
@@ -3214,17 +3214,17 @@ Status ReplicationCoordinatorImpl::processReplSetReconfig(OperationContext* opCt
             return Status(ErrorCodes::InvalidReplicaSetConfig, status.reason());
         }
 
-        if (newConfig.getReplSetName() != _settings.ourSetName()) {
+        if (newConfig.getReplSetName() != getGlobalReplSettings().ourSetName()) {
             static constexpr char errmsg[] =
                 "Rejecting reconfig where new config set name differs from command line set name";
             LOGV2_ERROR(21419,
                         errmsg,
                         "newConfigSetName"_attr = newConfig.getReplSetName(),
-                        "commandLineSetName"_attr = _settings.ourSetName());
+                        "commandLineSetName"_attr = getGlobalReplSettings().ourSetName());
             return Status(ErrorCodes::InvalidReplicaSetConfig,
-                          str::stream()
-                              << errmsg << ", new config set name: " << newConfig.getReplSetName()
-                              << ", command line set name: " << _settings.ourSetName());
+                          str::stream() << errmsg << ", new config set name: "
+                                        << newConfig.getReplSetName() << ", command line set name: "
+                                        << getGlobalReplSettings().ourSetName());
         }
 
         if (args.force) {
@@ -3310,8 +3310,8 @@ Status ReplicationCoordinatorImpl::doReplSetReconfig(OperationContext* opCtx,
             return Status(ErrorCodes::NotYetInitialized,
                           "Node not yet initialized; use the replSetInitiate command");
         case kConfigReplicationDisabled:
-            invariant(
-                false);  // should be unreachable due to !_settings.usingReplSets() check above
+            invariant(false);  // should be unreachable due to
+                               // !getGlobalReplSettings().usingReplSets() check above
         case kConfigInitiating:
         case kConfigReconfiguring:
         case kConfigHBReconfiguring:
@@ -3788,7 +3788,7 @@ Status ReplicationCoordinatorImpl::processReplSetInitiate(OperationContext* opCt
                                                           BSONObjBuilder* resultObj) {
     LOGV2(21356, "replSetInitiate admin command received from client");
 
-    const auto replEnabled = _settings.usingReplSets();
+    const auto replEnabled = getGlobalReplSettings().usingReplSets();
     stdx::unique_lock<Latch> lk(_mutex);
     if (!replEnabled) {
         return Status(ErrorCodes::NoReplicationEnabled, "server is not running with --replSet");
@@ -3828,17 +3828,17 @@ Status ReplicationCoordinatorImpl::processReplSetInitiate(OperationContext* opCt
                     "config"_attr = configObj);
         return Status(ErrorCodes::InvalidReplicaSetConfig, status.reason());
     }
-    if (newConfig.getReplSetName() != _settings.ourSetName()) {
+    if (newConfig.getReplSetName() != getGlobalReplSettings().ourSetName()) {
         static constexpr char errmsg[] =
             "Rejecting initiate with a set name that differs from command line set name";
         LOGV2_ERROR(21424,
                     errmsg,
                     "initiateSetName"_attr = newConfig.getReplSetName(),
-                    "commandLineSetName"_attr = _settings.ourSetName());
+                    "commandLineSetName"_attr = getGlobalReplSettings().ourSetName());
         return Status(ErrorCodes::InvalidReplicaSetConfig,
                       str::stream()
                           << errmsg << ", initiate set name: " << newConfig.getReplSetName()
-                          << ", command line set name: " << _settings.ourSetName());
+                          << ", command line set name: " << getGlobalReplSettings().ourSetName());
     }
 
     StatusWith<int> myIndex =
@@ -4362,7 +4362,7 @@ ReplicationCoordinatorImpl::_setCurrentRSConfig(WithLock lk,
                                                 const ReplSetConfig& newConfig,
                                                 int myIndex) {
     invariant(newConfig.getProtocolVersion() == 1);
-    invariant(_settings.usingReplSets());
+    invariant(getGlobalReplSettings().usingReplSets());
     _cancelHeartbeats_inlock();
     _setConfigState_inlock(kConfigSteady);
 
@@ -4657,7 +4657,7 @@ WriteConcernOptions ReplicationCoordinatorImpl::getGetLastErrorDefault() {
 }
 
 Status ReplicationCoordinatorImpl::checkReplEnabledForCommand(BSONObjBuilder* result) {
-    if (!_settings.usingReplSets()) {
+    if (!getGlobalReplSettings().usingReplSets()) {
         if (getStaticServerParams().clusterRole == ClusterRole::ConfigServer) {
             result->append("info", "configsvr");  // for shell prompt
         }
@@ -5212,7 +5212,8 @@ Status ReplicationCoordinatorImpl::processHeartbeatV1(const ReplSetHeartbeatArgs
 
     auto senderHost(args.getSenderHost());
     const Date_t now = _replExecutor->now();
-    result = _topCoord->prepareHeartbeatResponseV1(now, args, _settings.ourSetName(), response);
+    result = _topCoord->prepareHeartbeatResponseV1(
+        now, args, getGlobalReplSettings().ourSetName(), response);
 
     if ((result.isOK() || result == ErrorCodes::InvalidReplicaSetConfig) && _selfIndex < 0) {
         // If this node does not belong to the configuration it knows about, send heartbeats
