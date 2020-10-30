@@ -156,6 +156,14 @@ public:
     thread& operator=(thread&& other) noexcept = default;
 
     /**
+     * Get the current thread context for binding and make sure we're allowed to make threads.
+     */
+    static auto getParentThreadContext() {
+        ThreadSafetyContext::getThreadSafetyContext()->onThreadCreate();
+        return ThreadContext::get();
+    }
+
+    /**
      * As of C++14, the Function overload for std::thread requires that this constructor only
      * participate in overload resolution if std::decay_t<Function> is not the same type as thread.
      * That prevents this overload from intercepting calls that might generate implicit conversions
@@ -171,7 +179,7 @@ public:
     explicit thread(Function f, Args&&... args) noexcept
         : ::std::thread::thread(  // NOLINT
               [
-                  parentThreadContext = ThreadContext::get(),
+                  parentThreadContext = getParentThreadContext(),
                   sigAltStackController = support::SigAltStackController(),
                   f = std::move(f),
                   pack = std::make_tuple(std::forward<Args>(args)...)
