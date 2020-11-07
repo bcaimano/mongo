@@ -754,6 +754,20 @@ StringData getProtoString(int op) {
     }
     MONGO_UNREACHABLE;
 }
+
+struct CachedClientMetadata {
+    BSONObj document;
+    StringData appName;  // This refers to a string in _document.
+};
+
+CachedClientMetadata getClientMetadata(Client* client) {
+    auto lk = stdx::lock_guard(*client);
+    if (auto meta = ClientMetadata::get(client)) {
+        return {meta->getDocument(), meta->getApplicationName()};
+    }
+
+    return {};
+}
 }  // namespace
 
 #define OPDEBUG_TOSTRING_HELP(x) \
@@ -781,11 +795,9 @@ string OpDebug::report(OperationContext* opCtx, const SingleThreadedLockStats* l
 
     s << curop.getNS();
 
-    if (auto clientMetadata = ClientMetadata::get(client)) {
-        auto appName = clientMetadata->getApplicationName();
-        if (!appName.empty()) {
-            s << " appName: \"" << str::escape(appName) << '\"';
-        }
+    auto [_, appName] = getClientMetadata(client);
+    if (!appName.empty()) {
+        s << " appName: \"" << str::escape(appName) << '\"';
     }
 
     auto query = appendCommentField(opCtx, curop.opDescription());
@@ -952,11 +964,9 @@ void OpDebug::report(OperationContext* opCtx,
 
     pAttrs->addDeepCopy("ns", curop.getNS());
 
-    if (auto clientMetadata = ClientMetadata::get(client)) {
-        StringData appName = clientMetadata->getApplicationName();
-        if (!appName.empty()) {
-            pAttrs->add("appName", appName);
-        }
+    auto [_, appName] = getClientMetadata(client);
+    if (!appName.empty()) {
+        pAttrs->add("appName", appName);
     }
 
     auto query = appendCommentField(opCtx, curop.opDescription());
@@ -1294,11 +1304,10 @@ std::function<BSONObj(ProfileFilter::Args)> OpDebug::appendStaged(StringSet requ
         b.append(field, args.opCtx->getClient()->clientAddress());
     });
     addIfNeeded("appName", [](auto field, auto args, auto& b) {
-        if (auto clientMetadata = ClientMetadata::get(args.opCtx->getClient())) {
-            auto appName = clientMetadata->getApplicationName();
-            if (!appName.empty()) {
-                b.append(field, appName);
-            }
+        auto client = args.opCtx->getClient();
+        auto [_, appName] = getClientMetadata(client);
+        if (!appName.empty()) {
+            b.append(field, appName);
         }
     });
     bool needsAllUsers = needs("allUsers");
