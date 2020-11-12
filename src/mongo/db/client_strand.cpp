@@ -35,6 +35,7 @@
 
 #include "mongo/logv2/log.h"
 #include "mongo/util/concurrency/thread_name.h"
+#include "mongo/util/thread_context.h"
 
 namespace mongo {
 namespace {
@@ -66,12 +67,9 @@ void ClientStrand::_setCurrent() noexcept {
     Client::setCurrent(std::move(_client));
 
     // Set up the thread name.
-    auto oldThreadName = getThreadName();
-    StringData threadName = _clientPtr->desc();
-    if (oldThreadName != threadName) {
-        _oldThreadName = oldThreadName.toString();
-        setThreadName(threadName);
-        LOGV2_DEBUG(5127802, kDiagnosticLogLevel, "Set thread name", "name"_attr = threadName);
+    _oldThreadName = ThreadName::set(ThreadContext::get(), _threadName);
+    if (_oldThreadName != _threadName) {
+        LOGV2_DEBUG(5127802, kDiagnosticLogLevel, "Set thread name", "name"_attr = *_threadName);
     }
 }
 
@@ -83,13 +81,12 @@ void ClientStrand::_releaseCurrent() noexcept {
     _client = Client::releaseCurrent();
     invariant(_client.get() == _clientPtr, kUnableToRecoverClient);
 
-    if (!_oldThreadName.empty()) {
+    if (_oldThreadName && *_oldThreadName != *_threadName) {
         // Reset the old thread name.
-        setThreadName(_oldThreadName);
+        ThreadName::set(ThreadContext::get(), std::move(_oldThreadName));
+        LOGV2_DEBUG(
+            5127803, kDiagnosticLogLevel, "Released the Client", "client"_attr = _client->desc());
     }
-
-    LOGV2_DEBUG(
-        5127803, kDiagnosticLogLevel, "Released the Client", "client"_attr = _client->desc());
 }
 
 }  // namespace mongo
