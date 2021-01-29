@@ -60,10 +60,109 @@
 
 #pragma once
 
+#include <list>
+#include <string>
+#include <vector>
+
+#include <boost/optional.hpp>
+
+#include "mongo/base/init.h"
 #include "mongo/util/decoration_container.h"
 #include "mongo/util/decoration_registry.h"
 
 namespace mongo {
+namespace decorable_util {
+
+//
+// These onDestroy and onCreate functions are utilities for correctly executing supplemental
+// constructor and destructor methods for the ServiceContext, Client and OperationContext types.
+//
+// Note that destructors run in reverse order of constructors, and that failed construction
+// leads to corresponding destructors to run, similarly to how member variable construction and
+// destruction behave.
+//
+
+template <typename T, typename ObserversIterator>
+void onDestroy(T* object,
+               const ObserversIterator& observerBegin,
+               const ObserversIterator& observerEnd) {
+    try {
+        auto observer = observerEnd;
+        while (observer != observerBegin) {
+            --observer;
+            (*observer)->onDestroy(object);
+        }
+    } catch (...) {
+        std::terminate();
+    }
+}
+template <typename T, typename ObserversContainer>
+void onDestroy(T* object, const ObserversContainer& observers) {
+    onDestroy(object, observers.cbegin(), observers.cend());
+}
+
+template <typename T, typename ObserversIterator>
+void onCreate(T* object,
+              const ObserversIterator& observerBegin,
+              const ObserversIterator& observerEnd) {
+    auto observer = observerBegin;
+    try {
+        for (; observer != observerEnd; ++observer) {
+            (*observer)->onCreate(object);
+        }
+    } catch (...) {
+        onDestroy(object, observerBegin, observer);
+        throw;
+    }
+}
+
+template <typename T, typename ObserversContainer>
+void onCreate(T* object, const ObserversContainer& observers) {
+    onCreate(object, observers.cbegin(), observers.cend());
+}
+
+/**
+ * Registers a function to execute on new service contexts when they are created, and optionally
+ * also register a function to execute before those contexts are destroyed.
+ *
+ * Construct instances of this type during static initialization only, as they register
+ * MONGO_INITIALIZERS.
+ */
+template <typename T>
+class ConstructorDestructorActionsRegistererFor {
+public:
+    using ConstructorDestructorActions = typename T::ConstructorDestructorActions;
+    using ConstructorDestructorActionsList =
+        std::list<std::shared_ptr<ConstructorDestructorActions>>;
+
+    /**
+     * Accessor function to get the global list of ServiceContext constructor and destructor
+     * functions.
+     */
+    static auto& actionList() {
+        static auto cal = ConstructorDestructorActionsList{};
+        return cal;
+    }
+
+    ConstructorDestructorActionsRegistererFor(std::string name,
+                                              std::vector<std::string> prereqs,
+                                              std::vector<std::string> dependents,
+                                              std::shared_ptr<ConstructorDestructorActions> actions)
+        : _registerer(std::move(name),
+                      [this, actions = std::move(actions)](InitializerContext*) mutable {
+                          _iter = actionList().emplace(actionList().end(), std::move(actions));
+                      },
+                      [this](DeinitializerContext*) { actionList().erase(_iter); },
+                      std::move(prereqs),
+                      std::move(dependents)) {}
+
+private:
+    const GlobalInitializerRegisterer _registerer;
+
+    typename ConstructorDestructorActionsList::iterator _iter;
+};
+
+}  // namespace decorable_util
 
 template <typename D>
 class Decorable {
@@ -130,6 +229,19 @@ public:
     template <typename T>
     static Decoration<T> declareDecoration() {
         return Decoration<T>(getRegistry()->template declareDecoration<T>());
+    }
+
+    using ConstructorDestructorActionsRegisterer =
+        decorable_util::ConstructorDestructorActionsRegistererFor<D>;
+
+    void onCreate() {
+        decorable_util::onCreate(static_cast<D*>(this),
+                                 ConstructorDestructorActionsRegisterer::actionList());
+    }
+
+    void onDestroy() {
+        decorable_util::onDestroy(static_cast<D*>(this),
+                                  ConstructorDestructorActionsRegisterer::actionList());
     }
 
 protected:
@@ -207,6 +319,19 @@ public:
     template <typename T>
     static Decoration<T> declareDecoration() {
         return Decoration<T>(getRegistry()->template declareDecorationCopyable<T>());
+    }
+
+    using ConstructorDestructorActionsRegisterer =
+        decorable_util::ConstructorDestructorActionsRegistererFor<D>;
+
+    void onCreate() {
+        decorable_util::onCreate(static_cast<D*>(this),
+                                 ConstructorDestructorActionsRegisterer::actionList());
+    }
+
+    void onDestroy() {
+        decorable_util::onDestroy(static_cast<D*>(this),
+                                  ConstructorDestructorActionsRegisterer::actionList());
     }
 
 protected:

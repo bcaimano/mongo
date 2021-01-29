@@ -64,6 +64,31 @@ typedef long long ConnectionId;
 class Client final : public Decorable<Client> {
 public:
     /**
+     * Observer interface implemented to hook client and operation context creation and
+     * destruction.
+     */
+    class ConstructorDestructorActions {
+    public:
+        virtual ~ConstructorDestructorActions() = default;
+
+        /**
+         * Hook called after a new client "client" is created on a service by
+         * service->makeClient().
+         *
+         * For a given client and registered instance of ClientObserver, if onCreateClient
+         * returns without throwing an exception, onDestroyClient will be called when "client"
+         * is deleted.
+         */
+        virtual void onCreate(Client* client) = 0;
+
+        /**
+         * Hook called on a "client" created by a service before deleting "client".
+         *
+         * Like a destructor, must not throw exceptions.
+         */
+        virtual void onDestroy(Client* client) = 0;
+    };
+    /**
      * Creates a Client object and stores it in TLS for the current thread.
      *
      * An unowned pointer to a transport::Session may optionally be provided. If 'session'

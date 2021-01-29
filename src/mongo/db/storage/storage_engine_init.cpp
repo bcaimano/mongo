@@ -317,11 +317,9 @@ void appendStorageEngineList(ServiceContext* service, BSONObjBuilder* result) {
 
 namespace {
 
-class StorageClientObserver final : public ServiceContext::ClientObserver {
+class StorageOperationObserver final : public OperationContext::ConstructorDestructorActions {
 public:
-    void onCreateClient(Client* client) override{};
-    void onDestroyClient(Client* client) override{};
-    void onCreateOperationContext(OperationContext* opCtx) {
+    void onCreate(OperationContext* opCtx) {
         // Use a fully fledged lock manager even when the storage engine is not set.
         opCtx->setLockState(std::make_unique<LockerImpl>());
 
@@ -341,13 +339,11 @@ public:
         opCtx->setRecoveryUnit(std::unique_ptr<RecoveryUnit>(storageEngine->newRecoveryUnit()),
                                WriteUnitOfWork::RecoveryUnitState::kNotInUnitOfWork);
     }
-    void onDestroyOperationContext(OperationContext* opCtx) {}
+    void onDestroy(OperationContext* opCtx) {}
 };
 
-ServiceContext::ConstructorActionRegisterer registerStorageClientObserverConstructor{
-    "RegisterStorageClientObserverConstructor", [](ServiceContext* service) {
-        service->registerClientObserver(std::make_unique<StorageClientObserver>());
-    }};
+auto storageOperationObserverRegisterer = OperationContext::ConstructorDestructorActionsRegisterer{
+    "StorageOperationObserver", {}, {}, std::make_shared<StorageOperationObserver>()};
 
 }  // namespace
 }  // namespace mongo

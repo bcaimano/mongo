@@ -51,24 +51,19 @@ const auto getAuthorizationManager =
 const auto getAuthorizationSession =
     Client::declareDecoration<std::unique_ptr<AuthorizationSession>>();
 
-class AuthzClientObserver final : public ServiceContext::ClientObserver {
+class AuthzClientObserver final : public Client::ConstructorDestructorActions {
 public:
-    void onCreateClient(Client* client) override {
+    void onCreate(Client* client) override {
         if (auto authzManager = AuthorizationManager::get(client->getServiceContext())) {
             AuthorizationSession::set(client, authzManager->makeAuthorizationSession());
         }
     }
 
-    void onDestroyClient(Client* client) override {}
-
-    void onCreateOperationContext(OperationContext* opCtx) override {}
-    void onDestroyOperationContext(OperationContext* opCtx) override {}
+    void onDestroy(Client* client) override {}
 };
 
-ServiceContext::ConstructorActionRegisterer authzClientObserverRegisterer{
-    "AuthzClientObserver", [](ServiceContext* service) {
-        service->registerClientObserver(std::make_unique<AuthzClientObserver>());
-    }};
+auto authzClientObserverRegisterer = Client::ConstructorDestructorActionsRegisterer{
+    "AuthzClientObserver", {}, {}, std::make_shared<AuthzClientObserver>()};
 
 ServiceContext::ConstructorActionRegisterer destroyAuthorizationManagerRegisterer(
     "DestroyAuthorizationManager",

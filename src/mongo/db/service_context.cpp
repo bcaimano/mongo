@@ -57,8 +57,6 @@
 namespace mongo {
 namespace {
 
-using ConstructorActionList = std::list<ServiceContext::ConstructorDestructorActions>;
-
 ServiceContext* globalServiceContext = nullptr;
 
 AtomicWord<int> _numCurrentOps{0};
@@ -113,62 +111,10 @@ ServiceContext::~ServiceContext() {
     invariant(_clients.empty());
 }
 
-namespace {
-
-//
-// These onDestroy and onCreate functions are utilities for correctly executing supplemental
-// constructor and destructor methods for the ServiceContext, Client and OperationContext types.
-//
-// Note that destructors run in reverse order of constructors, and that failed construction
-// leads to corresponding destructors to run, similarly to how member variable construction and
-// destruction behave.
-//
-
-template <typename T, typename ObserversIterator>
-void onDestroy(T* object,
-               const ObserversIterator& observerBegin,
-               const ObserversIterator& observerEnd) {
-    try {
-        auto observer = observerEnd;
-        while (observer != observerBegin) {
-            --observer;
-            observer->onDestroy(object);
-        }
-    } catch (...) {
-        std::terminate();
-    }
-}
-template <typename T, typename ObserversContainer>
-void onDestroy(T* object, const ObserversContainer& observers) {
-    onDestroy(object, observers.cbegin(), observers.cend());
-}
-
-template <typename T, typename ObserversIterator>
-void onCreate(T* object,
-              const ObserversIterator& observerBegin,
-              const ObserversIterator& observerEnd) {
-    auto observer = observerBegin;
-    try {
-        for (; observer != observerEnd; ++observer) {
-            observer->onCreate(object);
-        }
-    } catch (...) {
-        onDestroy(object, observerBegin, observer);
-        throw;
-    }
-}
-
-template <typename T, typename ObserversContainer>
-void onCreate(T* object, const ObserversContainer& observers) {
-    onCreate(object, observers.cbegin(), observers.cend());
-}
-
-}  // namespace
-
 ServiceContext::UniqueClient ServiceContext::makeClient(std::string desc,
                                                         transport::SessionHandle session) {
     std::unique_ptr<Client> client(new Client(std::move(desc), this, std::move(session)));
-    onCreate(client.get(), _clientObservers);
+    client->onCreate();
     {
         stdx::lock_guard<Latch> lk(_mutex);
         invariant(_clients.insert(client.get()).second);
@@ -229,7 +175,7 @@ void ServiceContext::ClientDeleter::operator()(Client* client) const {
         stdx::lock_guard<Latch> lk(service->_mutex);
         invariant(service->_clients.erase(client));
     }
-    onDestroy(client, service->_clientObservers);
+    client->onDestroy();
     delete client;
 }
 
@@ -239,7 +185,7 @@ ServiceContext::UniqueOperationContext ServiceContext::makeOperationContext(Clie
         _numCurrentOps.addAndFetch(1);
     }
 
-    onCreate(opCtx.get(), _clientObservers);
+    opCtx->onCreate();
     if (!opCtx->lockState()) {
         opCtx->setLockState(std::make_unique<LockerNoop>());
     }
@@ -288,7 +234,7 @@ void ServiceContext::OperationContextDeleter::operator()(OperationContext* opCtx
     service->_delistOperation(opCtx);
     opCtx->getBaton()->detach();
 
-    onDestroy(opCtx, service->_clientObservers);
+    opCtx->onDestroy();
     delete opCtx;
 }
 
@@ -300,10 +246,6 @@ LockedClient ServiceContext::getLockedClient(OperationId id) {
     }
 
     return LockedClient(it->second);
-}
-
-void ServiceContext::registerClientObserver(std::unique_ptr<ClientObserver> observer) {
-    _clientObservers.emplace_back(std::move(observer));
 }
 
 ServiceContext::LockedClientsCursor::LockedClientsCursor(ServiceContext* service)
@@ -433,60 +375,14 @@ int ServiceContext::getActiveClientOperations() {
     return _numCurrentOps.load();
 }
 
-namespace {
-
-/**
- * Accessor function to get the global list of ServiceContext constructor and destructor
- * functions.
- */
-ConstructorActionList& registeredConstructorActions() {
-    static ConstructorActionList cal;
-    return cal;
-}
-
-}  // namespace
-
-ServiceContext::ConstructorActionRegisterer::ConstructorActionRegisterer(
-    std::string name, ConstructorAction constructor, DestructorAction destructor)
-    : ConstructorActionRegisterer(
-          std::move(name), {}, std::move(constructor), std::move(destructor)) {}
-
-ServiceContext::ConstructorActionRegisterer::ConstructorActionRegisterer(
-    std::string name,
-    std::vector<std::string> prereqs,
-    ConstructorAction constructor,
-    DestructorAction destructor)
-    : ConstructorActionRegisterer(
-          std::move(name), prereqs, {}, std::move(constructor), std::move(destructor)) {}
-
-ServiceContext::ConstructorActionRegisterer::ConstructorActionRegisterer(
-    std::string name,
-    std::vector<std::string> prereqs,
-    std::vector<std::string> dependents,
-    ConstructorAction constructor,
-    DestructorAction destructor) {
-    if (!destructor)
-        destructor = [](ServiceContext*) {};
-    _registerer.emplace(
-        std::move(name),
-        [this, constructor, destructor](InitializerContext*) {
-            _iter = registeredConstructorActions().emplace(registeredConstructorActions().end(),
-                                                           std::move(constructor),
-                                                           std::move(destructor));
-        },
-        [this](DeinitializerContext*) { registeredConstructorActions().erase(_iter); },
-        std::move(prereqs),
-        std::move(dependents));
-}
-
 ServiceContext::UniqueServiceContext ServiceContext::make() {
     auto service = std::make_unique<ServiceContext>();
-    onCreate(service.get(), registeredConstructorActions());
+    service->onCreate();
     return UniqueServiceContext{service.release()};
 }
 
 void ServiceContext::ServiceContextDeleter::operator()(ServiceContext* service) const {
-    onDestroy(service, registeredConstructorActions());
+    service->onDestroy();
     delete service;
 }
 

@@ -95,6 +95,29 @@ class OperationContext : public Interruptible, public Decorable<OperationContext
     OperationContext& operator=(const OperationContext&) = delete;
 
 public:
+    class ConstructorDestructorActions {
+    public:
+        virtual ~ConstructorDestructorActions() = default;
+
+        /**
+         * Hook called after a new operation context is created on a client by
+         * service->makeOperationContext(client)  or client->makeOperationContext().
+         *
+         * For a given operation context and registered instance of ClientObserver, if
+         * onCreateOperationContext returns without throwing an exception,
+         * onDestroyOperationContext will be called when "opCtx" is deleted.
+         */
+        virtual void onCreate(OperationContext* opCtx) = 0;
+
+        /**
+         * Hook called on a "opCtx" created by a service before deleting "opCtx".
+         *
+         * Like a destructor, must not throw exceptions.
+         */
+        virtual void onDestroy(OperationContext* opCtx) = 0;
+    };
+
+
     OperationContext(Client* client, OperationId opId);
     virtual ~OperationContext();
 

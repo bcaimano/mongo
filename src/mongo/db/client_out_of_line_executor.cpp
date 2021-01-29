@@ -131,21 +131,19 @@ namespace {
  * destroyed. This is necessary to guarantee that `ClientOutOfLineExecutor::shutdown()` is executed
  * before the client decorations are destroyed. See SERVER-48901 for more details.
  */
-class ClientOutOfLineExecutorClientObserver final : public ServiceContext::ClientObserver {
-    void onCreateClient(Client*) {}
-    void onDestroyClient(Client* client) {
+class ClientOutOfLineExecutorClientObserver final : public Client::ConstructorDestructorActions {
+    void onCreate(Client*) {}
+    void onDestroy(Client* client) {
         ClientOutOfLineExecutor::get(client)->shutdown();
     }
-    void onCreateOperationContext(OperationContext*) {}
-    void onDestroyOperationContext(OperationContext*) {}
 };
 
-ServiceContext::ConstructorActionRegisterer
-    registerClientOutOfLineExecutorClientObserverConstructor{
-        "ClientOutOfLineExecutorClientObserverConstructor", [](ServiceContext* service) {
-            service->registerClientObserver(
-                std::make_unique<ClientOutOfLineExecutorClientObserver>());
-        }};
+auto clientOutOfLineExecutorClientObserverRegisterer =
+    Client::ConstructorDestructorActionsRegisterer{
+        "ClientOutOfLineExecutorClientObserver",
+        {},
+        {},
+        std::make_shared<ClientOutOfLineExecutorClientObserver>()};
 
 }  // namespace
 }  // namespace mongo

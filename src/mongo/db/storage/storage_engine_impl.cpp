@@ -86,7 +86,7 @@ StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
     // Replace the noop recovery unit for the startup operation context now that the storage engine
     // has been initialized. This is needed because at the time of startup, when the operation
     // context gets created, the storage engine initialization has not yet begun and so it gets
-    // assigned a noop recovery unit. See the StorageClientObserver class.
+    // assigned a noop recovery unit. See the StorageOperationObserver class.
     invariant(opCtx->recoveryUnit()->isNoop());
     opCtx->setRecoveryUnit(std::unique_ptr<RecoveryUnit>(_engine->newRecoveryUnit()),
                            WriteUnitOfWork::RecoveryUnitState::kNotInUnitOfWork);

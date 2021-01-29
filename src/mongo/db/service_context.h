@@ -149,49 +149,6 @@ class ServiceContext final : public Decorable<ServiceContext> {
     ServiceContext& operator=(const ServiceContext&) = delete;
 
 public:
-    /**
-     * Observer interface implemented to hook client and operation context creation and
-     * destruction.
-     */
-    class ClientObserver {
-    public:
-        virtual ~ClientObserver() = default;
-
-        /**
-         * Hook called after a new client "client" is created on a service by
-         * service->makeClient().
-         *
-         * For a given client and registered instance of ClientObserver, if onCreateClient
-         * returns without throwing an exception, onDestroyClient will be called when "client"
-         * is deleted.
-         */
-        virtual void onCreateClient(Client* client) = 0;
-
-        /**
-         * Hook called on a "client" created by a service before deleting "client".
-         *
-         * Like a destructor, must not throw exceptions.
-         */
-        virtual void onDestroyClient(Client* client) = 0;
-
-        /**
-         * Hook called after a new operation context is created on a client by
-         * service->makeOperationContext(client)  or client->makeOperationContext().
-         *
-         * For a given operation context and registered instance of ClientObserver, if
-         * onCreateOperationContext returns without throwing an exception,
-         * onDestroyOperationContext will be called when "opCtx" is deleted.
-         */
-        virtual void onCreateOperationContext(OperationContext* opCtx) = 0;
-
-        /**
-         * Hook called on a "opCtx" created by a service before deleting "opCtx".
-         *
-         * Like a destructor, must not throw exceptions.
-         */
-        virtual void onDestroyOperationContext(OperationContext* opCtx) = 0;
-    };
-
     using ClientSet = stdx::unordered_set<Client*>;
 
     /**
@@ -290,14 +247,8 @@ public:
         DestructorAction _destructor;
     };
 
-    /**
-     * Registers a function to execute on new service contexts when they are created, and optionally
-     * also register a function to execute before those contexts are destroyed.
-     *
-     * Construct instances of this type during static initialization only, as they register
-     * MONGO_INITIALIZERS.
-     */
-    class ConstructorActionRegisterer {
+    class ConstructorActionRegisterer
+        : public Decorable<ServiceContext>::ConstructorDestructorActionsRegisterer {
     public:
         /**
          * This constructor registers a constructor and optional destructor with the given
@@ -305,7 +256,13 @@ public:
          */
         ConstructorActionRegisterer(std::string name,
                                     ConstructorAction constructor,
-                                    DestructorAction destructor = {});
+                                    DestructorAction destructor = {})
+            : Decorable<ServiceContext>::ConstructorDestructorActionsRegisterer(
+                  std::move(name),
+                  {},
+                  {},
+                  std::make_shared<ConstructorDestructorActions>(std::move(constructor),
+                                                                 std::move(destructor))) {}
 
         /**
          * This constructor registers a constructor and optional destructor with the given
@@ -318,7 +275,13 @@ public:
         ConstructorActionRegisterer(std::string name,
                                     std::vector<std::string> prereqs,
                                     ConstructorAction constructor,
-                                    DestructorAction destructor = {});
+                                    DestructorAction destructor = {})
+            : Decorable<ServiceContext>::ConstructorDestructorActionsRegisterer(
+                  std::move(name),
+                  prereqs,
+                  {},
+                  std::make_shared<ConstructorDestructorActions>(std::move(constructor),
+                                                                 std::move(destructor))) {}
 
         /**
          * This constructor registers a constructor and optional destructor with the given
@@ -335,12 +298,13 @@ public:
                                     std::vector<std::string> prereqs,
                                     std::vector<std::string> dependents,
                                     ConstructorAction constructor,
-                                    DestructorAction destructor = {});
-
-    private:
-        using ConstructorActionListIterator = std::list<ConstructorDestructorActions>::iterator;
-        ConstructorActionListIterator _iter;
-        boost::optional<GlobalInitializerRegisterer> _registerer;
+                                    DestructorAction destructor = {})
+            : Decorable<ServiceContext>::ConstructorDestructorActionsRegisterer(
+                  std::move(name),
+                  prereqs,
+                  dependents,
+                  std::make_shared<ConstructorDestructorActions>(std::move(constructor),
+                                                                 std::move(destructor))) {}
     };
 
     /**
@@ -351,17 +315,6 @@ public:
 
     ServiceContext();
     ~ServiceContext();
-
-    /**
-     * Registers an observer of lifecycle events on Clients created by this ServiceContext.
-     *
-     * See the ClientObserver type, above, for details.
-     *
-     * All calls to registerClientObserver must complete before ServiceContext
-     * is used in multi-threaded operation, or is used to create clients via calls
-     * to makeClient.
-     */
-    void registerClientObserver(std::unique_ptr<ClientObserver> observer);
 
     /**
      * Creates a new Client object representing a client session associated with this
@@ -635,27 +588,6 @@ private:
         AtomicWord<T*> _ptr{nullptr};
     };
 
-    class ClientObserverHolder {
-    public:
-        explicit ClientObserverHolder(std::unique_ptr<ClientObserver> observer)
-            : _observer(std::move(observer)) {}
-        void onCreate(Client* client) const {
-            _observer->onCreateClient(client);
-        }
-        void onDestroy(Client* client) const {
-            _observer->onDestroyClient(client);
-        }
-        void onCreate(OperationContext* opCtx) const {
-            _observer->onCreateOperationContext(opCtx);
-        }
-        void onDestroy(OperationContext* opCtx) const {
-            _observer->onDestroyOperationContext(opCtx);
-        }
-
-    private:
-        std::unique_ptr<ClientObserver> _observer;
-    };
-
     /**
      * Removes the operation from its client and the `_clientByOperationId` of its service context.
      * It will acquire both client and service context locks, and should only be used internally by
@@ -686,10 +618,6 @@ private:
      */
     SyncUnique<StorageEngine> _storageEngine;
 
-    /**
-     * Vector of registered observers.
-     */
-    std::vector<ClientObserverHolder> _clientObservers;
     ClientSet _clients;
 
     stdx::unordered_map<OperationId, Client*> _clientByOperationId;

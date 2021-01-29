@@ -77,19 +77,17 @@ const auto primaryOnlyServiceStateForClient =
     Client::declareDecoration<PrimaryOnlyService::PrimaryOnlyServiceClientState>();
 
 /**
- * A ClientObserver that adds hooks for every time an OpCtx is created on a thread that is part of a
- * PrimaryOnlyService. OpCtxs created on PrimaryOnlyService threads get registered with the
+ * A OperationObserver that adds hooks for every time an OpCtx is created on a thread that is part
+ * of a PrimaryOnlyService. OpCtxs created on PrimaryOnlyService threads get registered with the
  * associated service, which can then ensure that all associated OpCtxs get interrupted any time
  * this service is interrupted due to a replica set stepDown. Additionally, we ensure that any
  * OpCtxs created while the node is *already* stepped down get created in an already-interrupted
  * state.
  */
-class PrimaryOnlyServiceClientObserver final : public ServiceContext::ClientObserver {
+class PrimaryOnlyServiceOperationObserver final
+    : public OperationContext::ConstructorDestructorActions {
 public:
-    void onCreateClient(Client* client) override {}
-    void onDestroyClient(Client* client) override {}
-
-    void onCreateOperationContext(OperationContext* opCtx) override {
+    void onCreate(OperationContext* opCtx) override {
         auto client = opCtx->getClient();
         auto clientState = primaryOnlyServiceStateForClient(client);
         if (!clientState.primaryOnlyService) {
@@ -112,7 +110,7 @@ public:
                                                       clientState.allowOpCtxWhenServiceRebuilding);
     }
 
-    void onDestroyOperationContext(OperationContext* opCtx) override {
+    void onDestroy(OperationContext* opCtx) override {
         auto client = opCtx->getClient();
         auto clientState = primaryOnlyServiceStateForClient(client);
         if (!clientState.primaryOnlyService) {
@@ -124,10 +122,12 @@ public:
     }
 };
 
-ServiceContext::ConstructorActionRegisterer primaryOnlyServiceClientObserverRegisterer{
-    "PrimaryOnlyServiceClientObserver", [](ServiceContext* service) {
-        service->registerClientObserver(std::make_unique<PrimaryOnlyServiceClientObserver>());
-    }};
+auto primaryOnlyServiceOperationObserverRegisterer =
+    OperationContext::ConstructorDestructorActionsRegisterer{
+        "PrimaryOnlyServiceOperationObserver",
+        {},
+        {},
+        std::make_shared<PrimaryOnlyServiceOperationObserver>()};
 
 }  // namespace
 
@@ -578,7 +578,7 @@ void PrimaryOnlyService::_rebuildInstances(long long term) noexcept {
                     "ns"_attr = ns,
                     "service"_attr = serviceName);
 
-        // The PrimaryOnlyServiceClientObserver will make any OpCtx created as part of a
+        // The PrimaryOnlyServiceOperationObserver will make any OpCtx created as part of a
         // PrimaryOnlyService immediately get interrupted if the service is not in state kRunning.
         // Since we are in State::kRebuilding here, we need to install a
         // AllowOpCtxWhenServiceNotRunningBlock so that the database read we need to do can complete
