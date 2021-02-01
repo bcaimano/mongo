@@ -236,10 +236,14 @@ public:
             : _constructor(std::move(constructor)), _destructor(std::move(destructor)) {}
 
         void onCreate(ServiceContext* service) const {
-            _constructor(service);
+            if (_constructor) {
+                _constructor(service);
+            }
         }
         void onDestroy(ServiceContext* service) const {
-            _destructor(service);
+            if (_destructor) {
+                _destructor(service);
+            }
         }
 
     private:
